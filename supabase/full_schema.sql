@@ -128,26 +128,44 @@ ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.posts ENABLE ROW LEVEL SECURITY;
 
--- Allow public read, authenticated write
-CREATE POLICY "Public Read Categories" ON public.categories FOR SELECT TO public USING (true);
-CREATE POLICY "Public Read Activities" ON public.activities FOR SELECT TO public USING (true);
-CREATE POLICY "Public Read Events" ON public.events FOR SELECT TO public USING (true);
-CREATE POLICY "Public Read Posts" ON public.posts FOR SELECT TO public USING (true);
-
--- Admin policies (requires auth)
-CREATE POLICY IF NOT EXISTS "Admin All Categories" ON public.categories FOR ALL TO authenticated USING (true);
-CREATE POLICY IF NOT EXISTS "Admin All Activities" ON public.activities FOR ALL TO authenticated USING (true);
-CREATE POLICY IF NOT EXISTS "Admin All Events" ON public.events FOR ALL TO authenticated USING (true);
-CREATE POLICY IF NOT EXISTS "Admin All Members" ON public.members FOR ALL TO authenticated USING (true);
-
 -- Allow anon to write posts and read members (admin UI uses anon key)
 ALTER TABLE public.registrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.marketing_assets ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "Public Read Members" ON public.members FOR SELECT TO public USING (true);
-CREATE POLICY IF NOT EXISTS "Public Read Registrations" ON public.registrations FOR SELECT TO public USING (true);
-CREATE POLICY IF NOT EXISTS "Anon Write Posts" ON public.posts FOR INSERT TO public WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "Anon Delete Posts" ON public.posts FOR DELETE TO public USING (true);
-CREATE POLICY IF NOT EXISTS "Anon Write Members" ON public.members FOR INSERT TO public WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "Anon Delete Members" ON public.members FOR DELETE TO public USING (true);
-CREATE POLICY IF NOT EXISTS "Anon Write Registrations" ON public.registrations FOR ALL TO public USING (true) WITH CHECK (true);
+-- Drop existing policies before recreating (PostgreSQL has no CREATE POLICY IF NOT EXISTS)
+DROP POLICY IF EXISTS "Public Read Categories" ON public.categories;
+DROP POLICY IF EXISTS "Public Read Activities" ON public.activities;
+DROP POLICY IF EXISTS "Public Read Events" ON public.events;
+DROP POLICY IF EXISTS "Public Read Posts" ON public.posts;
+DROP POLICY IF EXISTS "Public Read Members" ON public.members;
+DROP POLICY IF EXISTS "Public Read Registrations" ON public.registrations;
+DROP POLICY IF EXISTS "Admin All Categories" ON public.categories;
+DROP POLICY IF EXISTS "Admin All Activities" ON public.activities;
+DROP POLICY IF EXISTS "Admin All Events" ON public.events;
+DROP POLICY IF EXISTS "Admin All Members" ON public.members;
+DROP POLICY IF EXISTS "Anon Write Posts" ON public.posts;
+DROP POLICY IF EXISTS "Anon Delete Posts" ON public.posts;
+DROP POLICY IF EXISTS "Anon Write Members" ON public.members;
+DROP POLICY IF EXISTS "Anon Delete Members" ON public.members;
+DROP POLICY IF EXISTS "Anon Write Registrations" ON public.registrations;
+
+-- Public read policies
+CREATE POLICY "Public Read Categories" ON public.categories FOR SELECT TO public USING (true);
+CREATE POLICY "Public Read Activities" ON public.activities FOR SELECT TO public USING (true);
+CREATE POLICY "Public Read Events" ON public.events FOR SELECT TO public USING (true);
+CREATE POLICY "Public Read Posts" ON public.posts FOR SELECT TO public USING (true);
+CREATE POLICY "Public Read Members" ON public.members FOR SELECT TO public USING (true);
+CREATE POLICY "Public Read Registrations" ON public.registrations FOR SELECT TO public USING (true);
+
+-- Admin policies (requires Supabase Auth)
+CREATE POLICY "Admin All Categories" ON public.categories FOR ALL TO authenticated USING (true);
+CREATE POLICY "Admin All Activities" ON public.activities FOR ALL TO authenticated USING (true);
+CREATE POLICY "Admin All Events" ON public.events FOR ALL TO authenticated USING (true);
+CREATE POLICY "Admin All Members" ON public.members FOR ALL TO authenticated USING (true);
+
+-- Anon write policies (admin UI uses anon key)
+CREATE POLICY "Anon Write Posts" ON public.posts FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "Anon Delete Posts" ON public.posts FOR DELETE TO public USING (true);
+CREATE POLICY "Anon Write Members" ON public.members FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "Anon Delete Members" ON public.members FOR DELETE TO public USING (true);
+CREATE POLICY "Anon Write Registrations" ON public.registrations FOR ALL TO public USING (true) WITH CHECK (true);
