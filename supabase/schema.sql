@@ -80,6 +80,7 @@ BEGIN
 END
 $$;
 
+DROP TRIGGER IF EXISTS tz_activities_search_vector ON public.activities;
 CREATE TRIGGER tz_activities_search_vector
 BEFORE INSERT OR UPDATE ON public.activities
 FOR EACH ROW
@@ -91,9 +92,20 @@ ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.marketing_assets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.chat_sessions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow public read access on categories" ON public.categories;
 CREATE POLICY "Allow public read access on categories" ON public.categories FOR SELECT TO anon USING (true);
+
+DROP POLICY IF EXISTS "Allow public read access on activities" ON public.activities;
 CREATE POLICY "Allow public read access on activities" ON public.activities FOR SELECT TO anon USING (true);
+
+DROP POLICY IF EXISTS "Allow admin full access on categories" ON public.categories;
 CREATE POLICY "Allow admin full access on categories" ON public.categories FOR ALL TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "Allow admin full access on activities" ON public.activities;
 CREATE POLICY "Allow admin full access on activities" ON public.activities FOR ALL TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "Allow admin full access on marketing" ON public.marketing_assets;
 CREATE POLICY "Allow admin full access on marketing" ON public.marketing_assets FOR ALL TO authenticated USING (true);
+
+DROP POLICY IF EXISTS "Allow public full access to sessions" ON public.chat_sessions;
 CREATE POLICY "Allow public full access to sessions" ON public.chat_sessions FOR ALL USING (true);
