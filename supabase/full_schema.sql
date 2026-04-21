@@ -112,6 +112,7 @@ BEGIN
 END
 $$;
 
+DROP TRIGGER IF EXISTS tz_activities_search_vector ON public.activities;
 CREATE TRIGGER tz_activities_search_vector
 BEFORE INSERT OR UPDATE ON public.activities
 FOR EACH ROW EXECUTE FUNCTION trigger_set_search_vector();
