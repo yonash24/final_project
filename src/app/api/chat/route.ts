@@ -7,7 +7,7 @@
  *  2. Classify the intent via Gemini (JSON mode)
  *  3. Query Supabase based on the classified intent
  *  4. Send DB results + message to Gemini for a friendly Hebrew response
- *  5. Return the response
+ *  5. Return response + raw card data for UI rendering
  */
 
 import { NextRequest } from 'next/server';
@@ -16,16 +16,18 @@ import { classifyIntent, type ChatMessage } from '@/lib/ai/intent-classifier';
 import { getChatModel } from '@/lib/ai/gemini';
 import {
     CHAT_SYSTEM_PROMPT,
-    GREETING_MESSAGE,
     formatActivitiesForContext,
     formatEventsForContext,
 } from '@/lib/ai/prompts';
+import { GREETING_MESSAGE } from '@/lib/ai/chat-constants';
 import {
     searchActivities,
     searchEvents,
     getActivityByName,
     getUpcomingEvents,
     getCategories,
+    type ActivityRow,
+    type EventRow,
 } from '@/lib/db/chat-queries';
 
 // ─── Rate-limit (simple in-memory) ─────────────────────
@@ -79,7 +81,6 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Limit message length
         if (message.length > 500) {
             return Response.json(
                 { error: 'ההודעה ארוכה מדי. נסה לנסח בקצרה.' },
@@ -89,19 +90,22 @@ export async function POST(request: NextRequest) {
 
         // ── 1. Classify intent ──────────────────────────
         const classified = await classifyIntent(message, history);
-        console.log('[ChatAPI] Classified intent:', JSON.stringify(classified, null, 2));
+        console.log('[ChatAPI] Classified intent:', classified.intent, '| confidence:', classified.confidence);
 
-        // ── 2. Query database based on intent ───────────
+        // ── 2. Query database + collect raw data ────────
         let dbContext = '';
         let resultCount = 0;
+        let activityCards: ActivityRow[] = [];
+        let eventCards: EventRow[] = [];
 
         switch (classified.intent) {
             case 'greeting': {
-                // No DB query needed — return predefined greeting
                 return Response.json({
                     response: GREETING_MESSAGE,
                     intent: classified.intent,
                     resultCount: 0,
+                    activityCards: [],
+                    eventCards: [],
                 });
             }
 
@@ -118,6 +122,8 @@ export async function POST(request: NextRequest) {
                     response: offTopicResponse,
                     intent: classified.intent,
                     resultCount: 0,
+                    activityCards: [],
+                    eventCards: [],
                 });
             }
 
@@ -126,82 +132,64 @@ export async function POST(request: NextRequest) {
             case 'price_inquiry':
             case 'schedule_inquiry':
             case 'availability_inquiry': {
-                const activities = await searchActivities(
-                    classified.filters,
-                    classified.search_terms,
-                );
-                resultCount = activities.length;
-                dbContext = formatActivitiesForContext(activities);
+                activityCards = await searchActivities(classified.filters, classified.search_terms);
+                resultCount = activityCards.length;
+                dbContext = formatActivitiesForContext(activityCards);
                 break;
             }
 
             case 'activity_details': {
                 if (classified.activity_name) {
-                    const activity = await getActivityByName(classified.activity_name);
-                    if (activity) {
-                        resultCount = 1;
-                        dbContext = formatActivitiesForContext([activity]);
+                    const single = await getActivityByName(classified.activity_name);
+                    if (single) {
+                        activityCards = [single];
                     } else {
-                        // Fall back to search
-                        const activities = await searchActivities(
+                        activityCards = await searchActivities(
                             classified.filters,
                             classified.search_terms ?? [classified.activity_name],
                         );
-                        resultCount = activities.length;
-                        dbContext = formatActivitiesForContext(activities);
                     }
                 } else {
-                    const activities = await searchActivities(
-                        classified.filters,
-                        classified.search_terms,
-                    );
-                    resultCount = activities.length;
-                    dbContext = formatActivitiesForContext(activities);
+                    activityCards = await searchActivities(classified.filters, classified.search_terms);
                 }
+                resultCount = activityCards.length;
+                dbContext = formatActivitiesForContext(activityCards);
                 break;
             }
 
             case 'search_events': {
-                const events = await searchEvents(
-                    classified.filters,
-                    classified.search_terms,
-                );
-                resultCount = events.length;
-                dbContext = formatEventsForContext(events);
+                eventCards = await searchEvents(classified.filters, classified.search_terms);
+                resultCount = eventCards.length;
+                dbContext = formatEventsForContext(eventCards);
                 break;
             }
 
             case 'general_info': {
-                // Provide both activities and upcoming events as context
                 const [activities, events, categories] = await Promise.all([
                     searchActivities(classified.filters, classified.search_terms),
                     getUpcomingEvents(14),
                     getCategories(),
                 ]);
 
-                const parts: string[] = [];
+                activityCards = activities;
+                eventCards = events;
+                resultCount = activities.length + events.length;
 
-                if (activities.length > 0) {
-                    parts.push('=== חוגים ===\n' + formatActivitiesForContext(activities));
-                    resultCount += activities.length;
-                }
-                if (events.length > 0) {
-                    parts.push('=== אירועים קרובים ===\n' + formatEventsForContext(events));
-                    resultCount += events.length;
-                }
+                const parts: string[] = [];
+                if (activities.length > 0) parts.push('=== חוגים ===\n' + formatActivitiesForContext(activities));
+                if (events.length > 0) parts.push('=== אירועים קרובים ===\n' + formatEventsForContext(events));
                 if (categories.length > 0) {
                     parts.push(
                         '=== קטגוריות זמינות ===\n' +
                         categories.map((c) => `${c.icon || '📁'} ${c.name_he}`).join('\n'),
                     );
                 }
-
                 dbContext = parts.join('\n\n') || 'לא נמצאו תוצאות רלוונטיות בדאטהבייס.';
                 break;
             }
         }
 
-        // ── 3. Generate natural response via Gemini ─────
+        // ── 3. Generate natural language response ───────
         const chatModel = getChatModel();
 
         const contextPrompt = `${CHAT_SYSTEM_PROMPT}
@@ -219,15 +207,19 @@ ${history
 ## ההודעה הנוכחית מהמשתמש:
 "${message}"
 
-כתוב תשובה ידידותית ומעוצבת בעברית על בסיס הנתונים שקיבלת.`;
+כתוב תשובה ידידותית ומעוצבת בעברית על בסיס הנתונים שקיבלת.
+אם יש כרטיסים שיוצגו ב-UI, אתה יכול להתייחס אליהם בתשובתך (למשל "הנה הפעילויות שמצאתי:").`;
 
         const result = await chatModel.generateContent(contextPrompt);
         const response = result.response.text();
 
+        // Limit card count to avoid huge payloads
         return Response.json({
             response,
             intent: classified.intent,
             resultCount,
+            activityCards: activityCards.slice(0, 6),
+            eventCards: eventCards.slice(0, 6),
         });
     } catch (error) {
         console.error('[ChatAPI] Unexpected error:', error);

@@ -2,10 +2,41 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Send, Bot, User, Sparkles, RotateCcw, ArrowRight } from 'lucide-react';
-import { QUICK_ACTIONS, GREETING_MESSAGE } from '@/lib/ai/prompts';
+import { Send, Bot, User, Sparkles, RotateCcw, ArrowRight, Clock, MapPin, Users, BadgeDollarSign } from 'lucide-react';
+import { QUICK_ACTIONS, GREETING_MESSAGE } from '@/lib/ai/chat-constants';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface ActivityCard {
+    id: string;
+    title_he: string;
+    description_he?: string | null;
+    days_of_week?: string | null;
+    start_time?: string | null;
+    end_time?: string | null;
+    price?: number | null;
+    location?: string | null;
+    min_age?: number | null;
+    max_age?: number | null;
+    instructor_name?: string | null;
+    max_participants?: number | null;
+    current_participants?: number | null;
+    categories?: { name_he: string } | null;
+}
+
+interface EventCard {
+    id: string;
+    title: string;
+    description?: string | null;
+    event_date: string;
+    start_time?: string | null;
+    end_time?: string | null;
+    location?: string | null;
+    type?: string | null;
+    category?: string | null;
+    max_attendees?: number | null;
+    current_attendees?: number | null;
+}
 
 interface ChatMessage {
     id: string;
@@ -13,6 +44,8 @@ interface ChatMessage {
     content: string;
     timestamp: Date;
     resultCount?: number;
+    activityCards?: ActivityCard[];
+    eventCards?: EventCard[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -25,9 +58,13 @@ function formatTime(date: Date) {
     return date.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
 }
 
-// Parse bold **text** to <strong>
+function formatEventDate(dateStr: string) {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+// Parse **bold** → <strong>
 function renderMarkdown(text: string) {
-    // Split on **bold** markers
     const parts = text.split(/(\*\*[^*]+\*\*)/g);
     return parts.map((part, i) => {
         if (part.startsWith('**') && part.endsWith('**')) {
@@ -37,7 +74,6 @@ function renderMarkdown(text: string) {
     });
 }
 
-// Render multi-line message with markdown
 function MessageContent({ text }: { text: string }) {
     return (
         <div className="chat-message-text">
@@ -46,6 +82,156 @@ function MessageContent({ text }: { text: string }) {
                     {renderMarkdown(line)}
                 </p>
             ))}
+        </div>
+    );
+}
+
+// ─── Result Cards ─────────────────────────────────────────────────────────────
+
+function ActivityResultCard({ activity, index }: { activity: ActivityCard; index: number }) {
+    const spotsLeft =
+        activity.max_participants != null
+            ? activity.max_participants - (activity.current_participants ?? 0)
+            : null;
+
+    const isFull = spotsLeft !== null && spotsLeft <= 0;
+
+    return (
+        <div
+            className="result-card animate-fade-up"
+            style={{ animationDelay: `${index * 0.07}s` }}
+        >
+            <div className="result-card-header">
+                <div className="result-card-category">{activity.categories?.name_he ?? 'חוג'}</div>
+                <div className={`result-card-spots ${isFull ? 'spots-full' : spotsLeft !== null && spotsLeft < 5 ? 'spots-low' : 'spots-ok'}`}>
+                    {isFull ? 'מלא' : spotsLeft !== null ? `${spotsLeft} מקומות` : 'פתוח'}
+                </div>
+            </div>
+
+            <h4 className="result-card-title">{activity.title_he}</h4>
+
+            {activity.description_he && (
+                <p className="result-card-desc">{activity.description_he}</p>
+            )}
+
+            <div className="result-card-meta">
+                {activity.days_of_week && (
+                    <span className="meta-item">
+                        <Clock size={12} />
+                        {activity.days_of_week}
+                        {activity.start_time && ` ${activity.start_time.slice(0, 5)}`}
+                        {activity.end_time && `–${activity.end_time.slice(0, 5)}`}
+                    </span>
+                )}
+                {activity.location && (
+                    <span className="meta-item">
+                        <MapPin size={12} />
+                        {activity.location}
+                    </span>
+                )}
+                {(activity.min_age != null || activity.max_age != null) && (
+                    <span className="meta-item">
+                        <Users size={12} />
+                        גיל {activity.min_age ?? 0}–{activity.max_age ?? '+'}
+                    </span>
+                )}
+                {activity.price != null && (
+                    <span className="meta-item meta-price">
+                        <BadgeDollarSign size={12} />
+                        {activity.price === 0 ? 'חינם' : `${activity.price}/חודש`}
+                    </span>
+                )}
+            </div>
+
+            {activity.instructor_name && (
+                <div className="result-card-instructor">מדריך: {activity.instructor_name}</div>
+            )}
+        </div>
+    );
+}
+
+function EventResultCard({ event, index }: { event: EventCard; index: number }) {
+    const spotsLeft =
+        event.max_attendees != null
+            ? event.max_attendees - (event.current_attendees ?? 0)
+            : null;
+
+    return (
+        <div
+            className="result-card result-card-event animate-fade-up"
+            style={{ animationDelay: `${index * 0.07}s` }}
+        >
+            <div className="result-card-header">
+                <div className="result-card-category">{event.category ?? 'אירוע'}</div>
+                {event.type && (
+                    <div className="result-card-type">{event.type === 'זום' ? '🔗 זום' : '📍 פיזי'}</div>
+                )}
+            </div>
+
+            <h4 className="result-card-title">{event.title}</h4>
+
+            {event.description && (
+                <p className="result-card-desc">{event.description}</p>
+            )}
+
+            <div className="result-card-meta">
+                <span className="meta-item meta-date">
+                    📅 {formatEventDate(event.event_date)}
+                </span>
+                {event.start_time && (
+                    <span className="meta-item">
+                        <Clock size={12} />
+                        {event.start_time.slice(0, 5)}
+                        {event.end_time && `–${event.end_time.slice(0, 5)}`}
+                    </span>
+                )}
+                {event.location && (
+                    <span className="meta-item">
+                        <MapPin size={12} />
+                        {event.location}
+                    </span>
+                )}
+                {spotsLeft !== null && (
+                    <span className="meta-item">
+                        <Users size={12} />
+                        {spotsLeft} מקומות פנויים
+                    </span>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function ResultCardsSection({ message }: { message: ChatMessage }) {
+    const hasActivities = message.activityCards && message.activityCards.length > 0;
+    const hasEvents = message.eventCards && message.eventCards.length > 0;
+
+    if (!hasActivities && !hasEvents) return null;
+
+    return (
+        <div className="result-cards-section">
+            {hasActivities && (
+                <>
+                    <p className="result-cards-label">🎨 חוגים ופעילויות שנמצאו:</p>
+                    <div className="result-cards-grid">
+                        {message.activityCards!.map((a, i) => (
+                            <ActivityResultCard key={a.id} activity={a} index={i} />
+                        ))}
+                    </div>
+                </>
+            )}
+            {hasEvents && (
+                <>
+                    <p className="result-cards-label" style={{ marginTop: hasActivities ? '1rem' : 0 }}>
+                        📅 אירועים שנמצאו:
+                    </p>
+                    <div className="result-cards-grid">
+                        {message.eventCards!.map((e, i) => (
+                            <EventResultCard key={e.id} event={e} index={i} />
+                        ))}
+                    </div>
+                </>
+            )}
         </div>
     );
 }
@@ -85,15 +271,22 @@ export default function ChatPage() {
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
-    // Auto-scroll to bottom on new messages
+    // Auto-scroll on new messages
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isLoading]);
 
-    // Hide quick actions once the user sends a message
+    // Auto-resize textarea
     useEffect(() => {
-        const userMessages = messages.filter((m) => m.role === 'user');
-        if (userMessages.length > 0) setShowQuickActions(false);
+        const el = inputRef.current;
+        if (!el) return;
+        el.style.height = 'auto';
+        el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+    }, [input]);
+
+    // Hide quick actions after first user message
+    useEffect(() => {
+        if (messages.some((m) => m.role === 'user')) setShowQuickActions(false);
     }, [messages]);
 
     const sendMessage = useCallback(
@@ -112,9 +305,9 @@ export default function ChatPage() {
             setInput('');
             setIsLoading(true);
 
-            // Build history for the API (exclude the initial greeting)
+            // History excludes the initial greeting
             const history = messages
-                .filter((m) => m.id !== messages[0].id)
+                .filter((_, i) => i > 0)
                 .map((m) => ({ role: m.role, content: m.content }));
 
             try {
@@ -139,17 +332,18 @@ export default function ChatPage() {
                         content: data.response,
                         timestamp: new Date(),
                         resultCount: data.resultCount,
+                        activityCards: data.activityCards ?? [],
+                        eventCards: data.eventCards ?? [],
                     },
                 ]);
             } catch (err: unknown) {
-                const errorMessage =
-                    err instanceof Error ? err.message : 'אירעה שגיאה, נסה שוב.';
+                const msg = err instanceof Error ? err.message : 'אירעה שגיאה, נסה שוב.';
                 setMessages((prev) => [
                     ...prev,
                     {
                         id: uid(),
                         role: 'assistant',
-                        content: `😕 ${errorMessage}`,
+                        content: `😕 ${msg}`,
                         timestamp: new Date(),
                     },
                 ]);
@@ -184,7 +378,7 @@ export default function ChatPage() {
         ]);
         setShowQuickActions(true);
         setInput('');
-        inputRef.current?.focus();
+        setTimeout(() => inputRef.current?.focus(), 50);
     };
 
     return (
@@ -212,13 +406,14 @@ export default function ChatPage() {
                         onClick={handleReset}
                         title="התחל שיחה חדשה"
                         aria-label="התחל שיחה חדשה"
+                        id="chat-reset-button"
                     >
                         <RotateCcw size={18} />
                     </button>
                 </div>
             </header>
 
-            {/* ── Messages area ── */}
+            {/* ── Messages ── */}
             <main className="chat-messages" role="log" aria-live="polite" aria-label="שיחה">
                 {/* Quick action chips */}
                 {showQuickActions && (
@@ -241,34 +436,40 @@ export default function ChatPage() {
 
                 {/* Message bubbles */}
                 {messages.map((msg, idx) => (
-                    <div
-                        key={msg.id}
-                        className={`chat-bubble ${msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'} animate-fade-up`}
-                        style={{ animationDelay: `${Math.min(idx * 0.05, 0.3)}s` }}
-                    >
-                        {msg.role === 'assistant' && (
-                            <div className="chat-avatar chat-avatar-ai" aria-hidden="true">
-                                <Bot size={18} />
-                            </div>
-                        )}
+                    <div key={msg.id}>
+                        <div
+                            className={`chat-bubble ${msg.role === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'} animate-fade-up`}
+                            style={{ animationDelay: `${Math.min(idx * 0.04, 0.25)}s` }}
+                        >
+                            {msg.role === 'assistant' && (
+                                <div className="chat-avatar chat-avatar-ai" aria-hidden="true">
+                                    <Bot size={18} />
+                                </div>
+                            )}
 
-                        <div className={`chat-bubble-body ${msg.role === 'user' ? 'chat-bubble-body-user' : 'chat-bubble-body-ai'}`}>
-                            <MessageContent text={msg.content} />
-                            <div className="chat-bubble-meta">
-                                {msg.resultCount !== undefined && msg.resultCount > 0 && (
-                                    <span className="chat-result-badge">
-                                        {msg.resultCount} תוצאות
-                                    </span>
-                                )}
-                                <time className="chat-time">{formatTime(msg.timestamp)}</time>
+                            <div
+                                className={`chat-bubble-body ${msg.role === 'user' ? 'chat-bubble-body-user' : 'chat-bubble-body-ai'}`}
+                            >
+                                <MessageContent text={msg.content} />
+                                <div className="chat-bubble-meta">
+                                    {msg.resultCount !== undefined && msg.resultCount > 0 && (
+                                        <span className="chat-result-badge">
+                                            {msg.resultCount} תוצאות
+                                        </span>
+                                    )}
+                                    <time className="chat-time">{formatTime(msg.timestamp)}</time>
+                                </div>
                             </div>
+
+                            {msg.role === 'user' && (
+                                <div className="chat-avatar chat-avatar-user" aria-hidden="true">
+                                    <User size={18} />
+                                </div>
+                            )}
                         </div>
 
-                        {msg.role === 'user' && (
-                            <div className="chat-avatar chat-avatar-user" aria-hidden="true">
-                                <User size={18} />
-                            </div>
-                        )}
+                        {/* Result cards below AI message */}
+                        {msg.role === 'assistant' && <ResultCardsSection message={msg} />}
                     </div>
                 ))}
 
@@ -278,7 +479,7 @@ export default function ChatPage() {
                 <div ref={bottomRef} aria-hidden="true" />
             </main>
 
-            {/* ── Input area ── */}
+            {/* ── Input ── */}
             <footer className="chat-input-area">
                 <form className="chat-input-form" onSubmit={handleSubmit}>
                     <textarea
@@ -288,7 +489,7 @@ export default function ChatPage() {
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="שאל אותי כל דבר על המתנ&quot;ס... (Enter לשליחה)"
+                        placeholder={`שאל אותי כל דבר על המתנ"ס... (Enter לשליחה)`}
                         rows={1}
                         maxLength={500}
                         disabled={isLoading}
@@ -297,10 +498,10 @@ export default function ChatPage() {
                     />
                     <button
                         type="submit"
+                        id="chat-send-button"
                         className="chat-send-btn"
                         disabled={isLoading || !input.trim()}
                         aria-label="שלח הודעה"
-                        id="chat-send-button"
                     >
                         <Send size={20} />
                     </button>
