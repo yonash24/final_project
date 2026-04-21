@@ -24,6 +24,7 @@ export default function AdminNavbar() {
                 <div style={{ display: 'flex', gap: '1rem' }}>
                     <NavLink href="/admin/classes" icon={<BookOpen size={18} />} label="חוגים וקורסים" />
                     <NavLink href="/admin/events" icon={<Calendar size={18} />} label="אירועים" />
+                    <NavLink href="/admin/feed" icon={<Megaphone size={18} />} label="פיד קהילתי" />
                     <NavLink href="/admin/members" icon={<Users size={18} />} label="משתתפים" />
                     <NavLink href="/admin/settings" icon={<Settings size={18} />} label="הגדרות" />
                 </div>
