@@ -144,6 +144,10 @@ DROP POLICY IF EXISTS "Admin All Categories" ON public.categories;
 DROP POLICY IF EXISTS "Admin All Activities" ON public.activities;
 DROP POLICY IF EXISTS "Admin All Events" ON public.events;
 DROP POLICY IF EXISTS "Admin All Members" ON public.members;
+DROP POLICY IF EXISTS "Anon Write Activities" ON public.activities;
+DROP POLICY IF EXISTS "Anon Delete Activities" ON public.activities;
+DROP POLICY IF EXISTS "Anon Write Events" ON public.events;
+DROP POLICY IF EXISTS "Anon Delete Events" ON public.events;
 DROP POLICY IF EXISTS "Anon Write Posts" ON public.posts;
 DROP POLICY IF EXISTS "Anon Delete Posts" ON public.posts;
 DROP POLICY IF EXISTS "Anon Write Members" ON public.members;
@@ -164,7 +168,13 @@ CREATE POLICY "Admin All Activities" ON public.activities FOR ALL TO authenticat
 CREATE POLICY "Admin All Events" ON public.events FOR ALL TO authenticated USING (true);
 CREATE POLICY "Admin All Members" ON public.members FOR ALL TO authenticated USING (true);
 
--- Anon write policies (admin UI uses anon key)
+-- Anon write policies (admin UI uses anon key, no Supabase Auth)
+CREATE POLICY "Anon Write Activities" ON public.activities FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "Anon Delete Activities" ON public.activities FOR DELETE TO public USING (true);
+CREATE POLICY "Anon Update Activities" ON public.activities FOR UPDATE TO public USING (true);
+CREATE POLICY "Anon Write Events" ON public.events FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "Anon Delete Events" ON public.events FOR DELETE TO public USING (true);
+CREATE POLICY "Anon Update Events" ON public.events FOR UPDATE TO public USING (true);
 CREATE POLICY "Anon Write Posts" ON public.posts FOR INSERT TO public WITH CHECK (true);
 CREATE POLICY "Anon Delete Posts" ON public.posts FOR DELETE TO public USING (true);
 CREATE POLICY "Anon Write Members" ON public.members FOR INSERT TO public WITH CHECK (true);
