@@ -30,13 +30,15 @@ export default function FeedPage() {
                         <h1 style={{ textAlign: 'center', marginBottom: '1rem' }}>פיד קהילתי 🏠</h1>
 
                         {loading ? (
-                            <div style={{ textAlign: 'center', padding: '2rem' }}>טוען עדכונים...</div>
+                            <div style={{ textAlign: 'center', padding: '2rem' }}>טוען עדכונים מהדאטהבייס...</div>
+                        ) : posts.length === 0 ? (
+                            <div className="card" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>עוד לא פורסמו הודעות בפיד הקהילתי.</div>
                         ) : posts.map((post, idx) => (
                             <div key={post.id} className="card animate-fade-up" style={{ animationDelay: `${0.1 * idx}s` }}>
                                 <div className="card-header" style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                     <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                                         <div style={{ width: '48px', height: '48px', borderRadius: '50%', backgroundColor: 'var(--accent-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                                            {post.author_name.charAt(0)}
+                                            {post.author_name?.charAt(0) || 'A'}
                                         </div>
                                         <div>
                                             <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{post.author_name}</div>
@@ -50,8 +52,11 @@ export default function FeedPage() {
                                     <button className="btn btn-ghost btn-icon"><MoreHorizontal size={20} /></button>
                                 </div>
 
-                                <div className="card-content" style={{ marginTop: '0.5rem', marginBottom: '0.5rem', fontSize: '1.05rem', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                                    {post.content}
+                                <div className="card-content" style={{ marginTop: '0.5rem', marginBottom: '0.5rem' }}>
+                                    {post.title && <h3 style={{ fontSize: '1.3rem', marginBottom: '0.75rem', color: 'var(--text-primary)' }}>{post.title}</h3>}
+                                    <div style={{ fontSize: '1.05rem', lineHeight: 1.5, whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>
+                                        {post.content}
+                                    </div>
                                 </div>
 
                                 <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', gap: '2rem' }}>

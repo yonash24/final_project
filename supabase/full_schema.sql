@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS public.marketing_assets (
 -- 7. Community Feed Posts
 CREATE TABLE IF NOT EXISTS public.posts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title TEXT,
     author_name TEXT NOT NULL,
     author_role TEXT DEFAULT 'resident', -- 'resident', 'admin', 'youth_leader'
     content TEXT NOT NULL,

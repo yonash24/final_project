@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { LayoutDashboard, BookOpen, Calendar, Users, Settings, LogOut, Sparkles } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Calendar, Users, Settings, LogOut, Sparkles, Megaphone } from 'lucide-react';
 
 export default function AdminNavbar() {
     return (
