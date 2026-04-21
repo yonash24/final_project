@@ -1,3 +1,4 @@
+"use client";
 import Navbar from '@/components/layout/Navbar';
 import { Search, Filter, Plus, Calendar, User, Clock, MapPin } from 'lucide-react';
 import { useState, useEffect } from 'react';

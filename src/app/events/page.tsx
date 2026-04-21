@@ -1,3 +1,4 @@
+"use client";
 import Navbar from '@/components/layout/Navbar';
 import { Calendar, MapPin, Share2, Plus, Clock, Globe, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
