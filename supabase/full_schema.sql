@@ -60,8 +60,9 @@ CREATE TABLE IF NOT EXISTS public.events (
     is_published BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
--- Add type column if table already exists without it
+-- Add columns if tables already exist without them
 ALTER TABLE public.events ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'פיזי';
+ALTER TABLE public.posts ADD COLUMN IF NOT EXISTS title TEXT;
 
 -- 4. Members (Residents) Table
 CREATE TABLE IF NOT EXISTS public.members (

@@ -24,8 +24,9 @@ export default function AdminEventsPage() {
 
     async function fetchEvents() {
         setLoading(true);
-        const { data } = await supabase.from('events').select('*').order('event_date', { ascending: true });
+        const { data, error } = await supabase.from('events').select('*').order('event_date', { ascending: true });
         if (data) setEvents(data);
+        if (error) console.error('Error fetching events:', error);
         setLoading(false);
     }
 
@@ -33,9 +34,13 @@ export default function AdminEventsPage() {
         e.preventDefault();
         const { error } = await supabase.from('events').insert([newEvent]);
         if (!error) {
+            alert('✅ האירוע נשמר בהצלחה!');
             setShowModal(false);
             setNewEvent({ title: '', description: '', event_date: '', start_time: '', location: '', type: 'פיזי' });
             fetchEvents();
+        } else {
+            console.error('DB Error:', error);
+            alert('❌ שגיאה בשמירה: ' + error.message);
         }
     }
 
