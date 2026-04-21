@@ -1,8 +1,31 @@
+"use client";
 import AdminNavbar from '@/components/admin/AdminNavbar';
 import { BookOpen, Calendar, Users, Activity, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase/client';
 
 export default function AdminPage() {
+    const [stats, setStats] = useState({ classes: 0, events: 0, members: 0, posts: 0 });
+
+    useEffect(() => {
+        async function fetchStats() {
+            const [classesRes, eventsRes, membersRes, postsRes] = await Promise.all([
+                supabase.from('activities').select('id', { count: 'exact', head: true }).eq('is_active', true),
+                supabase.from('events').select('id', { count: 'exact', head: true }),
+                supabase.from('members').select('id', { count: 'exact', head: true }),
+                supabase.from('posts').select('id', { count: 'exact', head: true }),
+            ]);
+            setStats({
+                classes: classesRes.count ?? 0,
+                events: eventsRes.count ?? 0,
+                members: membersRes.count ?? 0,
+                posts: postsRes.count ?? 0,
+            });
+        }
+        fetchStats();
+    }, []);
+
     return (
         <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
             <AdminNavbar />
@@ -10,12 +33,11 @@ export default function AdminPage() {
                 <h1 style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>לוח בקרה 🚀</h1>
                 <p style={{ color: 'var(--text-secondary)', marginBottom: '3rem' }}>ברוך הבא למערכת הניהול. כאן תוכל לראות תמונת מצב של המתנ"ס ולגשת לכל כלי הניהול.</p>
 
-                {/* Quick Stats */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '3rem' }}>
-                    <StatCard icon={<BookOpen color="#0284c7" />} label="חוגים פעילים" value="24" bg="#e0f2fe" />
-                    <StatCard icon={<Calendar color="#f59e0b" />} label="אירועים החודש" value="5" bg="#fef3c7" />
-                    <StatCard icon={<Users color="#16a34a" />} label="משתתפים רשומים" value="1,248" bg="#dcfce7" />
-                    <StatCard icon={<Activity color="#6366f1" />} label="פניות צ'אט AI" value="156" bg="#e0e7ff" />
+                    <StatCard icon={<BookOpen color="#0284c7" />} label="חוגים פעילים" value={String(stats.classes)} bg="#e0f2fe" />
+                    <StatCard icon={<Calendar color="#f59e0b" />} label="אירועים" value={String(stats.events)} bg="#fef3c7" />
+                    <StatCard icon={<Users color="#16a34a" />} label="משתתפים רשומים" value={String(stats.members)} bg="#dcfce7" />
+                    <StatCard icon={<Activity color="#6366f1" />} label="פוסטים בפיד" value={String(stats.posts)} bg="#e0e7ff" />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
@@ -24,7 +46,7 @@ export default function AdminPage() {
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
                             <QuickAction href="/admin/classes" title="ניהול חוגים" desc="הוספה, עריכה וסגירת חוגים" />
                             <QuickAction href="/admin/events" title="ניהול אירועים" desc="פרסום אירועים קהילתיים חדשים" />
-                            <QuickAction href="/admin/members" title="ניהול רשימות טלפונים" desc="ייצוא וייבוא נתוני משתתפים" />
+                            <QuickAction href="/admin/members" title="ניהול משתתפים" desc="ייצוא וייבוא נתוני משתתפים" />
                             <QuickAction href="/chat" title="צפייה כתושב" desc="בדיקת ה-AI מצד המשתמש" outLink />
                         </div>
                     </div>

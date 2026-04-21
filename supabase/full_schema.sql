@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS public.events (
     start_time TIME,
     end_time TIME,
     location TEXT,
+    type TEXT DEFAULT 'פיזי',
     category TEXT,
     max_attendees INT,
     current_attendees INT DEFAULT 0,
@@ -59,6 +60,8 @@ CREATE TABLE IF NOT EXISTS public.events (
     is_published BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+-- Add type column if table already exists without it
+ALTER TABLE public.events ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'פיזי';
 
 -- 4. Members (Residents) Table
 CREATE TABLE IF NOT EXISTS public.members (
@@ -132,7 +135,19 @@ CREATE POLICY "Public Read Events" ON public.events FOR SELECT TO public USING (
 CREATE POLICY "Public Read Posts" ON public.posts FOR SELECT TO public USING (true);
 
 -- Admin policies (requires auth)
-CREATE POLICY "Admin All Categories" ON public.categories FOR ALL TO authenticated USING (true);
-CREATE POLICY "Admin All Activities" ON public.activities FOR ALL TO authenticated USING (true);
-CREATE POLICY "Admin All Events" ON public.events FOR ALL TO authenticated USING (true);
-CREATE POLICY "Admin All Members" ON public.members FOR ALL TO authenticated USING (true);
+CREATE POLICY IF NOT EXISTS "Admin All Categories" ON public.categories FOR ALL TO authenticated USING (true);
+CREATE POLICY IF NOT EXISTS "Admin All Activities" ON public.activities FOR ALL TO authenticated USING (true);
+CREATE POLICY IF NOT EXISTS "Admin All Events" ON public.events FOR ALL TO authenticated USING (true);
+CREATE POLICY IF NOT EXISTS "Admin All Members" ON public.members FOR ALL TO authenticated USING (true);
+
+-- Allow anon to write posts and read members (admin UI uses anon key)
+ALTER TABLE public.registrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.marketing_assets ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY IF NOT EXISTS "Public Read Members" ON public.members FOR SELECT TO public USING (true);
+CREATE POLICY IF NOT EXISTS "Public Read Registrations" ON public.registrations FOR SELECT TO public USING (true);
+CREATE POLICY IF NOT EXISTS "Anon Write Posts" ON public.posts FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "Anon Delete Posts" ON public.posts FOR DELETE TO public USING (true);
+CREATE POLICY IF NOT EXISTS "Anon Write Members" ON public.members FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY IF NOT EXISTS "Anon Delete Members" ON public.members FOR DELETE TO public USING (true);
+CREATE POLICY IF NOT EXISTS "Anon Write Registrations" ON public.registrations FOR ALL TO public USING (true) WITH CHECK (true);

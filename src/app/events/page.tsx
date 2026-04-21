@@ -14,8 +14,9 @@ export default function EventsPage() {
 
     async function fetchEvents() {
         setLoading(true);
-        const { data } = await supabase.from('events').select('*').order('event_date', { ascending: true });
+        const { data, error } = await supabase.from('events').select('*').order('event_date', { ascending: true });
         if (data) setEvents(data);
+        if (error) console.error('Error fetching events:', error);
         setLoading(false);
     }
 
