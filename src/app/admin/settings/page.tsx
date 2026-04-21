@@ -24,7 +24,7 @@ export default function AdminSettingsPage() {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <div>
                                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>שם מלא</label>
-                                    <input className="input-field" defaultValue="מנהל מתנ" ס ראשי" />
+                                    <input className="input-field" defaultValue="מנהל מתנ״ס ראשי" />
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>תפקיד</label>
