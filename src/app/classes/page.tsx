@@ -6,10 +6,9 @@ export default function ClassesPage() {
         { title: 'רובוטיקה וקוד לילדים', category: 'טכנולוגיה', age: '8-12', time: 'שני 17:00 ל-18:30', instructor: 'דן כהן', bg: 'icon-blue' },
         { title: 'יוגה ומדיטציה בבוקר', category: 'גוף ונפש', age: '18+', time: 'רביעי 08:30 ל-09:30', instructor: 'יעל שטרן', bg: 'icon-green' },
         { title: 'אמנות ציור בפחם', category: 'אמנות ויצירה', age: '12-16', time: 'חמישי 16:00 ל-18:00', instructor: 'רון לוי', bg: 'icon-orange' },
-        {
-            title: 'ג'ודו למתחילים', category: 'ספורט', age: '6 - 10', time: 'ראשון ורביעי 16: 30', instructor: 'אלון בר', bg: 'icon - blue' },
-    { title: 'סדנת כתיבה יוצרת', category: 'העשרה', age: '18+', time: 'שלישי 19:30 ל-21:00', instructor: 'מיכל אברהמי', bg: 'icon-orange' },
-    { title: 'הכנה לכיתה איי', category: 'חינוך', age: '5-6', time: 'שני 16:00', instructor: 'שירה כץ', bg: 'icon-green' },
+        { title: "ג'ודו למתחילים", category: 'ספורט', age: '6-10', time: 'ראשון ורביעי 16:30', instructor: 'אלון בר', bg: 'icon-blue' },
+        { title: 'סדנת כתיבה יוצרת', category: 'העשרה', age: '18+', time: 'שלישי 19:30 ל-21:00', instructor: 'מיכל אברהמי', bg: 'icon-orange' },
+        { title: 'הכנה לכיתה איי', category: 'חינוך', age: '5-6', time: 'שני 16:00', instructor: 'שירה כץ', bg: 'icon-green' },
     ];
 
     return (

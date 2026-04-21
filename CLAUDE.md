@@ -1,3 +1,3 @@
 @AGENTS.md
 
-commit after after finshing modifications
+commit after finshing modifications
