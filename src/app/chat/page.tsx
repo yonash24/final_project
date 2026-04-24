@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Send, Bot, User, Sparkles, RotateCcw, ArrowRight, Clock, MapPin, Users, BadgeDollarSign } from 'lucide-react';
+import { Send, Bot, User, Sparkles, RotateCcw, ArrowRight, Clock, MapPin, Users, BadgeDollarSign, CalendarDays } from 'lucide-react';
 import { QUICK_ACTIONS, GREETING_MESSAGE } from '@/lib/ai/chat-constants';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -95,6 +95,7 @@ function ActivityResultCard({ activity, index }: { activity: ActivityCard; index
             : null;
 
     const isFull = spotsLeft !== null && spotsLeft <= 0;
+    const mapUrl = activity.location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(activity.location)}` : '';
 
     return (
         <div
@@ -117,35 +118,41 @@ function ActivityResultCard({ activity, index }: { activity: ActivityCard; index
             <div className="result-card-meta">
                 {activity.days_of_week && (
                     <span className="meta-item">
-                        <Clock size={12} />
+                        <Clock size={14} />
                         {activity.days_of_week}
                         {activity.start_time && ` ${activity.start_time.slice(0, 5)}`}
                         {activity.end_time && `–${activity.end_time.slice(0, 5)}`}
                     </span>
                 )}
-                {activity.location && (
-                    <span className="meta-item">
-                        <MapPin size={12} />
-                        {activity.location}
-                    </span>
-                )}
                 {(activity.min_age != null || activity.max_age != null) && (
                     <span className="meta-item">
-                        <Users size={12} />
+                        <Users size={14} />
                         גיל {activity.min_age ?? 0}–{activity.max_age ?? '+'}
                     </span>
                 )}
                 {activity.price != null && (
                     <span className="meta-item meta-price">
-                        <BadgeDollarSign size={12} />
-                        {activity.price === 0 ? 'חינם' : `${activity.price}/חודש`}
+                        <BadgeDollarSign size={14} />
+                        {activity.price === 0 ? 'חינם' : `${activity.price}₪ חודשי`}
                     </span>
                 )}
             </div>
 
             {activity.instructor_name && (
-                <div className="result-card-instructor">מדריך: {activity.instructor_name}</div>
+                <div className="result-card-instructor" style={{ marginBottom: '0.25rem' }}>מדריך: <strong>{activity.instructor_name}</strong></div>
             )}
+
+            <div className="result-card-actions">
+                {activity.location && (
+                    <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="btn-card-action map">
+                        <MapPin size={14} />
+                        ניווט
+                    </a>
+                )}
+                <button className="btn-card-action primary">
+                    לפרטים והרשמה
+                </button>
+            </div>
         </div>
     );
 }
@@ -155,6 +162,12 @@ function EventResultCard({ event, index }: { event: EventCard; index: number }) 
         event.max_attendees != null
             ? event.max_attendees - (event.current_attendees ?? 0)
             : null;
+
+    const isFull = spotsLeft !== null && spotsLeft <= 0;
+
+    const mapUrl = event.location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.location)}` : '';
+    const dateStr = event.event_date.replace(/-/g, '');
+    const calUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${dateStr}T000000Z/${dateStr}T235959Z&details=${encodeURIComponent(event.description || '')}&location=${encodeURIComponent(event.location || '')}`;
 
     return (
         <div
@@ -176,27 +189,35 @@ function EventResultCard({ event, index }: { event: EventCard; index: number }) 
 
             <div className="result-card-meta">
                 <span className="meta-item meta-date">
-                    📅 {formatEventDate(event.event_date)}
+                    <CalendarDays size={14} />
+                    {formatEventDate(event.event_date)}
                 </span>
                 {event.start_time && (
                     <span className="meta-item">
-                        <Clock size={12} />
+                        <Clock size={14} />
                         {event.start_time.slice(0, 5)}
                         {event.end_time && `–${event.end_time.slice(0, 5)}`}
                     </span>
                 )}
-                {event.location && (
-                    <span className="meta-item">
-                        <MapPin size={12} />
-                        {event.location}
-                    </span>
-                )}
                 {spotsLeft !== null && (
                     <span className="meta-item">
-                        <Users size={12} />
-                        {spotsLeft} מקומות פנויים
+                        <Users size={14} />
+                        {isFull ? 'מלא' : `${spotsLeft} מקומות פנויים`}
                     </span>
                 )}
+            </div>
+
+            <div className="result-card-actions">
+                {event.location && (
+                    <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="btn-card-action map">
+                        <MapPin size={14} />
+                        לניווט
+                    </a>
+                )}
+                <a href={calUrl} target="_blank" rel="noopener noreferrer" className="btn-card-action cal">
+                    <CalendarDays size={14} />
+                    יומן
+                </a>
             </div>
         </div>
     );

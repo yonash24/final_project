@@ -46,6 +46,7 @@ export default function AdminPage() {
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
                             <QuickAction href="/admin/classes" title="ניהול חוגים" desc="הוספה, עריכה וסגירת חוגים" />
                             <QuickAction href="/admin/events" title="ניהול אירועים" desc="פרסום אירועים קהילתיים חדשים" />
+                            <QuickAction href="/admin/studio" title="סטודיו שיווקי" desc="יצירת תוכן שיווקי ב-AI" />
                             <QuickAction href="/admin/members" title="ניהול משתתפים" desc="ייצוא וייבוא נתוני משתתפים" />
                             <QuickAction href="/chat" title="צפייה כתושב" desc="בדיקת ה-AI מצד המשתמש" outLink />
                         </div>

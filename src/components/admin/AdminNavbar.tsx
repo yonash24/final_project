@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { LayoutDashboard, BookOpen, Calendar, Users, Settings, LogOut, Sparkles, Megaphone } from 'lucide-react';
+import { LayoutDashboard, BookOpen, Calendar, Users, Settings, LogOut, Sparkles, Megaphone, Palette } from 'lucide-react';
 
 export default function AdminNavbar() {
     return (
@@ -25,6 +25,7 @@ export default function AdminNavbar() {
                     <NavLink href="/admin/classes" icon={<BookOpen size={18} />} label="חוגים וקורסים" />
                     <NavLink href="/admin/events" icon={<Calendar size={18} />} label="אירועים" />
                     <NavLink href="/admin/feed" icon={<Megaphone size={18} />} label="פיד קהילתי" />
+                    <NavLink href="/admin/studio" icon={<Palette size={18} />} label="סטודיו גנרטיבי" />
                     <NavLink href="/admin/members" icon={<Users size={18} />} label="משתתפים" />
                     <NavLink href="/admin/settings" icon={<Settings size={18} />} label="הגדרות" />
                 </div>

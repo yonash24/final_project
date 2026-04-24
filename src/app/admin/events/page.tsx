@@ -67,21 +67,31 @@ export default function AdminEventsPage() {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {events.map(e => (
-                        <div key={e.id} className="card" style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div key={e.id} className="card" style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.3s', borderLeft: '4px solid var(--accent-secondary)' }}>
                             <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
-                                <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1rem', borderRadius: 'var(--radius-md)', textAlign: 'center', minWidth: '100px' }}>
-                                    <span style={{ fontWeight: 'bold', fontSize: '1.25rem' }}>{new Date(e.event_date).toLocaleDateString('he-IL')}</span>
+                                <div style={{ backgroundColor: '#fffbeb', color: '#b45309', padding: '1rem', borderRadius: 'var(--radius-md)', textAlign: 'center', minWidth: '110px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <Calendar size={20} style={{ margin: '0 auto' }} />
+                                    <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{new Date(e.event_date).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })}</span>
                                 </div>
                                 <div>
-                                    <h3 style={{ fontSize: '1.25rem', marginBottom: '0.25rem' }}>{e.title}</h3>
-                                    <div style={{ display: 'flex', gap: '1rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                                        <span><MapPin size={14} /> {e.location}</span>
-                                        <span><Clock size={14} /> {e.start_time}</span>
+                                    <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', fontWeight: 800 }}>{e.title}</h3>
+                                    <div style={{ display: 'flex', gap: '1rem', color: 'var(--text-secondary)', fontSize: '0.875rem', alignItems: 'center' }}>
+                                        {e.location && (
+                                            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}`} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#b45309', background: '#fef3c7', padding: '0.2rem 0.6rem', borderRadius: '999px', textDecoration: 'none', fontWeight: 600 }}>
+                                                <MapPin size={14} /> {e.location}
+                                            </a>
+                                        )}
+                                        {e.start_time && (
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}><Clock size={14} /> {e.start_time}</span>
+                                        )}
+                                        {e.type && (
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', backgroundColor: '#e0f2fe', color: 'var(--accent-primary)', padding: '0.2rem 0.6rem', borderRadius: '999px', fontWeight: 600 }}>{e.type}</span>
+                                        )}
                                     </div>
                                 </div>
                             </div>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <button className="btn btn-ghost btn-icon" onClick={() => deleteEvent(e.id)} style={{ color: 'var(--accent-rose)' }}><Trash2 size={16} /></button>
+                                <button className="btn btn-ghost btn-icon" onClick={() => deleteEvent(e.id)} style={{ color: 'var(--accent-rose)', backgroundColor: '#fee2e2' }} title="מחק אירוע"><Trash2 size={16} color="#dc2626" /></button>
                             </div>
                         </div>
                     ))}

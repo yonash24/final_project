@@ -89,8 +89,23 @@ export async function classifyIntent(
 
         const prompt = `${INTENT_CLASSIFIER_SYSTEM_PROMPT}${historyContext}\n\nשאלה חדשה מהמשתמש: "${userMessage}"\n\nהחזר JSON בלבד.`;
 
-        const result = await model.generateContent(prompt);
-        const text = result.response.text();
+        // Retry logic for transient rate limits
+        let text = '';
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                const result = await model.generateContent(prompt);
+                text = result.response.text();
+                break;
+            } catch (retryErr: unknown) {
+                const msg = retryErr instanceof Error ? retryErr.message : '';
+                const is429 = msg.includes('429') || msg.includes('quota') || msg.includes('rate');
+                if (is429 && attempt < 2) {
+                    await new Promise((r) => setTimeout(r, (attempt + 1) * 3000));
+                    continue;
+                }
+                throw retryErr;
+            }
+        }
 
         // Parse JSON — the classifier model forces JSON output
         const parsed = JSON.parse(text) as ClassifiedIntent;

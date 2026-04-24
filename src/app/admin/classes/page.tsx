@@ -97,16 +97,24 @@ export default function AdminClassesPage() {
                             <tbody>
                                 {classes.length === 0 ? (
                                     <tr><td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>אין חוגים רשומים בדאטהבייס.</td></tr>
-                                ) : classes.map(c => (
-                                    <tr key={c.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                                        <td style={{ padding: '1rem', fontWeight: 'bold' }}>{c.title_he}</td>
-                                        <td style={{ padding: '1rem' }}>{c.instructor_name}</td>
-                                        <td style={{ padding: '1rem' }}>{c.days_of_week} | {c.start_time}</td>
-                                        <td style={{ padding: '1rem' }}>{c.location}</td>
-                                        <td style={{ padding: '1rem' }}>
-                                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                <button className="btn btn-ghost btn-icon" onClick={() => deleteClass(c.id)} style={{ color: 'var(--accent-rose)' }}><Trash2 size={16} /></button>
-                                            </div>
+                                ) : classes.map((c: any) => (
+                                    <tr key={c.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
+                                        <td style={{ padding: '1.25rem 1rem', fontWeight: '800', color: 'var(--accent-primary)' }}>{c.title_he}</td>
+                                        <td style={{ padding: '1.25rem 1rem', color: 'var(--text-secondary)' }}>{c.instructor_name || '-'}</td>
+                                        <td style={{ padding: '1.25rem 1rem', color: 'var(--text-secondary)' }}>
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: '#f5f3ff', color: '#7c3aed', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.875rem', fontWeight: 600 }}>
+                                                {c.days_of_week} | {c.start_time || '-'}
+                                            </span>
+                                        </td>
+                                        <td style={{ padding: '1.25rem 1rem' }}>
+                                            {c.location ? (
+                                                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.location)}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#16a34a', background: '#dcfce7', padding: '0.2rem 0.6rem', borderRadius: '999px', textDecoration: 'none', fontWeight: 600, fontSize: '0.875rem' }}>
+                                                    {c.location}
+                                                </a>
+                                            ) : '-'}
+                                        </td>
+                                        <td style={{ padding: '1.25rem 1rem' }}>
+                                            <button className="btn btn-ghost btn-icon" onClick={() => deleteClass(c.id)} style={{ backgroundColor: '#fee2e2', width: '32px', height: '32px' }} title="מחק חוג"><Trash2 size={16} color="#dc2626" /></button>
                                         </td>
                                     </tr>
                                 ))}
