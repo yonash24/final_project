@@ -110,11 +110,9 @@ export async function searchActivities(
     const { data, error } = await query;
 
     if (error) {
-        console.error('[DB] ❌ searchActivities error:', error.message, error.details);
+        console.error('[DB] ❌ searchActivities error:', error.message);
         return [];
     }
-
-    console.log(`[DB] 🔍 searchActivities: ${data?.length ?? 0} results found.`);
 
     // Post-filter: spots availability (can't do col < col in Supabase REST)
     let results = (data ?? []) as ActivityRow[];
@@ -217,11 +215,9 @@ export async function searchEvents(
     const { data, error } = await query;
 
     if (error) {
-        console.error('[DB] ❌ searchEvents error:', error.message, error.details);
+        console.error('[DB] ❌ searchEvents error:', error.message);
         return [];
     }
-
-    console.log(`[DB] 🔍 searchEvents: ${data?.length ?? 0} results found.`);
 
     return (data ?? []) as EventRow[];
 }
@@ -272,8 +268,6 @@ export async function getCategories(): Promise<CategoryRow[]> {
         console.error('[DB] ❌ getCategories error:', error.message);
         return [];
     }
-
-    console.log(`[DB] 🔍 getCategories: ${data?.length ?? 0} items found. Raw data:`, data);
 
     return (data ?? []) as CategoryRow[];
 }

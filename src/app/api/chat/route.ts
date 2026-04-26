@@ -96,9 +96,6 @@ export async function POST(request: NextRequest) {
         const message: string | undefined = body?.message;
         const history: ChatMessage[] = body?.history ?? [];
 
-        console.log(`[ChatAPI] 📥 New message from ${ip}: "${message?.slice(0, 50)}..."`);
-        console.log(`[ChatAPI] 🕒 History length: ${history.length} messages`);
-
         if (!message || typeof message !== 'string' || message.trim().length === 0) {
             console.error('[ChatAPI] ❌ Validation failed: Empty message');
             return Response.json(
@@ -116,9 +113,7 @@ export async function POST(request: NextRequest) {
         }
 
         // ── 1. Classify intent ──────────────────────────
-        console.log('[ChatAPI] 🧠 Classifying intent via Gemini...');
         const classified = await classifyIntent(message, history);
-        console.log(`[ChatAPI] ✅ Intent: ${classified.intent} (Confidence: ${classified.confidence})`);
 
         // ── 2. Query database + collect raw data ────────
         let dbContext = '';
@@ -228,8 +223,6 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        console.log(`[ChatAPI] 📊 DB Results: ${resultCount} items found. Context size: ${dbContext.length} chars.`);
-
         // ── 3. Generate natural language response ───────
         const chatModel = getChatModel();
 
@@ -270,14 +263,11 @@ ${hasResults
         // Retry logic for Gemini (handles transient rate limits)
         let response = '';
         let lastError: unknown = null;
-        console.log('[ChatAPI] 💬 Generating NL response via Gemini...');
         for (let attempt = 0; attempt < 3; attempt++) {
             try {
-                if (attempt > 0) console.log(`[ChatAPI] 🔄 Retry attempt ${attempt}...`);
                 const result = await chatModel.generateContent(contextPrompt);
                 response = result.response.text();
                 lastError = null;
-                console.log('[ChatAPI] ✨ Response generated successfully.');
                 break;
             } catch (geminiErr: unknown) {
                 lastError = geminiErr;
@@ -286,7 +276,6 @@ ${hasResults
                 const is429 = msg.includes('429') || msg.includes('quota') || msg.includes('rate');
                 if (is429 && attempt < 2) {
                     const delay = (attempt + 1) * 3000;
-                    console.log(`[ChatAPI] ⏳ Rate limited. Waiting ${delay}ms...`);
                     await new Promise((r) => setTimeout(r, delay));
                     continue;
                 }

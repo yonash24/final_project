@@ -88,24 +88,19 @@ export async function classifyIntent(
             : '';
 
         const prompt = `${INTENT_CLASSIFIER_SYSTEM_PROMPT}${historyContext}\n\nשאלה חדשה מהמשתמש: "${userMessage}"\n\nהחזר JSON בלבד.`;
-        console.log(`[IntentClassifier] 📡 Prompting Gemini... (Model: ${model.model})`);
 
         // Retry logic for transient rate limits
         let text = '';
         for (let attempt = 0; attempt < 3; attempt++) {
             try {
-                if (attempt > 0) console.log(`[IntentClassifier] 🔄 Retry ${attempt}...`);
                 const result = await model.generateContent(prompt);
                 text = result.response.text();
-                console.log('[IntentClassifier] 📬 Raw JSON response received.');
                 break;
             } catch (retryErr: unknown) {
                 const msg = retryErr instanceof Error ? retryErr.message : '';
-                console.error(`[IntentClassifier] ⚠️ Model Error (Attempt ${attempt}):`, msg);
                 const is429 = msg.includes('429') || msg.includes('quota') || msg.includes('rate');
                 if (is429 && attempt < 2) {
                     const delay = (attempt + 1) * 3000;
-                    console.log(`[IntentClassifier] ⏳ Quota hit. Waiting ${delay}ms...`);
                     await new Promise((r) => setTimeout(r, delay));
                     continue;
                 }
