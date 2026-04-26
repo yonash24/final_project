@@ -110,9 +110,11 @@ export async function searchActivities(
     const { data, error } = await query;
 
     if (error) {
-        console.error('[ChatQueries] searchActivities error:', error);
+        console.error('[DB] ❌ searchActivities error:', error.message, error.details);
         return [];
     }
+
+    console.log(`[DB] 🔍 searchActivities: ${data?.length ?? 0} results found.`);
 
     // Post-filter: spots availability (can't do col < col in Supabase REST)
     let results = (data ?? []) as ActivityRow[];
@@ -215,9 +217,11 @@ export async function searchEvents(
     const { data, error } = await query;
 
     if (error) {
-        console.error('[ChatQueries] searchEvents error:', error);
+        console.error('[DB] ❌ searchEvents error:', error.message, error.details);
         return [];
     }
+
+    console.log(`[DB] 🔍 searchEvents: ${data?.length ?? 0} results found.`);
 
     return (data ?? []) as EventRow[];
 }
@@ -265,9 +269,11 @@ export async function getCategories(): Promise<CategoryRow[]> {
         .order('name_he', { ascending: true });
 
     if (error) {
-        console.error('[ChatQueries] getCategories error:', error);
+        console.error('[DB] ❌ getCategories error:', error.message);
         return [];
     }
+
+    console.log(`[DB] 🔍 getCategories: ${data?.length ?? 0} items found. Raw data:`, data);
 
     return (data ?? []) as CategoryRow[];
 }
@@ -289,4 +295,41 @@ export async function getActivitiesByCategory(categoryId: string): Promise<Activ
     }
 
     return (data ?? []) as ActivityRow[];
+}
+
+// ─── Registration Queries ───────────────────────────────
+
+export interface RegistrationInput {
+    activity_id: string;
+    full_name: string;
+    phone: string;
+    email?: string;
+    notes?: string;
+}
+
+/**
+ * Save a new registration to the database.
+ */
+export async function createRegistration(reg: RegistrationInput) {
+    const { data, error } = await supabaseServer
+        .from('registrations')
+        .insert([{
+            activity_id: reg.activity_id,
+            user_name: reg.full_name,
+            user_phone: reg.phone,
+            user_email: reg.email || null,
+            notes: reg.notes || null,
+            status: 'pending',
+            created_at: new Date().toISOString(),
+        }])
+        .select()
+        .single();
+
+    if (error) {
+        console.error('[DB] ❌ createRegistration error:', error.message);
+        throw new Error(`Failed to save registration: ${error.message}`);
+    }
+
+    console.log(`[DB] ✅ Registration created for ${reg.full_name} (ID: ${data.id})`);
+    return data;
 }

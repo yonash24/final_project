@@ -34,7 +34,7 @@ import {
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
-const RATE_LIMIT_MAX = 25;
+const RATE_LIMIT_MAX = 10;
 
 function checkRateLimit(ip: string): boolean {
     const now = Date.now();
@@ -96,7 +96,11 @@ export async function POST(request: NextRequest) {
         const message: string | undefined = body?.message;
         const history: ChatMessage[] = body?.history ?? [];
 
+        console.log(`[ChatAPI] 📥 New message from ${ip}: "${message?.slice(0, 50)}..."`);
+        console.log(`[ChatAPI] 🕒 History length: ${history.length} messages`);
+
         if (!message || typeof message !== 'string' || message.trim().length === 0) {
+            console.error('[ChatAPI] ❌ Validation failed: Empty message');
             return Response.json(
                 { error: 'נא לשלוח הודעה תקינה.' },
                 { status: 400 },
@@ -104,6 +108,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (message.length > 500) {
+            console.error('[ChatAPI] ❌ Validation failed: Message too long');
             return Response.json(
                 { error: 'ההודעה ארוכה מדי. נסה לנסח בקצרה.' },
                 { status: 400 },
@@ -111,8 +116,9 @@ export async function POST(request: NextRequest) {
         }
 
         // ── 1. Classify intent ──────────────────────────
+        console.log('[ChatAPI] 🧠 Classifying intent via Gemini...');
         const classified = await classifyIntent(message, history);
-        console.log('[ChatAPI] Classified intent:', classified.intent, '| confidence:', classified.confidence);
+        console.log(`[ChatAPI] ✅ Intent: ${classified.intent} (Confidence: ${classified.confidence})`);
 
         // ── 2. Query database + collect raw data ────────
         let dbContext = '';
@@ -222,6 +228,8 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        console.log(`[ChatAPI] 📊 DB Results: ${resultCount} items found. Context size: ${dbContext.length} chars.`);
+
         // ── 3. Generate natural language response ───────
         const chatModel = getChatModel();
 
@@ -262,19 +270,24 @@ ${hasResults
         // Retry logic for Gemini (handles transient rate limits)
         let response = '';
         let lastError: unknown = null;
+        console.log('[ChatAPI] 💬 Generating NL response via Gemini...');
         for (let attempt = 0; attempt < 3; attempt++) {
             try {
+                if (attempt > 0) console.log(`[ChatAPI] 🔄 Retry attempt ${attempt}...`);
                 const result = await chatModel.generateContent(contextPrompt);
                 response = result.response.text();
                 lastError = null;
+                console.log('[ChatAPI] ✨ Response generated successfully.');
                 break;
             } catch (geminiErr: unknown) {
                 lastError = geminiErr;
                 const msg = geminiErr instanceof Error ? geminiErr.message : '';
+                console.error(`[ChatAPI] ⚠️ Gemini Error (Attempt ${attempt}):`, msg);
                 const is429 = msg.includes('429') || msg.includes('quota') || msg.includes('rate');
                 if (is429 && attempt < 2) {
-                    // Wait before retry (exponential backoff)
-                    await new Promise((r) => setTimeout(r, (attempt + 1) * 3000));
+                    const delay = (attempt + 1) * 3000;
+                    console.log(`[ChatAPI] ⏳ Rate limited. Waiting ${delay}ms...`);
+                    await new Promise((r) => setTimeout(r, delay));
                     continue;
                 }
                 break;
@@ -282,6 +295,7 @@ ${hasResults
         }
 
         if (lastError) {
+            console.error('[ChatAPI] 🛑 Max retries reached for Gemini response generation.');
             throw lastError;
         }
 
@@ -297,28 +311,29 @@ ${hasResults
         console.error('[ChatAPI] Unexpected error:', error);
 
         // Return a friendly error message in Hebrew
-        const errorMessage = error instanceof Error ? error.message : '';
-        const isApiKeyError = errorMessage.includes('API_KEY') || errorMessage.includes('GOOGLE_API_KEY');
-        const isRateLimit = errorMessage.includes('429') || errorMessage.includes('quota') || errorMessage.includes('rate');
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const status = (error as any)?.status;
 
-        let userMessage: string;
-        if (isRateLimit) {
-            userMessage = 'אוי, עומס קצר על המערכת ⏳ נסה שוב בעוד חצי דקה ואני פה בשבילך!';
-        } else if (isApiKeyError) {
-            userMessage = 'מצטער, יש בעיה זמנית עם חיבור ה-AI. נסה שוב בעוד רגע 🔧';
-        } else {
-            userMessage = 'מצטער, משהו השתבש 😕 נסה שוב בבקשה.';
-        }
+        // Accurate detection: if Gemini explicitly returned 429, or message contains quota words
+        const isQuotaExceeded = status === 429 ||
+            errorMessage.includes('429') ||
+            errorMessage.includes('quota') ||
+            errorMessage.includes('rate');
+
+        console.error(`[ChatAPI] 🛑 API Final Error:`, { status, message: errorMessage });
 
         return Response.json(
             {
-                response: userMessage,
-                error: 'שגיאה פנימית',
+                response: isQuotaExceeded
+                    ? 'הגענו למכסת ההודעות החינמית של גוגל. אנא נסה שוב בעוד דקה.'
+                    : 'אירעה שגיאה בחיבור לשרתי ה-AI. אנא נסו שוב בקרוב.',
+                error: errorMessage,
                 resultCount: 0,
                 activityCards: [],
                 eventCards: [],
+                intent: 'general_info'
             },
-            { status: isRateLimit ? 429 : 500 },
+            { status: isQuotaExceeded ? 429 : (status || 500) },
         );
     }
 }

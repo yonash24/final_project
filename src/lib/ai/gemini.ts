@@ -18,12 +18,11 @@ function getGenAI(): GoogleGenerativeAI {
 }
 
 /**
- * Gemini Flash model — fast, cost-effective, great for chat.
- * Used for response generation.
+ * Gemini 3 Flash Preview — state-of-the-art reasoning for chat.
  */
 export function getChatModel() {
     return getGenAI().getGenerativeModel({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-3-flash-preview',
         generationConfig: {
             temperature: 0.3,
             topP: 0.9,
@@ -44,12 +43,11 @@ export function getChatModel() {
 }
 
 /**
- * Separate model instance for intent classification.
- * Very low temperature for consistent, structured JSON output.
+ * Gemini 2.0 Flash Lite — extremely fast model for intent classification.
  */
 export function getClassifierModel() {
     return getGenAI().getGenerativeModel({
-        model: 'gemini-2.0-flash',
+        model: 'gemini-2.0-flash-lite',
         generationConfig: {
             temperature: 0.1,
             topP: 0.8,
