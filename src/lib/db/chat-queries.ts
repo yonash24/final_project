@@ -305,11 +305,30 @@ export interface RegistrationInput {
  * Save a new registration to the database.
  */
 export async function createRegistration(reg: RegistrationInput) {
+    // 1. First, try to ensure the person exists in the 'members' table
+    // This allows us to track "people" separately from "registrations"
+    const { data: member, error: memberError } = await supabaseServer
+        .from('members')
+        .upsert({
+            full_name: reg.full_name,
+            phone: reg.phone,
+            email: reg.email || null,
+            updated_at: new Date().toISOString(),
+        }, { onConflict: 'phone' }) // Assuming phone is unique for members
+        .select()
+        .single();
+
+    if (memberError) {
+        console.warn('[DB] ⚠️ Could not upsert member, proceeding with direct registration:', memberError.message);
+    }
+
+    // 2. Create the registration entry
     const { data, error } = await supabaseServer
         .from('registrations')
         .insert([{
             activity_id: reg.activity_id,
-            user_name: reg.full_name,
+            member_id: member?.id || null, // Link to member if created
+            user_name: reg.full_name,      // Keep direct info for redundancy/history
             user_phone: reg.phone,
             user_email: reg.email || null,
             notes: reg.notes || null,
@@ -327,3 +346,4 @@ export async function createRegistration(reg: RegistrationInput) {
     console.log(`[DB] ✅ Registration created for ${reg.full_name} (ID: ${data.id})`);
     return data;
 }
+

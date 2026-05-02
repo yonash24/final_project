@@ -1,7 +1,21 @@
+"use client";
 import Link from 'next/link';
 import { LayoutDashboard, BookOpen, Calendar, Users, Settings, LogOut, Sparkles, Megaphone, Palette } from 'lucide-react';
+import { logoutAdmin } from '@/app/admin/login/actions';
+import { supabase } from '@/lib/supabase/client';
+import { useState, useEffect } from 'react';
 
 export default function AdminNavbar() {
+    const [userEmail, setUserEmail] = useState<string | null>(null);
+
+    useEffect(() => {
+        async function getUser() {
+            const { data: { user } } = await supabase.auth.getUser();
+            setUserEmail(user?.email || null);
+        }
+        getUser();
+    }, []);
+
     return (
         <nav className="glass-panel" style={{
             margin: '1.5rem',
@@ -34,12 +48,17 @@ export default function AdminNavbar() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <div style={{ textAlign: 'left', fontSize: '0.875rem' }}>
                     <div style={{ fontWeight: 'bold' }}>מנהל מערכת</div>
-                    <div style={{ color: 'var(--text-secondary)' }}>admin@matnas.com</div>
+                    <div style={{ color: 'var(--text-secondary)' }}>{userEmail || 'מתחבר...'}</div>
                 </div>
-                <Link href="/admin/login" className="btn btn-ghost btn-icon">
-                    <LogOut size={20} />
-                </Link>
+
+                <form action={logoutAdmin}>
+                    <button type="submit" className="btn btn-ghost btn-icon">
+                        <LogOut size={20} />
+                    </button>
+                </form>
+
             </div>
+
         </nav>
     );
 }
