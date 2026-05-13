@@ -2,7 +2,6 @@
 import AdminNavbar from '@/components/admin/AdminNavbar';
 import { Search, Mail, Phone, UserPlus, Trash2, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase/client';
 
 export default function AdminMembersPage() {
     const [members, setMembers] = useState<any[]>([]);
@@ -17,29 +16,60 @@ export default function AdminMembersPage() {
 
     async function fetchMembers() {
         setLoading(true);
-        const { data, error } = await supabase.from('members').select('*').order('created_at', { ascending: false });
-        if (data) setMembers(data);
-        if (error) console.error('Error fetching members:', error);
-        setLoading(false);
+        try {
+            const res = await fetch('/api/admin/members');
+            if (res.ok) {
+                const data = await res.json();
+                setMembers(data);
+            } else {
+                const err = await res.json();
+                console.error('Error fetching members:', err.error);
+            }
+        } catch (err) {
+            console.error('Fetch error:', err);
+        } finally {
+            setLoading(false);
+        }
     }
 
     async function handleAddMember(e: React.FormEvent) {
         e.preventDefault();
-        const { error } = await supabase.from('members').insert([newMember]);
-        if (!error) {
-            setShowModal(false);
-            setNewMember({ full_name: '', email: '', phone: '' });
-            fetchMembers();
-        } else {
-            alert('שגיאה בהוספת משתתף: ' + error.message);
+        try {
+            const res = await fetch('/api/admin/members', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newMember)
+            });
+            
+            if (res.ok) {
+                setShowModal(false);
+                setNewMember({ full_name: '', email: '', phone: '' });
+                fetchMembers();
+            } else {
+                const err = await res.json();
+                alert('שגיאה בהוספת משתתף: ' + err.error);
+            }
+        } catch (err) {
+            alert('שגיאה בתקשורת עם השרת');
         }
     }
 
     async function deleteMember(id: string) {
         if (confirm('האם למחוק משתתף זה?')) {
-            const { error } = await supabase.from('members').delete().eq('id', id);
-            if (!error) fetchMembers();
-            else alert('שגיאה במחיקה: ' + error.message);
+            try {
+                const res = await fetch(`/api/admin/members?id=${id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (res.ok) {
+                    fetchMembers();
+                } else {
+                    const err = await res.json();
+                    alert('שגיאה במחיקה: ' + err.error);
+                }
+            } catch (err) {
+                alert('שגיאה בתקשורת עם השרת');
+            }
         }
     }
 

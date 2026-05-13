@@ -33,10 +33,14 @@ export async function POST(request: NextRequest) {
             message: 'הרשמה בוצעה בהצלחה',
         });
     } catch (error: any) {
-        console.error('[RegistrationsAPI] 🛑 Error:', error.message);
+        console.error('[RegistrationsAPI] 🛑 Error Details:', error);
         return Response.json(
-            { error: 'אירעה שגיאה בשמירת ההרשמה. אנא נסה שוב מאוחר יותר.' },
-            { status: 502 }, // DB likely down or table missing
+            { 
+                error: 'אירעה שגיאה בשמירת ההרשמה. אנא נסה שוב מאוחר יותר.',
+                details: error.message 
+            },
+            { status: 500 },
         );
     }
+
 }

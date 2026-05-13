@@ -43,15 +43,30 @@ export function getChatModel() {
 }
 
 /**
- * Gemini 2.0 Flash Lite — extremely fast model for intent classification.
+ * Gemini 3 Flash Preview — fast and reliable model for general tasks.
  */
 export function getClassifierModel() {
     return getGenAI().getGenerativeModel({
-        model: 'gemini-2.0-flash-lite',
+        model: 'gemini-3-flash-preview',
         generationConfig: {
             temperature: 0.1,
             topP: 0.8,
             maxOutputTokens: 512,
+            responseMimeType: 'application/json',
+        },
+    });
+}
+
+/**
+ * Gemini 3 Flash Preview — optimized for marketing content generation.
+ */
+export function getStudioModel() {
+    return getGenAI().getGenerativeModel({
+        model: 'gemini-3-flash-preview',
+        generationConfig: {
+            temperature: 0.7,
+            topP: 0.95,
+            maxOutputTokens: 1024,
             responseMimeType: 'application/json',
         },
     });

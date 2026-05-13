@@ -323,25 +323,30 @@ export async function createRegistration(reg: RegistrationInput) {
     }
 
     // 2. Create the registration entry
+    const registrationData = {
+        activity_id: reg.activity_id,
+        member_id: member?.id || null,
+        user_name: reg.full_name,
+        user_phone: reg.phone,
+        user_email: reg.email || null,
+        notes: reg.notes || null,
+        status: 'pending',
+        created_at: new Date().toISOString(),
+    };
+
+    console.log('[DB] 📝 Attempting to insert registration:', registrationData);
+
     const { data, error } = await supabaseServer
         .from('registrations')
-        .insert([{
-            activity_id: reg.activity_id,
-            member_id: member?.id || null, // Link to member if created
-            user_name: reg.full_name,      // Keep direct info for redundancy/history
-            user_phone: reg.phone,
-            user_email: reg.email || null,
-            notes: reg.notes || null,
-            status: 'pending',
-            created_at: new Date().toISOString(),
-        }])
+        .insert([registrationData])
         .select()
         .single();
 
     if (error) {
-        console.error('[DB] ❌ createRegistration error:', error.message);
-        throw new Error(`Failed to save registration: ${error.message}`);
+        console.error('[DB] ❌ createRegistration error:', error);
+        throw new Error(`Failed to save registration: ${error.message} (${error.code || 'no-code'})`);
     }
+
 
     console.log(`[DB] ✅ Registration created for ${reg.full_name} (ID: ${data.id})`);
     return data;
