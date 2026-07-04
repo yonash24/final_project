@@ -235,20 +235,39 @@ export default function ActivityDetailPage() {
 
                                 {/* Spots indicator */}
                                 {spotsLeft !== null && (
-                                    <div
-                                        style={{
-                                            padding: '0.6rem 1rem',
-                                            borderRadius: 'var(--radius-md)',
-                                            marginBottom: '1rem',
-                                            textAlign: 'center',
-                                            fontSize: '0.85rem',
-                                            fontWeight: 700,
-                                            background: isFull ? '#fee2e2' : isLowSpots ? '#fef3c7' : '#dcfce7',
-                                            color: isFull ? '#dc2626' : isLowSpots ? '#b45309' : '#16a34a',
-                                        }}
-                                    >
-                                        {isFull ? '⛔ מלא — אין מקומות' : `✅ ${spotsLeft} מקומות פנויים`}
-                                    </div>
+                                    <>
+                                        <div
+                                            style={{
+                                                padding: '0.6rem 1rem',
+                                                borderRadius: 'var(--radius-md)',
+                                                marginBottom: '0.75rem',
+                                                textAlign: 'center',
+                                                fontSize: '0.85rem',
+                                                fontWeight: 700,
+                                                background: isFull ? '#fee2e2' : isLowSpots ? '#fef3c7' : '#dcfce7',
+                                                color: isFull ? '#dc2626' : isLowSpots ? '#b45309' : '#16a34a',
+                                            }}
+                                        >
+                                            {isFull ? '⛔ מלא — אין מקומות' : isLowSpots ? `⚡ נותרו רק ${spotsLeft} מקומות` : `✅ ${spotsLeft} מקומות פנויים`}
+                                        </div>
+                                        {activity.max_participants != null && (
+                                            <div style={{ marginBottom: '1rem' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '0.3rem' }}>
+                                                    <span>תפוסה</span>
+                                                    <span>{activity.current_participants ?? 0}/{activity.max_participants}</span>
+                                                </div>
+                                                <div style={{ height: '8px', borderRadius: '999px', backgroundColor: '#e2e8f0', overflow: 'hidden' }}>
+                                                    <div
+                                                        style={{
+                                                            width: `${Math.min(((activity.current_participants ?? 0) / activity.max_participants) * 100, 100)}%`,
+                                                            height: '100%',
+                                                            backgroundColor: isFull ? '#dc2626' : isLowSpots ? '#f59e0b' : '#16a34a',
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
                                 )}
 
                                 <button
@@ -258,7 +277,7 @@ export default function ActivityDetailPage() {
                                     onClick={() => setShowModal(true)}
                                     id={`register-activity-${activity.id}`}
                                 >
-                                    {isFull ? 'רשימת המתנה' : '✍️ הרשמה לחוג'}
+                                    {isFull ? 'כרגע מלא' : '✍️ הרשמה לחוג'}
                                 </button>
 
                                 {mapUrl && (

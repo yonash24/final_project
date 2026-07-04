@@ -13,6 +13,8 @@ export const activitySchema = z.object({
     days_of_week: emptyStringToNull(z.string()),
     start_time: emptyStringToNull(z.string()),
     end_time: emptyStringToNull(z.string()),
+    start_date: emptyStringToNull(z.string()),
+    end_date: emptyStringToNull(z.string()),
     price: emptyStringToNull(z.coerce.number().min(0)),
     instructor_name: emptyStringToNull(z.string()),
     location: emptyStringToNull(z.string()),

@@ -11,6 +11,8 @@ export interface AdminActivity {
     days_of_week: string | null;
     start_time: string | null;
     end_time: string | null;
+    start_date: string | null;
+    end_date: string | null;
     price: number | null;
     instructor_name: string | null;
     location: string | null;
@@ -42,6 +44,49 @@ export interface AdminPost {
     author_role: string;
     content: string;
     likes_count: number | null;
+    created_at: string;
+}
+
+export interface AdminNotificationSettings {
+    id: string;
+    channel: 'whatsapp';
+    provider: string;
+    is_enabled: boolean;
+    send_registration_confirmations: boolean;
+    send_class_reminders: boolean;
+    send_event_reminders: boolean;
+    reminder_lead_hours: number;
+    admin_contact_name: string | null;
+    admin_contact_phone: string | null;
+    updated_at: string;
+}
+
+export interface AdminNotificationTemplate {
+    id: string;
+    template_key: 'registration_confirmation' | 'class_reminder' | 'event_reminder';
+    channel: 'whatsapp';
+    label: string;
+    description: string | null;
+    is_enabled: boolean;
+    body: string;
+    variables: string[];
+    updated_at: string;
+}
+
+export interface AdminNotificationDelivery {
+    id: string;
+    channel: 'whatsapp';
+    provider: string;
+    template_key: 'registration_confirmation' | 'class_reminder' | 'event_reminder' | null;
+    recipient_name: string | null;
+    recipient_phone: string;
+    status: 'pending' | 'simulated' | 'sent' | 'failed';
+    payload: Record<string, unknown>;
+    rendered_body: string | null;
+    scheduled_for: string;
+    processed_at: string | null;
+    delivered_at: string | null;
+    error_message: string | null;
     created_at: string;
 }
 

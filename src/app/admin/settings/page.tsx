@@ -1,68 +1,311 @@
+"use client";
+
+import { Bell, MessageSquareText, Save, Smartphone, ToggleLeft } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
 import AdminNavbar from '@/components/admin/AdminNavbar';
-import { Shield, Bell, Palette, Globe, Save } from 'lucide-react';
+import type {
+    AdminNotificationDelivery,
+    AdminNotificationSettings,
+    AdminNotificationTemplate,
+} from '@/lib/admin/types';
+
+interface SettingsResponse {
+    settings: AdminNotificationSettings | null;
+    templates: AdminNotificationTemplate[];
+    recentDeliveries: AdminNotificationDelivery[];
+}
+
+interface SettingsFormState {
+    provider: string;
+    is_enabled: boolean;
+    send_registration_confirmations: boolean;
+    send_class_reminders: boolean;
+    send_event_reminders: boolean;
+    reminder_lead_hours: number;
+    admin_contact_name: string;
+    admin_contact_phone: string;
+    templates: Array<{
+        template_key: AdminNotificationTemplate['template_key'];
+        label: string;
+        description: string | null;
+        is_enabled: boolean;
+        body: string;
+        variables: string[];
+    }>;
+}
+
+function buildFormState(data: SettingsResponse): SettingsFormState {
+    return {
+        provider: data.settings?.provider ?? 'mock-whatsapp',
+        is_enabled: data.settings?.is_enabled ?? true,
+        send_registration_confirmations: data.settings?.send_registration_confirmations ?? true,
+        send_class_reminders: data.settings?.send_class_reminders ?? true,
+        send_event_reminders: data.settings?.send_event_reminders ?? true,
+        reminder_lead_hours: data.settings?.reminder_lead_hours ?? 24,
+        admin_contact_name: data.settings?.admin_contact_name ?? '',
+        admin_contact_phone: data.settings?.admin_contact_phone ?? '',
+        templates: data.templates.map((template) => ({
+            template_key: template.template_key,
+            label: template.label,
+            description: template.description,
+            is_enabled: template.is_enabled,
+            body: template.body,
+            variables: template.variables,
+        })),
+    };
+}
 
 export default function AdminSettingsPage() {
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [recentDeliveries, setRecentDeliveries] = useState<AdminNotificationDelivery[]>([]);
+    const [form, setForm] = useState<SettingsFormState | null>(null);
+
+    useEffect(() => {
+        let ignore = false;
+
+        void (async () => {
+            setLoading(true);
+            try {
+                const response = await fetch('/api/admin/notifications/settings');
+                const data = await response.json();
+
+                if (!response.ok) throw new Error(data.error || 'Failed to load settings');
+
+                if (!ignore) {
+                    const typedData = data as SettingsResponse;
+                    setRecentDeliveries(typedData.recentDeliveries);
+                    setForm(buildFormState(typedData));
+                }
+            } catch (error) {
+                console.error('Failed to load settings', error);
+            } finally {
+                if (!ignore) {
+                    setLoading(false);
+                }
+            }
+        })();
+
+        return () => {
+            ignore = true;
+        };
+    }, []);
+
+    async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        if (!form) return;
+
+        setSaving(true);
+        try {
+            const response = await fetch('/api/admin/notifications/settings', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    provider: form.provider,
+                    is_enabled: form.is_enabled,
+                    send_registration_confirmations: form.send_registration_confirmations,
+                    send_class_reminders: form.send_class_reminders,
+                    send_event_reminders: form.send_event_reminders,
+                    reminder_lead_hours: form.reminder_lead_hours,
+                    admin_contact_name: form.admin_contact_name,
+                    admin_contact_phone: form.admin_contact_phone,
+                    templates: form.templates.map((template) => ({
+                        template_key: template.template_key,
+                        is_enabled: template.is_enabled,
+                        body: template.body,
+                    })),
+                }),
+            });
+
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed to save settings');
+
+            const typedData = data as SettingsResponse;
+            setRecentDeliveries(typedData.recentDeliveries);
+            setForm(buildFormState(typedData));
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'שגיאה בשמירת ההגדרות';
+            alert(message);
+        } finally {
+            setSaving(false);
+        }
+    }
+
     return (
         <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
             <AdminNavbar />
             <main className="container" style={{ padding: '2rem 0' }}>
-                <h1 style={{ fontSize: '2rem', marginBottom: '2rem' }}>הגדרות מערכת ⚙️</h1>
+                <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>הגדרות מערכת ⚙️</h1>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
+                    ניהול תשתית התראות WhatsApp עם ספק מדומה היום וחיבור חלק ל-Twilio או Meta בהמשך.
+                </p>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem' }}>
-                    {/* Sidebar Settings Categories */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <button className="btn btn-ghost btn-md" style={{ justifyContent: 'flex-start', color: 'var(--accent-primary)', backgroundColor: 'var(--bg-secondary)' }}><Shield size={18} /> אבטחה והרשאות</button>
-                        <button className="btn btn-ghost btn-md" style={{ justifyContent: 'flex-start' }}><Bell size={18} /> התראות והודעות</button>
-                        <button className="btn btn-ghost btn-md" style={{ justifyContent: 'flex-start' }}><Palette size={18} /> עיצוב ומיתוג</button>
-                        <button className="btn btn-ghost btn-md" style={{ justifyContent: 'flex-start' }}><Globe size={18} /> הגדרות אתר</button>
-                    </div>
-
-                    {/* Settings content */}
-                    <div className="card" style={{ padding: '2rem' }}>
-                        <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem' }}>פרופיל מנהל</h2>
+                {loading || !form ? (
+                    <div className="card" style={{ padding: '2rem', textAlign: 'center' }}>טוען הגדרות...</div>
+                ) : (
+                    <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: '2rem' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                <div>
-                                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>שם מלא</label>
-                                    <input className="input-field" defaultValue="מנהל מתנ״ס ראשי" />
+                            <div className="card" style={{ padding: '1.75rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                                    <Bell size={20} color="#0284c7" />
+                                    <h2 style={{ fontSize: '1.35rem' }}>התראות WhatsApp</h2>
                                 </div>
-                                <div>
-                                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>תפקיד</label>
-                                    <input className="input-field" defaultValue="מנהל תחום פנאי" />
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>ספק</label>
+                                        <select className="input-field" value={form.provider} onChange={(event) => setForm((prev) => prev ? { ...prev, provider: event.target.value } : prev)}>
+                                            <option value="mock-whatsapp">Mock WhatsApp</option>
+                                            <option value="twilio-whatsapp">Twilio WhatsApp (מוכן לחיבור)</option>
+                                            <option value="meta-cloud-api">Meta Cloud API (מוכן לחיבור)</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>שעות לפני תזכורת</label>
+                                        <input type="number" min={1} max={168} className="input-field" value={form.reminder_lead_hours} onChange={(event) => setForm((prev) => prev ? { ...prev, reminder_lead_hours: Number(event.target.value) } : prev)} />
+                                    </div>
                                 </div>
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>אימייל להתראות</label>
-                                <input className="input-field" defaultValue="admin@matnas.com" />
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>איש קשר</label>
+                                        <input className="input-field" value={form.admin_contact_name} onChange={(event) => setForm((prev) => prev ? { ...prev, admin_contact_name: event.target.value } : prev)} />
+                                    </div>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>טלפון לניהול</label>
+                                        <input className="input-field" value={form.admin_contact_phone} onChange={(event) => setForm((prev) => prev ? { ...prev, admin_contact_phone: event.target.value } : prev)} />
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <ToggleRow
+                                        label="מערכת התראות פעילה"
+                                        checked={form.is_enabled}
+                                        onChange={(checked) => setForm((prev) => prev ? { ...prev, is_enabled: checked } : prev)}
+                                    />
+                                    <ToggleRow
+                                        label="אישורי הרשמה אוטומטיים"
+                                        checked={form.send_registration_confirmations}
+                                        onChange={(checked) => setForm((prev) => prev ? { ...prev, send_registration_confirmations: checked } : prev)}
+                                    />
+                                    <ToggleRow
+                                        label="תזכורות לחוגים"
+                                        checked={form.send_class_reminders}
+                                        onChange={(checked) => setForm((prev) => prev ? { ...prev, send_class_reminders: checked } : prev)}
+                                    />
+                                    <ToggleRow
+                                        label="תזכורות לאירועים"
+                                        checked={form.send_event_reminders}
+                                        onChange={(checked) => setForm((prev) => prev ? { ...prev, send_event_reminders: checked } : prev)}
+                                    />
+                                </div>
                             </div>
 
-                            <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '1rem 0' }} />
-
-                            <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem' }}>שינוי סיסמה</h2>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>סיסמה נוכחית</label>
-                                <input className="input-field" type="password" />
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                <div>
-                                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>סיסמה חדשה</label>
-                                    <input className="input-field" type="password" />
+                            <div className="card" style={{ padding: '1.75rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                                    <MessageSquareText size={20} color="#0284c7" />
+                                    <h2 style={{ fontSize: '1.35rem' }}>תבניות הודעה</h2>
                                 </div>
-                                <div>
-                                    <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold' }}>אימות סיסמה חדשה</label>
-                                    <input className="input-field" type="password" />
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    {form.templates.map((template, index) => (
+                                        <div key={template.template_key} style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.6rem' }}>
+                                                <div>
+                                                    <div style={{ fontWeight: 800 }}>{template.label}</div>
+                                                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{template.description}</div>
+                                                </div>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700 }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={template.is_enabled}
+                                                        onChange={(event) => setForm((prev) => prev ? {
+                                                            ...prev,
+                                                            templates: prev.templates.map((item, itemIndex) => itemIndex === index ? { ...item, is_enabled: event.target.checked } : item),
+                                                        } : prev)}
+                                                    />
+                                                    פעיל
+                                                </label>
+                                            </div>
+                                            <textarea
+                                                className="input-field"
+                                                style={{ minHeight: '110px' }}
+                                                value={template.body}
+                                                onChange={(event) => setForm((prev) => prev ? {
+                                                    ...prev,
+                                                    templates: prev.templates.map((item, itemIndex) => itemIndex === index ? { ...item, body: event.target.value } : item),
+                                                } : prev)}
+                                            />
+                                            <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                משתנים זמינים: {template.variables.map((variable) => `{{${variable}}}`).join(', ')}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
-                            </div>
-
-                            <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-end' }}>
-                                <button className="btn btn-primary btn-md">
-                                    <Save size={18} /> שמור שינויים
-                                </button>
                             </div>
                         </div>
-                    </div>
-                </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            <div className="card" style={{ padding: '1.75rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                                    <Smartphone size={20} color="#0284c7" />
+                                    <h2 style={{ fontSize: '1.35rem' }}>מצב תשתית</h2>
+                                </div>
+                                <ul style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', listStyle: 'none' }}>
+                                    <li>המערכת שומרת הודעות יוצאות ב-outbox ייעודי במסד הנתונים.</li>
+                                    <li>הספק הפעיל כרגע הוא סימולטור בטוח לפיתוח, ללא שליחה אמיתית.</li>
+                                    <li>חיבור ל-Twilio או Meta ידרוש רק מימוש ספק וקביעת secrets.</li>
+                                </ul>
+                            </div>
+
+                            <div className="card" style={{ padding: '1.75rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                                    <ToggleLeft size={20} color="#0284c7" />
+                                    <h2 style={{ fontSize: '1.35rem' }}>הודעות אחרונות</h2>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                                    {recentDeliveries.length === 0 ? (
+                                        <div style={{ color: 'var(--text-secondary)' }}>עדיין לא נוצרו הודעות.</div>
+                                    ) : recentDeliveries.map((delivery) => (
+                                        <div key={delivery.id} style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '0.9rem' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.35rem' }}>
+                                                <strong>{delivery.template_key ?? 'manual'}</strong>
+                                                <span style={{ color: delivery.status === 'failed' ? '#dc2626' : delivery.status === 'pending' ? '#b45309' : '#15803d', fontWeight: 700 }}>
+                                                    {delivery.status}
+                                                </span>
+                                            </div>
+                                            <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                                {delivery.recipient_name || 'ללא שם'} • {delivery.recipient_phone}
+                                            </div>
+                                            <div style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '0.35rem' }}>
+                                                {new Date(delivery.created_at).toLocaleString('he-IL')}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <button type="submit" disabled={saving} className="btn btn-primary btn-md" style={{ justifyContent: 'center' }}>
+                                <Save size={18} /> {saving ? 'שומר הגדרות...' : 'שמור שינויים'}
+                            </button>
+                        </div>
+                    </form>
+                )}
             </main>
         </div>
+    );
+}
+
+function ToggleRow({
+    label,
+    checked,
+    onChange,
+}: {
+    label: string;
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+}) {
+    return (
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', backgroundColor: '#f8fafc', border: '1px solid var(--border-color)' }}>
+            <span style={{ fontWeight: 700 }}>{label}</span>
+            <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+        </label>
     );
 }

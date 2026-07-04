@@ -506,6 +506,23 @@ a:hover {
     font-size: 1rem;
 }
 
+.btn-sm {
+    height: 2.2rem;
+    padding: 0 1rem;
+    font-size: 0.9rem;
+}
+
+.btn-outline {
+    background-color: transparent;
+    border: 2px solid var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.btn-outline:hover {
+    background-color: #e0f2fe;
+    transform: scale(1.05);
+}
+
 /* Dashboard and internal forms */
 .input-field {
     width: 100%;
@@ -725,6 +742,54 @@ a:hover {
     color: var(--accent-primary);
     transform: translateY(-2px);
     box-shadow: var(--shadow-md);
+}
+
+.discovery-toolbar {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.discovery-search {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: white;
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: 0 1rem;
+    height: 3rem;
+}
+
+.discovery-search input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font: inherit;
+    background: transparent;
+}
+
+.discovery-filters {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.discovery-filter-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+}
+
+@media (max-width: 900px) {
+    .discovery-toolbar {
+        grid-template-columns: 1fr;
+    }
 }
 
 .chat-quick-chip:disabled {

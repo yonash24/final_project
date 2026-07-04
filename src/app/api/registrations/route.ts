@@ -5,6 +5,11 @@
 
 import { NextRequest } from 'next/server';
 import { createRegistration } from '@/lib/db/chat-queries';
+import { supabaseServer } from '@/lib/supabase/server';
+import {
+    queueRegistrationConfirmation,
+    scheduleClassReminder,
+} from '@/lib/notifications/service';
 
 export async function POST(request: NextRequest) {
     try {
@@ -26,6 +31,45 @@ export async function POST(request: NextRequest) {
             email,
             notes,
         });
+
+        const { data: activity } = await supabaseServer
+            .from('activities')
+            .select('id, title_he, days_of_week, start_time, start_date, location')
+            .eq('id', activity_id)
+            .maybeSingle();
+
+        if (activity) {
+            const scheduleText = [
+                activity.days_of_week,
+                activity.start_time ? `בשעה ${String(activity.start_time).slice(0, 5)}` : null,
+            ].filter(Boolean).join(' ');
+
+            const locationText = activity.location ? `מיקום: ${activity.location}.` : '';
+
+            await queueRegistrationConfirmation({
+                registrationId: data.id,
+                activityId: activity.id,
+                activityTitle: activity.title_he,
+                recipientName: full_name,
+                recipientPhone: phone,
+                scheduleText,
+                locationText,
+            });
+
+            const startAt = activity.start_date
+                ? `${activity.start_date}T${activity.start_time ?? '09:00:00'}`
+                : null;
+
+            await scheduleClassReminder({
+                registrationId: data.id,
+                activityId: activity.id,
+                activityTitle: activity.title_he,
+                recipientName: full_name,
+                recipientPhone: phone,
+                startAt,
+                locationText,
+            });
+        }
 
         return Response.json({
             ok: true,

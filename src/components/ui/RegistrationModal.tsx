@@ -113,9 +113,9 @@ export default function RegistrationModal({ activity, onClose }: RegistrationMod
                             </div>
                             <h3>הרשמה התקבלה! 🎉</h3>
                             <p>
-                                שלחנו אישור לטלפון {form.phone}.
+                                ההרשמה שלך נקלטה עבור {activity.title_he}.
                                 <br />
-                                נציגנו יצור איתך קשר לאישור סופי תוך 24 שעות.
+                                אישור יישלח למספר {form.phone} לאחר הפעלת ערוץ ההתראות, ובינתיים נציגנו יצור קשר לאישור סופי תוך 24 שעות.
                             </p>
                             <button className="btn btn-primary btn-md" onClick={onClose} style={{ marginTop: '1.5rem' }}>
                                 סגור
