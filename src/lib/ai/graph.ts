@@ -12,7 +12,6 @@ import {
     searchEvents,
     getActivityByName,
     getUpcomingEvents,
-    getCategories,
     type ActivityRow,
     type EventRow,
 } from "@/lib/db/chat-queries";
@@ -56,7 +55,7 @@ async function classifyNode(state: StateType) {
     try {
         const classified = await classifyIntent(state.message, state.history);
         return { classified };
-    } catch (err) {
+    } catch {
         return { error: "Classification failed" };
     }
 }
@@ -120,7 +119,7 @@ async function retrieveNode(state: StateType) {
  * Node 3: Generate the final natural language response.
  */
 async function generateNode(state: StateType) {
-    const { message, history, classified, searchResults } = state;
+    const { message, classified, searchResults } = state;
     
     if (!classified) return { response: "מצטער, לא הבנתי את הבקשה." };
 
@@ -163,7 +162,7 @@ ${dbContext}
     try {
         const result = await chatModel.generateContent(contextPrompt);
         return { response: result.response.text() };
-    } catch (err) {
+    } catch {
         return { error: "Generation failed" };
     }
 }

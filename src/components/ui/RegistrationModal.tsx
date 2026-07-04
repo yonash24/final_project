@@ -60,9 +60,10 @@ export default function RegistrationModal({ activity, onClose }: RegistrationMod
             }
 
             setStep('success');
-        } catch (err: any) {
-            console.error('[Registration] Failed:', err.message);
-            alert(err.message || 'אירעה שגיאה בשליחת הטופס. אנא נסה שוב.');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'אירעה שגיאה בשליחת הטופס. אנא נסה שוב.';
+            console.error('[Registration] Failed:', message);
+            alert(message);
             setStep('form');
         }
     }

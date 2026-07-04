@@ -2,9 +2,10 @@
 import AdminNavbar from '@/components/admin/AdminNavbar';
 import { Search, Mail, Phone, UserPlus, Trash2, X } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import type { AdminMember } from '@/lib/admin/types';
 
 export default function AdminMembersPage() {
-    const [members, setMembers] = useState<any[]>([]);
+    const [members, setMembers] = useState<AdminMember[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [showModal, setShowModal] = useState(false);
@@ -20,7 +21,7 @@ export default function AdminMembersPage() {
             const res = await fetch('/api/admin/members');
             if (res.ok) {
                 const data = await res.json();
-                setMembers(data);
+                setMembers(data as AdminMember[]);
             } else {
                 const err = await res.json();
                 console.error('Error fetching members:', err.error);
@@ -49,7 +50,7 @@ export default function AdminMembersPage() {
                 const err = await res.json();
                 alert('שגיאה בהוספת משתתף: ' + err.error);
             }
-        } catch (err) {
+        } catch {
             alert('שגיאה בתקשורת עם השרת');
         }
     }
@@ -67,13 +68,13 @@ export default function AdminMembersPage() {
                     const err = await res.json();
                     alert('שגיאה במחיקה: ' + err.error);
                 }
-            } catch (err) {
+            } catch {
                 alert('שגיאה בתקשורת עם השרת');
             }
         }
     }
 
-    const filtered = members.filter(m =>
+    const filtered = members.filter((m) =>
         m.full_name?.toLowerCase().includes(search.toLowerCase()) ||
         m.email?.toLowerCase().includes(search.toLowerCase()) ||
         m.phone?.includes(search)
@@ -123,7 +124,7 @@ export default function AdminMembersPage() {
                                     <tr><td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
                                         {search ? 'לא נמצאו תוצאות' : 'אין משתתפים רשומים עדיין'}
                                     </td></tr>
-                                ) : filtered.map(m => (
+                                ) : filtered.map((m) => (
                                     <tr key={m.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
                                         <td style={{ padding: '1rem', fontWeight: 'bold' }}>{m.full_name}</td>
                                         <td style={{ padding: '1rem' }}>

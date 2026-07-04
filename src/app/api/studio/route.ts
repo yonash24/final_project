@@ -1,9 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStudioModel } from '@/lib/ai/gemini';
 
+interface StudioRequestBody {
+    prompt?: string;
+    type?: 'post' | 'flyer';
+    action?: 'get_designs' | 'generate';
+    design?: {
+        name?: string;
+        palette?: Record<string, string>;
+    };
+}
+
+interface ErrorWithStatus {
+    status?: number;
+    message?: string;
+}
+
 export async function POST(req: NextRequest) {
     try {
-        const { prompt, type, action, design } = await req.json();
+        const { prompt, type, action, design } = (await req.json()) as StudioRequestBody;
 
         if (!prompt) {
             return NextResponse.json({ error: 'חסר תוכן לסטודיו' }, { status: 400 });
@@ -80,17 +95,17 @@ export async function POST(req: NextRequest) {
         }
 
         let responseText = '';
-        let lastError: any = null;
+        let lastError: ErrorWithStatus | null = null;
         for (let attempt = 0; attempt < 3; attempt++) {
             try {
                 const result = await model.generateContent(combinedInstruction);
                 responseText = result.response.text();
                 lastError = null;
                 break;
-            } catch (geminiErr: any) {
-                lastError = geminiErr;
+            } catch (geminiErr: unknown) {
+                lastError = geminiErr as ErrorWithStatus;
                 const msg = geminiErr instanceof Error ? geminiErr.message : String(geminiErr);
-                const status = geminiErr?.status;
+                const status = lastError?.status;
                 if ((status === 429 || msg.includes('429')) && attempt < 2) {
                     await new Promise((r) => setTimeout(r, (attempt + 1) * 2000));
                     continue;
@@ -114,9 +129,10 @@ export async function POST(req: NextRequest) {
             ...data,
             imageUrl: imageUrl
         });
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error('[Studio API]', err);
-        if (err.status === 429) {
+        const error = err as ErrorWithStatus;
+        if (error.status === 429) {
             return NextResponse.json({ error: 'חרגת ממכסת הבקשות. אנא נסה שוב בעוד דקה.' }, { status: 429 });
         }
         return NextResponse.json({ error: 'שגיאה פנימית בהפעלת מודל השיווק' }, { status: 500 });

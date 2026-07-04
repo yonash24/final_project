@@ -4,20 +4,28 @@ import { Heart, MessageCircle, MoreHorizontal } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase/client';
 
+interface PublicPost {
+    id: string;
+    title: string | null;
+    author_name: string;
+    author_role: string;
+    content: string;
+    likes_count: number | null;
+    created_at: string;
+}
+
 export default function FeedPage() {
-    const [posts, setPosts] = useState<any[]>([]);
+    const [posts, setPosts] = useState<PublicPost[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetchPosts();
+        void (async () => {
+            setLoading(true);
+            const { data } = await supabase.from('posts').select('*').order('created_at', { ascending: false });
+            if (data) setPosts(data as PublicPost[]);
+            setLoading(false);
+        })();
     }, []);
-
-    async function fetchPosts() {
-        setLoading(true);
-        const { data } = await supabase.from('posts').select('*').order('created_at', { ascending: false });
-        if (data) setPosts(data);
-        setLoading(false);
-    }
 
     return (
         <div style={{ backgroundColor: 'var(--bg-secondary)', minHeight: '100vh', paddingBottom: '3rem' }}>

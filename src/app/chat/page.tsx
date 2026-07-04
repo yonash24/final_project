@@ -7,6 +7,7 @@ import {
     Clock, MapPin, Users, BadgeDollarSign, CalendarDays,
 } from 'lucide-react';
 import { QUICK_ACTIONS, GREETING_MESSAGE } from '@/lib/ai/chat-constants';
+import type { ChatResponseType, ClarificationOption } from '@/lib/ai/chat-types';
 import RegistrationModal from '@/components/ui/RegistrationModal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -47,9 +48,11 @@ interface ChatMessage {
     role: 'user' | 'assistant';
     content: string;
     timestamp: Date | string; // stored as string in localStorage
+    responseType?: ChatResponseType;
     resultCount?: number;
     activityCards?: ActivityCard[];
     eventCards?: EventCard[];
+    clarificationOptions?: ClarificationOption[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -284,16 +287,35 @@ function EventResultCard({ event, index }: { event: EventCard; index: number }) 
 interface ResultCardsSectionProps {
     message: ChatMessage;
     onRegister: (activity: ActivityCard) => void;
+    onClarify: (value: string) => void;
 }
 
-function ResultCardsSection({ message, onRegister }: ResultCardsSectionProps) {
+function ResultCardsSection({ message, onRegister, onClarify }: ResultCardsSectionProps) {
     const hasActivities = message.activityCards && message.activityCards.length > 0;
     const hasEvents = message.eventCards && message.eventCards.length > 0;
+    const hasClarifications = message.clarificationOptions && message.clarificationOptions.length > 0;
 
-    if (!hasActivities && !hasEvents) return null;
+    if (!hasActivities && !hasEvents && !hasClarifications) return null;
 
     return (
         <div className="result-cards-section">
+            {hasClarifications && (
+                <>
+                    <p className="result-cards-label">דיוק מהיר:</p>
+                    <div className="chat-quick-grid" style={{ marginBottom: '1rem' }}>
+                        {message.clarificationOptions!.map((option) => (
+                            <button
+                                key={option.value}
+                                className="chat-quick-chip"
+                                onClick={() => onClarify(option.value)}
+                                type="button"
+                            >
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+                </>
+            )}
             {hasActivities && (
                 <>
                     <p className="result-cards-label">🎨 חוגים ופעילויות שנמצאו:</p>
@@ -349,10 +371,8 @@ export default function ChatPage() {
     });
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [showQuickActions, setShowQuickActions] = useState(
-        () => typeof window === 'undefined' || !messages.some((m) => m.role === 'user')
-    );
     const [registerActivity, setRegisterActivity] = useState<ActivityCard | null>(null);
+    const showQuickActions = typeof window === 'undefined' || !messages.some((m) => m.role === 'user');
 
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -369,11 +389,6 @@ export default function ChatPage() {
         el.style.height = 'auto';
         el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
     }, [input]);
-
-    // Hide quick actions after first user message
-    useEffect(() => {
-        if (messages.some((m) => m.role === 'user')) setShowQuickActions(false);
-    }, [messages]);
 
     // Persist to localStorage whenever messages change
     useEffect(() => {
@@ -420,9 +435,11 @@ export default function ChatPage() {
                     role: 'assistant',
                     content: data.response,
                     timestamp: new Date(),
+                    responseType: data.responseType,
                     resultCount: data.resultCount,
                     activityCards: data.activityCards ?? [],
                     eventCards: data.eventCards ?? [],
+                    clarificationOptions: data.clarificationOptions ?? [],
                 };
 
                 setMessages((prev) => [...prev, assistantMsg]);
@@ -481,7 +498,6 @@ export default function ChatPage() {
         ];
         setMessages(fresh);
         persistMessages(fresh);
-        setShowQuickActions(true);
         setInput('');
         setTimeout(() => inputRef.current?.focus(), 50);
     };
@@ -579,6 +595,7 @@ export default function ChatPage() {
                                 <ResultCardsSection
                                     message={msg}
                                     onRegister={(activity) => setRegisterActivity(activity)}
+                                    onClarify={sendMessage}
                                 />
                             )}
                         </div>

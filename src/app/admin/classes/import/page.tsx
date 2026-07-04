@@ -1,0 +1,252 @@
+"use client";
+
+import { FileSpreadsheet, CheckCircle2, UploadCloud, ArrowLeftRight, DatabaseZap } from 'lucide-react';
+import { useState } from 'react';
+
+import AdminNavbar from '@/components/admin/AdminNavbar';
+import type { ImportMapping } from '@/lib/admin/activity-import';
+import { IMPORTABLE_FIELDS } from '@/lib/admin/import-constants';
+import type { ImportJob, ImportRowResult } from '@/lib/admin/types';
+
+type Step = 'upload' | 'mapping' | 'preview' | 'done';
+
+const FIELD_LABELS: Record<(typeof IMPORTABLE_FIELDS)[number], string> = {
+    title_he: 'שם חוג',
+    description_he: 'תיאור',
+    category: 'קטגוריה',
+    target_age_group: 'קהל יעד',
+    min_age: 'גיל מינימלי',
+    max_age: 'גיל מקסימלי',
+    days_of_week: 'ימים',
+    start_time: 'שעת התחלה',
+    end_time: 'שעת סיום',
+    price: 'מחיר',
+    instructor_name: 'מדריך',
+    location: 'מיקום',
+    max_participants: 'מכסה',
+    is_active: 'פעיל',
+};
+
+export default function AdminClassesImportPage() {
+    const [step, setStep] = useState<Step>('upload');
+    const [file, setFile] = useState<File | null>(null);
+    const [headers, setHeaders] = useState<string[]>([]);
+    const [sampleRows, setSampleRows] = useState<Record<string, string>[]>([]);
+    const [mapping, setMapping] = useState<ImportMapping>({});
+    const [previewRows, setPreviewRows] = useState<ImportRowResult[]>([]);
+    const [job, setJob] = useState<ImportJob | null>(null);
+    const [summary, setSummary] = useState<{ imported: number; updated: number; skipped: number } | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+
+    async function inspectFile(selectedFile: File) {
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+
+        const response = await fetch('/api/admin/activity-import/preview', {
+            method: 'POST',
+            body: formData,
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to inspect file');
+
+        setHeaders(data.headers);
+        setSampleRows(data.sampleRows);
+        setMapping(data.suggestedMapping ?? {});
+        setStep('mapping');
+    }
+
+    async function buildPreview() {
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('mapping', JSON.stringify(mapping));
+
+        const response = await fetch('/api/admin/activity-import/preview', {
+            method: 'POST',
+            body: formData,
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to create preview');
+
+        setJob(data.job);
+        setPreviewRows(data.previewRows);
+        setStep('preview');
+    }
+
+    async function commitImport() {
+        if (!job) return;
+
+        const response = await fetch('/api/admin/activity-import/commit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jobId: job.id }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Import failed');
+
+        setSummary(data);
+        setStep('done');
+    }
+
+    async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+        const selectedFile = event.target.files?.[0];
+        if (!selectedFile) return;
+
+        setFile(selectedFile);
+        setIsLoading(true);
+        try {
+            await inspectFile(selectedFile);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'שגיאה בקריאת הקובץ';
+            alert(message);
+        } finally {
+            setIsLoading(false);
+        }
+    }
+
+    return (
+        <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
+            <AdminNavbar />
+            <main className="container" style={{ padding: '2rem 0', maxWidth: '1100px' }}>
+                <header style={{ marginBottom: '2rem' }}>
+                    <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>ייבוא חוגים מאקסל</h1>
+                    <p style={{ color: 'var(--text-secondary)' }}>העלאה, מיפוי, Preview ואישור לפני כתיבה למערכת.</p>
+                </header>
+
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
+                    {[
+                        { id: 'upload', label: 'העלאה', icon: <UploadCloud size={16} /> },
+                        { id: 'mapping', label: 'מיפוי', icon: <ArrowLeftRight size={16} /> },
+                        { id: 'preview', label: 'Preview', icon: <FileSpreadsheet size={16} /> },
+                        { id: 'done', label: 'אישור', icon: <DatabaseZap size={16} /> },
+                    ].map(({ id, label, icon }) => (
+                        <div key={id} className="hero-badge" style={{ opacity: step === id ? 1 : 0.55 }}>
+                            {icon}
+                            <span style={{ marginInlineStart: '0.4rem' }}>{label}</span>
+                        </div>
+                    ))}
+                </div>
+
+                {step === 'upload' && (
+                    <div className="card" style={{ padding: '2rem' }}>
+                        <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '260px', border: '2px dashed var(--border-color)', borderRadius: 'var(--radius-lg)', cursor: 'pointer', gap: '1rem' }}>
+                            <UploadCloud size={42} color="var(--accent-primary)" />
+                            <div style={{ fontWeight: 700 }}>בחר קובץ `xlsx` או `csv`</div>
+                            <p style={{ color: 'var(--text-secondary)' }}>המערכת תנתח את הכותרות ותציע מיפוי אוטומטי.</p>
+                            <input type="file" accept=".xlsx,.csv" onChange={handleFileChange} style={{ display: 'none' }} />
+                        </label>
+                        {isLoading && <p style={{ marginTop: '1rem', textAlign: 'center' }}>מנתח את הקובץ...</p>}
+                    </div>
+                )}
+
+                {step === 'mapping' && (
+                    <div className="card" style={{ padding: '2rem' }}>
+                        <h2 style={{ marginBottom: '1rem' }}>מיפוי עמודות</h2>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            {IMPORTABLE_FIELDS.map((field) => (
+                                <label key={field} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <span style={{ fontWeight: 600 }}>{FIELD_LABELS[field]}</span>
+                                    <select
+                                        className="input-field"
+                                        value={mapping[field] ?? ''}
+                                        onChange={(event) => setMapping((prev) => ({ ...prev, [field]: event.target.value || undefined }))}
+                                    >
+                                        <option value="">לא ממופה</option>
+                                        {headers.map((header) => (
+                                            <option key={header} value={header}>{header}</option>
+                                        ))}
+                                    </select>
+                                </label>
+                            ))}
+                        </div>
+
+                        <div style={{ marginTop: '2rem' }}>
+                            <h3 style={{ marginBottom: '0.75rem' }}>דוגמת שורות</h3>
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr>
+                                            {headers.map((header) => (
+                                                <th key={header} style={{ padding: '0.75rem', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)' }}>{header}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {sampleRows.map((row, index) => (
+                                            <tr key={index}>
+                                                {headers.map((header) => (
+                                                    <td key={header} style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>{row[header]}</td>
+                                                ))}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <button className="btn btn-primary btn-lg" style={{ marginTop: '2rem' }} onClick={() => void buildPreview()}>
+                            בנה Preview
+                        </button>
+                    </div>
+                )}
+
+                {step === 'preview' && (
+                    <div className="card" style={{ padding: '2rem' }}>
+                        <h2 style={{ marginBottom: '1rem' }}>Preview לפני ייבוא</h2>
+                        <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
+                            `חדש`: {previewRows.filter((row) => row.status === 'new').length} ·
+                            ` לעדכון`: {previewRows.filter((row) => row.status === 'update_candidate').length} ·
+                            ` שגויות`: {previewRows.filter((row) => row.status === 'invalid').length}
+                        </p>
+                        <div style={{ overflowX: 'auto' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                <thead>
+                                    <tr>
+                                        <th style={{ padding: '0.75rem', background: 'var(--bg-secondary)' }}>שורה</th>
+                                        <th style={{ padding: '0.75rem', background: 'var(--bg-secondary)' }}>סטטוס</th>
+                                        <th style={{ padding: '0.75rem', background: 'var(--bg-secondary)' }}>שם חוג</th>
+                                        <th style={{ padding: '0.75rem', background: 'var(--bg-secondary)' }}>ימים/שעה</th>
+                                        <th style={{ padding: '0.75rem', background: 'var(--bg-secondary)' }}>שגיאות</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {previewRows.map((row) => (
+                                        <tr key={row.rowIndex}>
+                                            <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>{row.rowIndex}</td>
+                                            <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)', fontWeight: 700 }}>
+                                                {row.status === 'new' ? 'חדש' : row.status === 'update_candidate' ? 'לעדכון' : 'שגוי'}
+                                            </td>
+                                            <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>{row.payload.title_he}</td>
+                                            <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>
+                                                {row.payload.days_of_week || '-'} {row.payload.start_time || ''}
+                                            </td>
+                                            <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)', color: '#b91c1c' }}>
+                                                {row.errors.join(', ') || 'תקין'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <button className="btn btn-primary btn-lg" style={{ marginTop: '2rem' }} onClick={() => void commitImport()}>
+                            אשר ייבוא
+                        </button>
+                    </div>
+                )}
+
+                {step === 'done' && summary && (
+                    <div className="card" style={{ padding: '2rem', textAlign: 'center' }}>
+                        <CheckCircle2 size={48} color="#16a34a" style={{ marginBottom: '1rem' }} />
+                        <h2 style={{ marginBottom: '0.75rem' }}>הייבוא הושלם</h2>
+                        <p>נוספו {summary.imported} חוגים, עודכנו {summary.updated}, ודולגו {summary.skipped}.</p>
+                    </div>
+                )}
+            </main>
+        </div>
+    );
+}

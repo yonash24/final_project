@@ -1,40 +1,22 @@
-/**
- * /api/chat/route.ts
- * Main chat API endpoint — production-quality RAG pipeline.
- *
- * Flow:
- *  1. Receive user message + conversation history
- *  2. Classify the intent via Gemini (JSON mode)
- *  3. Query Supabase based on the classified intent & filters
- *  4. Send DB results (or empty-state context) to Gemini for a rich Hebrew response
- *  5. Return response + raw card data for UI rendering
- */
-
 import { NextRequest } from 'next/server';
 
-import { classifyIntent, type ChatMessage } from '@/lib/ai/intent-classifier';
-import { getChatModel } from '@/lib/ai/gemini';
-import {
-    CHAT_SYSTEM_PROMPT,
-    formatActivitiesForContext,
-    formatEventsForContext,
-} from '@/lib/ai/prompts';
 import { GREETING_MESSAGE } from '@/lib/ai/chat-constants';
+import { type ChatApiResponse, type ClarificationOption } from '@/lib/ai/chat-types';
+import { classifyIntent, type ChatMessage } from '@/lib/ai/intent-classifier';
 import {
+    getActivityByName,
+    getCategories,
+    getUpcomingEvents,
     searchActivities,
     searchEvents,
-    getActivityByName,
-    getUpcomingEvents,
-    getCategories,
     type ActivityRow,
     type EventRow,
 } from '@/lib/db/chat-queries';
 
-// ─── Rate-limit (simple in-memory) ─────────────────────
-
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 10;
+const CLARIFICATION_THRESHOLD = 0.58;
 
 function checkRateLimit(ip: string): boolean {
     const now = Date.now();
@@ -46,283 +28,266 @@ function checkRateLimit(ip: string): boolean {
     }
 
     if (entry.count >= RATE_LIMIT_MAX) return false;
-    entry.count++;
+    entry.count += 1;
     return true;
 }
 
-// ─── Helpers ────────────────────────────────────────────
+function createResponse(
+    responseType: ChatApiResponse['responseType'],
+    response: string,
+    intent: string,
+    activityCards: ActivityRow[] = [],
+    eventCards: EventRow[] = [],
+    clarificationOptions?: ClarificationOption[],
+): ChatApiResponse {
+    return {
+        responseType,
+        response,
+        intent,
+        resultCount: activityCards.length + eventCards.length,
+        activityCards,
+        eventCards,
+        clarificationOptions,
+    };
+}
 
-/**
- * Build a rich "no results" context so the AI can still give a helpful,
- * friendly answer instead of a cold "nothing found".
- */
-function buildNoResultsContext(intent: string, searchTerms?: string[] | null): string {
-    const term = searchTerms?.join(', ') ?? '';
+function buildClarification(intent: string, response: string, options?: ClarificationOption[]) {
+    return createResponse('clarification', response, intent, [], [], options);
+}
+
+function formatActivityLine(activity: ActivityRow) {
+    const parts = [activity.title_he];
+    if (activity.days_of_week) parts.push(activity.days_of_week);
+    if (activity.start_time) parts.push(activity.start_time.slice(0, 5));
+    return parts.join(' | ');
+}
+
+function buildPriceResponse(activity: ActivityRow) {
+    const price = activity.price === 0 || activity.price == null ? 'חינם' : `${activity.price}₪ לחודש`;
+    const schedule = activity.days_of_week
+        ? `החוג מתקיים ב${activity.days_of_week}${activity.start_time ? ` בשעה ${activity.start_time.slice(0, 5)}` : ''}.`
+        : '';
+
+    return `המחיר של **${activity.title_he}** הוא ${price}. ${schedule}`.trim();
+}
+
+function buildScheduleResponse(activity: ActivityRow) {
+    const schedule = activity.days_of_week
+        ? `${activity.days_of_week}${activity.start_time ? ` בשעה ${activity.start_time.slice(0, 5)}` : ''}${activity.end_time ? ` עד ${activity.end_time.slice(0, 5)}` : ''}`
+        : 'לא צוין עדיין';
+
+    return `לוח הזמנים של **${activity.title_he}** הוא: ${schedule}.`;
+}
+
+function buildDetailsResponse(activity: ActivityRow) {
+    const detailParts = [
+        `**${activity.title_he}**`,
+        activity.description_he || 'אין כרגע תיאור מפורט.',
+        activity.instructor_name ? `מדריך/ה: ${activity.instructor_name}.` : null,
+        activity.location ? `מיקום: ${activity.location}.` : null,
+        activity.min_age != null || activity.max_age != null ? `גילים: ${activity.min_age ?? 0}-${activity.max_age ?? '+'}.` : null,
+    ].filter(Boolean);
+
+    return detailParts.join('\n');
+}
+
+function buildActivitiesResultsResponse(activities: ActivityRow[]) {
+    if (activities.length === 1) {
+        return `מצאתי חוג אחד שמתאים בדיוק למה שביקשת:\n**${formatActivityLine(activities[0])}**`;
+    }
+
+    return `מצאתי ${activities.length} חוגים תואמים. ריכזתי אותם בכרטיסים כאן למטה כדי שתוכל לבחור בקלות.`;
+}
+
+function buildEventsResultsResponse(events: EventRow[]) {
+    if (events.length === 1) {
+        return `מצאתי אירוע אחד רלוונטי: **${events[0].title}**. כל הפרטים מופיעים בכרטיס שמתחת.`;
+    }
+
+    return `מצאתי ${events.length} אירועים רלוונטיים. ריכזתי אותם בכרטיסים כאן למטה.`;
+}
+
+function buildNoResultsResponse(intent: string) {
     switch (intent) {
+        case 'search_events':
+            return createResponse('answer', 'לא מצאתי כרגע אירועים שמתאימים בדיוק לבקשה. אפשר לנסות תאריך אחר או קטגוריה אחרת.', intent);
+        case 'price_inquiry':
+        case 'schedule_inquiry':
+        case 'activity_details':
         case 'search_activities':
         case 'age_inquiry':
-        case 'schedule_inquiry':
-        case 'price_inquiry':
         case 'availability_inquiry':
-        case 'activity_details':
-            return `לא נמצאו חוגים או פעילויות${term ? ` התואמים ל"${term}"` : ''} במאגר כרגע.\nהנח את המשתמש בנועם שכרגע אין תוצאות זמינות, הצע לו לנסות חיפוש רחב יותר, או לשאול על קטגוריה אחרת.`;
-        case 'search_events':
-            return `לא נמצאו אירועים${term ? ` התואמים ל"${term}"` : ''} במאגר כרגע.\nהנח את המשתמש שכרגע אין אירועים קרובים שמתאימים, והצע לו לשאול על אירועים בחודש הקרוב או חוגים קבועים.`;
-        case 'general_info':
-            return `המאגר ריק כרגע ולא נמצאו חוגים או אירועים.\nספר למשתמש שהמתנ"ס עובד על הוספת תוכן חדש, ושיחזור בקרוב לראות עדכונים.`;
+            return createResponse('answer', 'לא מצאתי כרגע חוג שמתאים בדיוק לבקשה. אפשר לכתוב את שם החוג, גיל, יום או תחום כדי שאדייק.', intent);
         default:
-            return 'לא נמצאו תוצאות רלוונטיות.';
+            return createResponse('answer', 'לא מצאתי כרגע מידע מדויק על מה שביקשת. אם תכתוב בצורה קצת יותר ממוקדת, אדייק מיד.', intent);
     }
 }
 
-// ─── POST handler ───────────────────────────────────────
+function buildMultiMatchClarification(intent: string, activities: ActivityRow[]) {
+    const options = activities.slice(0, 4).map((activity) => ({
+        label: activity.title_he,
+        value: `ספר לי על ${activity.title_he}`,
+    }));
+
+    return buildClarification(
+        intent,
+        'מצאתי כמה חוגים דומים, וכדי לא לתת פרטים לא נכונים אני צריך שתבחר את החוג המדויק:',
+        options,
+    );
+}
 
 export async function POST(request: NextRequest) {
     try {
-        // ── Rate limiting ───────────────────────────────
-        const ip =
-            request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-            'unknown';
-
+        const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
         if (!checkRateLimit(ip)) {
-            return Response.json(
-                { error: 'יותר מדי בקשות. נסה שוב בעוד דקה.' },
-                { status: 429 },
-            );
+            return Response.json({ error: 'יותר מדי בקשות. נסה שוב בעוד דקה.' }, { status: 429 });
         }
 
-        // ── Parse body ──────────────────────────────────
         const body = await request.json();
         const message: string | undefined = body?.message;
         const history: ChatMessage[] = body?.history ?? [];
 
         if (!message || typeof message !== 'string' || message.trim().length === 0) {
-            console.error('[ChatAPI] ❌ Validation failed: Empty message');
-            return Response.json(
-                { error: 'נא לשלוח הודעה תקינה.' },
-                { status: 400 },
-            );
+            return Response.json({ error: 'נא לשלוח הודעה תקינה.' }, { status: 400 });
         }
 
         if (message.length > 500) {
-            console.error('[ChatAPI] ❌ Validation failed: Message too long');
+            return Response.json({ error: 'ההודעה ארוכה מדי. נסה לנסח בקצרה.' }, { status: 400 });
+        }
+
+        const classified = await classifyIntent(message, history);
+
+        if (classified.intent === 'greeting') {
+            return Response.json(createResponse('answer', GREETING_MESSAGE, classified.intent));
+        }
+
+        if (classified.intent === 'off_topic') {
             return Response.json(
-                { error: 'ההודעה ארוכה מדי. נסה לנסח בקצרה.' },
-                { status: 400 },
+                createResponse(
+                    'answer',
+                    'אני מתמחה בחוגים, אירועים ופעילויות של המתנ״ס. אם תכתוב מה אתה מחפש, אני אתמקד רק בזה.',
+                    classified.intent,
+                ),
             );
         }
 
-        // ── 1. Classify intent ──────────────────────────
-        const classified = await classifyIntent(message, history);
+        if (classified.confidence < CLARIFICATION_THRESHOLD) {
+            return Response.json(
+                buildClarification(
+                    classified.intent,
+                    'כדי לדייק ולא לשלוח פרטים לא רלוונטיים, אשמח אם תחדד למה התכוונת: שם חוג, גיל, יום או אירוע מסוים.',
+                ),
+            );
+        }
 
-        // ── 2. Query database + collect raw data ────────
-        let dbContext = '';
-        let resultCount = 0;
         let activityCards: ActivityRow[] = [];
         let eventCards: EventRow[] = [];
 
         switch (classified.intent) {
-            case 'greeting': {
-                return Response.json({
-                    response: GREETING_MESSAGE,
-                    intent: classified.intent,
-                    resultCount: 0,
-                    activityCards: [],
-                    eventCards: [],
-                });
-            }
-
-            case 'off_topic': {
-                const offTopicResponse = `אני מתמחה בכל מה שקשור למתנ"ס שלנו 😊
-
-אני יכול לעזור לך עם:
-🔍 **חיפוש חוגים ופעילויות** לכל הגילאים
-📅 **אירועים קרובים** — מה קורה אצלנו
-💰 **מחירים ופרטים** על כל פעילות
-
-על מה תרצה לשמוע?`;
-                return Response.json({
-                    response: offTopicResponse,
-                    intent: classified.intent,
-                    resultCount: 0,
-                    activityCards: [],
-                    eventCards: [],
-                });
-            }
-
             case 'search_activities':
             case 'age_inquiry':
-            case 'price_inquiry':
-            case 'schedule_inquiry':
             case 'availability_inquiry': {
                 activityCards = await searchActivities(classified.filters, classified.search_terms);
-                resultCount = activityCards.length;
-                dbContext = resultCount > 0
-                    ? formatActivitiesForContext(activityCards)
-                    : buildNoResultsContext(classified.intent, classified.search_terms);
-                break;
+                if (activityCards.length === 0) return Response.json(buildNoResultsResponse(classified.intent));
+                return Response.json(
+                    createResponse('results', buildActivitiesResultsResponse(activityCards), classified.intent, activityCards.slice(0, 8)),
+                );
             }
 
+            case 'price_inquiry':
+            case 'schedule_inquiry':
             case 'activity_details': {
                 if (classified.activity_name) {
-                    const single = await getActivityByName(classified.activity_name);
-                    if (single) {
-                        activityCards = [single];
-                    } else {
-                        // Fallback: broader search
-                        activityCards = await searchActivities(
-                            classified.filters,
-                            classified.search_terms ?? [classified.activity_name],
-                        );
+                    const exact = await getActivityByName(classified.activity_name);
+                    if (exact) {
+                        activityCards = [exact];
                     }
-                } else {
+                }
+
+                if (activityCards.length === 0) {
                     activityCards = await searchActivities(classified.filters, classified.search_terms);
                 }
-                resultCount = activityCards.length;
-                dbContext = resultCount > 0
-                    ? formatActivitiesForContext(activityCards)
-                    : buildNoResultsContext(classified.intent, classified.search_terms ?? (classified.activity_name ? [classified.activity_name] : null));
-                break;
+
+                if (activityCards.length === 0) return Response.json(buildNoResultsResponse(classified.intent));
+                if (activityCards.length > 1) return Response.json(buildMultiMatchClarification(classified.intent, activityCards));
+
+                const activity = activityCards[0];
+                const response =
+                    classified.intent === 'price_inquiry'
+                        ? buildPriceResponse(activity)
+                        : classified.intent === 'schedule_inquiry'
+                            ? buildScheduleResponse(activity)
+                            : buildDetailsResponse(activity);
+
+                return Response.json(
+                    createResponse(
+                        classified.intent === 'activity_details' ? 'results' : 'answer',
+                        response,
+                        classified.intent,
+                        classified.intent === 'activity_details' ? [activity] : [],
+                    ),
+                );
             }
 
             case 'search_events': {
                 eventCards = await searchEvents(classified.filters, classified.search_terms);
-                resultCount = eventCards.length;
-                dbContext = resultCount > 0
-                    ? formatEventsForContext(eventCards)
-                    : buildNoResultsContext(classified.intent, classified.search_terms);
-                break;
+                if (eventCards.length === 0) return Response.json(buildNoResultsResponse(classified.intent));
+                return Response.json(
+                    createResponse('results', buildEventsResultsResponse(eventCards), classified.intent, [], eventCards.slice(0, 8)),
+                );
             }
 
             case 'general_info': {
+                if (classified.confidence < 0.72) {
+                    return Response.json(
+                        buildClarification(
+                            classified.intent,
+                            'אשמח לדייק. אתה מחפש חוגים, אירועים, מחירים או פרטים על פעילות מסוימת?',
+                            [
+                                { label: 'חוגים לילדים', value: 'יש חוגים לילדים?' },
+                                { label: 'אירועים קרובים', value: 'אילו אירועים קרובים יש?' },
+                                { label: 'מחירי חוגים', value: 'מה המחירים של החוגים?' },
+                            ],
+                        ),
+                    );
+                }
+
                 const [activities, events, categories] = await Promise.all([
                     searchActivities(classified.filters, classified.search_terms),
-                    getUpcomingEvents(30),
+                    getUpcomingEvents(14),
                     getCategories(),
                 ]);
 
-                activityCards = activities;
-                eventCards = events;
-                resultCount = activities.length + events.length;
+                const categoryText = categories.length > 0
+                    ? `קטגוריות פעילות כרגע: ${categories.slice(0, 6).map((item) => item.name_he).join(', ')}.`
+                    : '';
 
-                if (resultCount > 0) {
-                    const parts: string[] = [];
-                    if (activities.length > 0) parts.push('=== חוגים ===\n' + formatActivitiesForContext(activities));
-                    if (events.length > 0) parts.push('=== אירועים קרובים ===\n' + formatEventsForContext(events));
-                    if (categories.length > 0) {
-                        parts.push(
-                            '=== קטגוריות זמינות ===\n' +
-                            categories.map((c) => `${c.icon || '📁'} ${c.name_he}`).join('\n'),
-                        );
-                    }
-                    dbContext = parts.join('\n\n');
-                } else {
-                    dbContext = buildNoResultsContext('general_info');
-                }
-                break;
+                const response = [
+                    activities.length > 0 ? `יש כרגע ${activities.length} חוגים פעילים במערכת.` : null,
+                    events.length > 0 ? `בנוסף מצאתי ${events.length} אירועים קרובים.` : null,
+                    categoryText,
+                    'אם תרצה, אפשר להתמקד עכשיו בנושא אחד בלבד.',
+                ].filter(Boolean).join(' ');
+
+                return Response.json(
+                    createResponse('results', response, classified.intent, activities.slice(0, 4), events.slice(0, 4)),
+                );
             }
+
+            default:
+                return Response.json(
+                    buildClarification(
+                        'general_info',
+                        'לא הצלחתי להבין אם התכוונת לחוג, אירוע או שאלה על מחיר. כתוב לי את הנושא המדויק ואחזיר רק את הפרטים הרלוונטיים.',
+                    ),
+                );
         }
-
-        // ── 3. Generate natural language response ───────
-        const chatModel = getChatModel();
-
-        const hasResults = resultCount > 0;
-
-        const contextPrompt = `${CHAT_SYSTEM_PROMPT}
-
-## מצב הנתונים:
-${hasResults
-                ? `נמצאו ${resultCount} תוצאות רלוונטיות. הנה הנתונים:`
-                : `לא נמצאו תוצאות. הסבר בנועם שכרגע אין משהו זמין שעונה על הבקשה, והצע חלופות.`}
-
-## נתונים שנשלפו מהדאטהבייס:
-
-${dbContext}
-
-## היסטוריית השיחה:
-${history
-                .slice(-8)
-                .map((m) => `${m.role === 'user' ? 'משתמש' : 'מתני'}: ${m.content}`)
-                .join('\n')}
-
-## ההודעה הנוכחית מהמשתמש:
-"${message}"
-
-## הוראות חשובות:
-${hasResults
-                ? `- כתוב תשובה ידידותית ומעוצבת בעברית.
-- ציין שנמצאו תוצאות וסכם אותן בנעימות.
-- אם יש כרטיסים שיוצגו ב-UI, הזכר שהם מוצגים מטה (למשל: "הנה מה שמצאתי:" או "מצאתי עבורך:").
-- בסוף, הצע שאלת המשך קצרה.`
-                : `- הסבר בחום ובנועם שכרגע לא נמצא מה שהמשתמש חיפש.
-- אל תאמר ש"המאגר ריק" או תזכיר מונחים טכניים.
-- הצע לנסות חיפוש רחב יותר, קטגוריה אחרת, או לשאול שאלה אחרת.
-- שמור על אופטימיות — למשל: "אולי נמצא משהו אחר שיתאים לך?"
-- בסוף, הצע שאלת המשך קצרה.`}`;
-
-        // Retry logic for Gemini (handles transient rate limits)
-        let response = '';
-        let lastError: unknown = null;
-        for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-                const result = await chatModel.generateContent(contextPrompt);
-                response = result.response.text();
-                lastError = null;
-                break;
-            } catch (geminiErr: unknown) {
-                lastError = geminiErr;
-                const msg = geminiErr instanceof Error ? geminiErr.message : '';
-                console.error(`[ChatAPI] ⚠️ Gemini Error (Attempt ${attempt}):`, msg);
-                const is429 = msg.includes('429') || msg.includes('quota') || msg.includes('rate');
-                if (is429 && attempt < 2) {
-                    const delay = (attempt + 1) * 3000;
-                    await new Promise((r) => setTimeout(r, delay));
-                    continue;
-                }
-                break;
-            }
-        }
-
-        if (lastError) {
-            console.error('[ChatAPI] 🛑 Max retries reached for Gemini response generation.');
-            throw lastError;
-        }
-
-        // Limit card count to avoid huge payloads
-        return Response.json({
-            response,
-            intent: classified.intent,
-            resultCount,
-            activityCards: activityCards.slice(0, 8),
-            eventCards: eventCards.slice(0, 8),
-        });
     } catch (error) {
         console.error('[ChatAPI] Unexpected error:', error);
-
-        // Return a friendly error message in Hebrew
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        const status = (error as any)?.status;
-
-        // Accurate detection: if Gemini explicitly returned 429, or message contains quota words
-        const isQuotaExceeded = status === 429 ||
-            errorMessage.includes('429') ||
-            errorMessage.includes('quota') ||
-            errorMessage.includes('rate');
-
-        console.error(`[ChatAPI] 🛑 API Final Error:`, { status, message: errorMessage });
-
+        const message = error instanceof Error ? error.message : 'שגיאה לא צפויה';
         return Response.json(
-            {
-                response: isQuotaExceeded
-                    ? 'הגענו למכסת ההודעות החינמית של גוגל. אנא נסה שוב בעוד דקה.'
-                    : 'אירעה שגיאה בחיבור לשרתי ה-AI. אנא נסו שוב בקרוב.',
-                error: errorMessage,
-                resultCount: 0,
-                activityCards: [],
-                eventCards: [],
-                intent: 'general_info'
-            },
-            { status: isQuotaExceeded ? 429 : (status || 500) },
+            createResponse('error', `אירעה שגיאה זמנית בחיבור לצ׳אט: ${message}`, 'general_info'),
+            { status: 500 },
         );
     }
 }

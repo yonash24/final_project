@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useActionState, startTransition } from 'react';
 import { loginAdmin } from './actions';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,6 +14,14 @@ const initialState = {
 };
 
 export default function AdminLoginPage() {
+    return (
+        <Suspense fallback={null}>
+            <AdminLoginContent />
+        </Suspense>
+    );
+}
+
+function AdminLoginContent() {
     const [state, formAction, isPending] = useActionState(loginAdmin, initialState);
     const searchParams = useSearchParams();
     const errorType = searchParams.get('error');
@@ -178,5 +187,4 @@ export default function AdminLoginPage() {
         </div>
     );
 }
-
 

@@ -1,68 +1,124 @@
 "use client";
+
+import Link from 'next/link';
+import { Plus, Trash2, X, Upload } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
 import AdminNavbar from '@/components/admin/AdminNavbar';
-import { Plus, Edit2, Trash2, X } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase/client';
+import type { AdminActivity } from '@/lib/admin/types';
+
+interface ActivityFormState {
+    title_he: string;
+    description_he: string;
+    instructor_name: string;
+    days_of_week: string;
+    start_time: string;
+    end_time: string;
+    location: string;
+    min_age: string;
+    max_age: string;
+    price: string;
+    max_participants: string;
+}
+
+const EMPTY_FORM: ActivityFormState = {
+    title_he: '',
+    description_he: '',
+    instructor_name: '',
+    days_of_week: '',
+    start_time: '',
+    end_time: '',
+    location: '',
+    min_age: '',
+    max_age: '',
+    price: '',
+    max_participants: '',
+};
 
 export default function AdminClassesPage() {
-    const [classes, setClasses] = useState<any[]>([]);
+    const [classes, setClasses] = useState<AdminActivity[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [form, setForm] = useState<ActivityFormState>(EMPTY_FORM);
 
-    const [newClass, setNewClass] = useState({
-        title_he: '',
-        description_he: '',
-        instructor_name: '',
-        days_of_week: '',
-        start_time: '',
-        location: ''
-    });
-
-    useEffect(() => {
-        fetchClasses();
-    }, []);
-
-    async function fetchClasses() {
-        setLoading(true);
-        const { data, error } = await supabase.from('activities').select('*');
-        if (data) setClasses(data);
-        if (error) console.error('Fetch error:', error);
-        setLoading(false);
+    async function loadClasses() {
+        const response = await fetch('/api/admin/activities');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to fetch activities');
+        return data as AdminActivity[];
     }
 
-    async function handleSubmit(e: React.FormEvent) {
-        e.preventDefault();
+    useEffect(() => {
+        let ignore = false;
+        void loadClasses()
+            .then((data) => {
+                if (!ignore) setClasses(data);
+            })
+            .catch((error) => {
+                console.error('Fetch error:', error);
+            })
+            .finally(() => {
+                if (!ignore) setLoading(false);
+            });
+
+        return () => {
+            ignore = true;
+        };
+    }, []);
+
+    async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+        event.preventDefault();
         setSaving(true);
+        setLoading(true);
 
-        // Verify database connection and save
-        const { data, error } = await supabase
-            .from('activities')
-            .insert([{
-                ...newClass,
-                title: newClass.title_he,
-                is_active: true
-            }])
-            .select();
+        try {
+            const response = await fetch('/api/admin/activities', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...form,
+                    min_age: form.min_age,
+                    max_age: form.max_age,
+                    price: form.price,
+                    max_participants: form.max_participants,
+                    is_active: true,
+                }),
+            });
 
-        setSaving(false);
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error?.formErrors?.join(', ') || data.error || 'Failed to save');
+            }
 
-        if (!error) {
-            alert('✅ החוג נשמר בהצלחה בבסיס הנתונים!');
             setShowModal(false);
-            setNewClass({ title_he: '', description_he: '', instructor_name: '', days_of_week: '', start_time: '', location: '' });
-            fetchClasses();
-        } else {
-            console.error('Database Error:', error);
-            alert('❌ שגיאה בשמירה לדאטהבייס: ' + error.message);
+            setForm(EMPTY_FORM);
+            setClasses(await loadClasses());
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'שגיאה בשמירת החוג';
+            alert(message);
+        } finally {
+            setSaving(false);
+            setLoading(false);
         }
     }
 
     async function deleteClass(id: string) {
-        if (confirm('האם למחוק חוג זה מהדאטהבייס?')) {
-            const { error } = await supabase.from('activities').delete().eq('id', id);
-            if (!error) fetchClasses();
-            else alert('שגיאה במחיקה: ' + error.message);
+        if (!confirm('האם למחוק חוג זה מהמערכת?')) return;
+
+        setLoading(true);
+        try {
+            const response = await fetch(`/api/admin/activities/${id}`, { method: 'DELETE' });
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Delete failed');
+            }
+            setClasses(await loadClasses());
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'שגיאה במחיקה';
+            alert(message);
+        } finally {
+            setLoading(false);
         }
     }
 
@@ -70,14 +126,19 @@ export default function AdminClassesPage() {
         <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
             <AdminNavbar />
             <main className="container" style={{ padding: '2rem 0' }}>
-                <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', gap: '1rem', flexWrap: 'wrap' }}>
                     <div>
                         <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>ניהול חוגים 📚</h1>
-                        <p style={{ color: 'var(--text-secondary)' }}>ניהול נתונים השמורים ב-Supabase</p>
+                        <p style={{ color: 'var(--text-secondary)' }}>ניהול חוגים דרך API מאובטח וייבוא מרוכז</p>
                     </div>
-                    <button onClick={() => setShowModal(true)} className="btn btn-primary btn-md">
-                        <Plus size={18} /> הוסף חוג חדש
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        <Link href="/admin/classes/import" className="btn btn-secondary btn-md">
+                            <Upload size={18} /> ייבוא אקסל
+                        </Link>
+                        <button onClick={() => setShowModal(true)} className="btn btn-primary btn-md">
+                            <Plus size={18} /> הוסף חוג חדש
+                        </button>
+                    </div>
                 </header>
 
                 <div className="card">
@@ -90,31 +151,43 @@ export default function AdminClassesPage() {
                                     <th style={{ padding: '1rem' }}>שם החוג</th>
                                     <th style={{ padding: '1rem' }}>מדריך</th>
                                     <th style={{ padding: '1rem' }}>זמנים</th>
+                                    <th style={{ padding: '1rem' }}>גילים/מחיר</th>
                                     <th style={{ padding: '1rem' }}>מיקום</th>
                                     <th style={{ padding: '1rem' }}>פעולות</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {classes.length === 0 ? (
-                                    <tr><td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>אין חוגים רשומים בדאטהבייס.</td></tr>
-                                ) : classes.map((c: any) => (
-                                    <tr key={c.id} style={{ borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s' }}>
-                                        <td style={{ padding: '1.25rem 1rem', fontWeight: '800', color: 'var(--accent-primary)' }}>{c.title_he}</td>
-                                        <td style={{ padding: '1.25rem 1rem', color: 'var(--text-secondary)' }}>{c.instructor_name || '-'}</td>
-                                        <td style={{ padding: '1.25rem 1rem', color: 'var(--text-secondary)' }}>
-                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: '#f5f3ff', color: '#7c3aed', padding: '0.2rem 0.6rem', borderRadius: '999px', fontSize: '0.875rem', fontWeight: 600 }}>
-                                                {c.days_of_week} | {c.start_time || '-'}
-                                            </span>
+                                    <tr>
+                                        <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                                            אין חוגים רשומים במערכת.
                                         </td>
-                                        <td style={{ padding: '1.25rem 1rem' }}>
-                                            {c.location ? (
-                                                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(c.location)}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#16a34a', background: '#dcfce7', padding: '0.2rem 0.6rem', borderRadius: '999px', textDecoration: 'none', fontWeight: 600, fontSize: '0.875rem' }}>
-                                                    {c.location}
-                                                </a>
-                                            ) : '-'}
+                                    </tr>
+                                ) : classes.map((activity) => (
+                                    <tr key={activity.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                        <td style={{ padding: '1rem', fontWeight: 800, color: 'var(--accent-primary)' }}>
+                                            {activity.title_he}
                                         </td>
-                                        <td style={{ padding: '1.25rem 1rem' }}>
-                                            <button className="btn btn-ghost btn-icon" onClick={() => deleteClass(c.id)} style={{ backgroundColor: '#fee2e2', width: '32px', height: '32px' }} title="מחק חוג"><Trash2 size={16} color="#dc2626" /></button>
+                                        <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
+                                            {activity.instructor_name || '-'}
+                                        </td>
+                                        <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
+                                            {activity.days_of_week || '-'}
+                                            {activity.start_time ? ` | ${activity.start_time.slice(0, 5)}` : ''}
+                                        </td>
+                                        <td style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
+                                            גיל {activity.min_age ?? '-'}-{activity.max_age ?? '-'} | {activity.price ?? 0}₪
+                                        </td>
+                                        <td style={{ padding: '1rem' }}>{activity.location || '-'}</td>
+                                        <td style={{ padding: '1rem' }}>
+                                            <button
+                                                className="btn btn-ghost btn-icon"
+                                                onClick={() => deleteClass(activity.id)}
+                                                style={{ backgroundColor: '#fee2e2', width: '32px', height: '32px' }}
+                                                title="מחק חוג"
+                                            >
+                                                <Trash2 size={16} color="#dc2626" />
+                                            </button>
                                         </td>
                                     </tr>
                                 ))}
@@ -126,22 +199,31 @@ export default function AdminClassesPage() {
 
             {showModal && (
                 <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-                    <div className="card" style={{ width: '100%', maxWidth: '600px', padding: '2rem', backgroundColor: 'white' }}>
+                    <div className="card" style={{ width: '100%', maxWidth: '720px', padding: '2rem', backgroundColor: 'white' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
                             <h2>הוספת חוג חדש</h2>
                             <X style={{ cursor: 'pointer' }} onClick={() => setShowModal(false)} />
                         </div>
                         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <input required className="input-field" placeholder="שם החוג" value={newClass.title_he} onChange={e => setNewClass({ ...newClass, title_he: e.target.value })} />
-                            <textarea className="input-field" placeholder="תיאור" style={{ height: '80px' }} value={newClass.description_he} onChange={e => setNewClass({ ...newClass, description_he: e.target.value })} />
-                            <input className="input-field" placeholder="שם המדריך" value={newClass.instructor_name} onChange={e => setNewClass({ ...newClass, instructor_name: e.target.value })} />
+                            <input required className="input-field" placeholder="שם החוג" value={form.title_he} onChange={(event) => setForm((prev) => ({ ...prev, title_he: event.target.value }))} />
+                            <textarea className="input-field" placeholder="תיאור" style={{ height: '90px' }} value={form.description_he} onChange={(event) => setForm((prev) => ({ ...prev, description_he: event.target.value }))} />
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                <input className="input-field" placeholder="ימים (א, ב...)" value={newClass.days_of_week} onChange={e => setNewClass({ ...newClass, days_of_week: e.target.value })} />
-                                <input type="time" className="input-field" value={newClass.start_time} onChange={e => setNewClass({ ...newClass, start_time: e.target.value })} />
+                                <input className="input-field" placeholder="שם המדריך" value={form.instructor_name} onChange={(event) => setForm((prev) => ({ ...prev, instructor_name: event.target.value }))} />
+                                <input className="input-field" placeholder="מיקום" value={form.location} onChange={(event) => setForm((prev) => ({ ...prev, location: event.target.value }))} />
                             </div>
-                            <input className="input-field" placeholder="מיקום" value={newClass.location} onChange={e => setNewClass({ ...newClass, location: e.target.value })} />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                                <input className="input-field" placeholder="ימים (למשל ראשון,שלישי)" value={form.days_of_week} onChange={(event) => setForm((prev) => ({ ...prev, days_of_week: event.target.value }))} />
+                                <input type="time" className="input-field" value={form.start_time} onChange={(event) => setForm((prev) => ({ ...prev, start_time: event.target.value }))} />
+                                <input type="time" className="input-field" value={form.end_time} onChange={(event) => setForm((prev) => ({ ...prev, end_time: event.target.value }))} />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
+                                <input className="input-field" placeholder="גיל מינימום" value={form.min_age} onChange={(event) => setForm((prev) => ({ ...prev, min_age: event.target.value }))} />
+                                <input className="input-field" placeholder="גיל מקסימום" value={form.max_age} onChange={(event) => setForm((prev) => ({ ...prev, max_age: event.target.value }))} />
+                                <input className="input-field" placeholder="מחיר" value={form.price} onChange={(event) => setForm((prev) => ({ ...prev, price: event.target.value }))} />
+                                <input className="input-field" placeholder="מכסה" value={form.max_participants} onChange={(event) => setForm((prev) => ({ ...prev, max_participants: event.target.value }))} />
+                            </div>
                             <button type="submit" disabled={saving} className="btn btn-primary btn-md">
-                                {saving ? 'שומר חוג בדאטהבייס...' : 'שמור חוג בדאטהבייס'}
+                                {saving ? 'שומר חוג...' : 'שמור חוג'}
                             </button>
                         </form>
                     </div>

@@ -30,20 +30,18 @@ export default function ClassesPage() {
     const router = useRouter();
 
     useEffect(() => {
-        fetchClasses();
+        void (async () => {
+            setLoading(true);
+            const { data } = await supabase
+                .from('activities')
+                .select('*, categories(name_he)')
+                .eq('is_active', true)
+                .order('title_he', { ascending: true });
+
+            if (data) setClasses(data as Activity[]);
+            setLoading(false);
+        })();
     }, []);
-
-    async function fetchClasses() {
-        setLoading(true);
-        const { data } = await supabase
-            .from('activities')
-            .select('*, categories(name_he)')
-            .eq('is_active', true)
-            .order('title_he', { ascending: true });
-
-        if (data) setClasses(data as Activity[]);
-        setLoading(false);
-    }
 
     return (
         <>

@@ -1,28 +1,36 @@
 "use client";
 import Navbar from '@/components/layout/Navbar';
-import { Calendar, MapPin, Clock } from 'lucide-react';
+import { MapPin, Clock } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase/client';
 
+interface PublicEvent {
+    id: string;
+    title: string;
+    description: string | null;
+    event_date: string;
+    start_time: string | null;
+    location: string | null;
+    type: string | null;
+}
+
 export default function EventsPage() {
-    const [events, setEvents] = useState<any[]>([]);
+    const [events, setEvents] = useState<PublicEvent[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetchEvents();
+        void (async () => {
+            setLoading(true);
+            const { data, error } = await supabase.from('events').select('*').order('event_date', { ascending: true });
+            if (data) setEvents(data as PublicEvent[]);
+            if (error) console.error('Error fetching events:', error);
+            setLoading(false);
+        })();
     }, []);
 
-    async function fetchEvents() {
-        setLoading(true);
-        const { data, error } = await supabase.from('events').select('*').order('event_date', { ascending: true });
-        if (data) setEvents(data);
-        if (error) console.error('Error fetching events:', error);
-        setLoading(false);
-    }
-
-    function getGoogleCalendarUrl(event: any) {
+    function getGoogleCalendarUrl(event: PublicEvent) {
         const start = event.event_date.replace(/-/g, '') + 'T' + (event.start_time?.replace(/:/g, '') || '000000');
-        return `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${start}/${start}&details=${encodeURIComponent(event.description)}&location=${encodeURIComponent(event.location)}&sf=true&output=xml`;
+        return `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${start}/${start}&details=${encodeURIComponent(event.description || '')}&location=${encodeURIComponent(event.location || '')}&sf=true&output=xml`;
     }
 
     return (
@@ -39,7 +47,7 @@ export default function EventsPage() {
                         <div style={{ textAlign: 'center', padding: '4rem' }}>טוען אירועים...</div>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '800px', margin: '0 auto' }}>
-                            {events.map((evt, idx) => (
+                            {events.map((evt) => (
                                 <div key={evt.id} className="card animate-fade-up" style={{ padding: '2rem', display: 'flex', gap: '2rem' }}>
                                     <div style={{ minWidth: '100px', textAlign: 'center', borderLeft: '2px solid var(--border-color)', paddingLeft: '1.5rem' }}>
                                         <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{new Date(evt.event_date).getDate()}</div>

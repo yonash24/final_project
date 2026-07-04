@@ -31,7 +31,7 @@ export default function AdminPage() {
             <AdminNavbar />
             <main className="container" style={{ padding: '2rem 0' }}>
                 <h1 style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>לוח בקרה 🚀</h1>
-                <p style={{ color: 'var(--text-secondary)', marginBottom: '3rem' }}>ברוך הבא למערכת הניהול. כאן תוכל לראות תמונת מצב של המתנ"ס ולגשת לכל כלי הניהול.</p>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '3rem' }}>ברוך הבא למערכת הניהול. כאן תוכל לראות תמונת מצב של המתנ&quot;ס ולגשת לכל כלי הניהול.</p>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '3rem' }}>
                     <StatCard icon={<BookOpen color="#0284c7" />} label="חוגים פעילים" value={String(stats.classes)} bg="#e0f2fe" />

@@ -14,7 +14,7 @@ export default function Navbar() {
                 <Link href="/classes">חוגים</Link>
                 <Link href="/events">אירועים</Link>
                 <Link href="/feed">פיד קהילתי</Link>
-                <Link href="/chat">צ'אט מתנ"ס</Link>
+                <Link href="/chat">צ׳אט מתנ&quot;ס</Link>
             </div>
 
             <div style={{ display: 'flex', gap: '1rem' }}>

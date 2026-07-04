@@ -1,8 +1,8 @@
 "use client";
+import Image from 'next/image';
 import AdminNavbar from '@/components/admin/AdminNavbar';
-import { Palette, Sparkles, Send, Copy, CheckCircle2, RefreshCw, ChevronRight, Download, Info, Mail, Phone, MapPin } from 'lucide-react';
-import { useState, useRef } from 'react';
-import html2canvas from 'html2canvas';
+import { Palette, Sparkles, Send, Copy, CheckCircle2, RefreshCw, ChevronRight, Download, Info, Phone, MapPin } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 
 type DesignOption = {
     id: string;
@@ -27,6 +27,16 @@ type FlyerData = {
     imageUrl: string;
 };
 
+type StudioActivity = {
+    id: string;
+    title_he: string;
+    description_he?: string | null;
+    instructor_name?: string | null;
+    price?: number | null;
+    days_of_week?: string | null;
+    target_age_group?: string | null;
+};
+
 export default function StudioPage() {
     const [step, setStep] = useState<'input' | 'designs' | 'result'>('input');
     const [prompt, setPrompt] = useState('');
@@ -37,28 +47,27 @@ export default function StudioPage() {
     const [flyerData, setFlyerData] = useState<FlyerData | null>(null);
     const [resultText, setResultText] = useState('');
     const [copied, setCopied] = useState(false);
-    const [activities, setActivities] = useState<any[]>([]);
+    const [activities, setActivities] = useState<StudioActivity[]>([]);
     const [selectedActivityId, setSelectedActivityId] = useState('');
     
     const flyerRef = useRef<HTMLDivElement>(null);
 
-    // Fetch activities for the selector
-    useState(() => {
+    useEffect(() => {
         const fetchActivities = async () => {
             try {
                 const res = await fetch('/api/activities');
                 const data = await res.json();
-                if (Array.isArray(data)) setActivities(data);
+                if (Array.isArray(data)) setActivities(data as StudioActivity[]);
             } catch (e) {
                 console.error('Failed to fetch activities', e);
             }
         };
-        fetchActivities();
-    });
+        void fetchActivities();
+    }, []);
 
     const handleActivityChange = (id: string) => {
         setSelectedActivityId(id);
-        const act = activities.find(a => a.id === id);
+        const act = activities.find((a) => a.id === id);
         if (act) {
             const context = `חוג: ${act.title_he}
 ${act.description_he ? `תיאור: ${act.description_he}` : ''}
@@ -102,7 +111,15 @@ ${act.target_age_group ? `קהל יעד: ${act.target_age_group}` : ''}`;
                 const data = await res.json();
                 if (data.marketingText) {
                     setResultText(data.marketingText);
-                    setFlyerData({ imageUrl: data.imageUrl } as any);
+                    setFlyerData({
+                        title: '',
+                        subtitle: '',
+                        body: '',
+                        highlights: [],
+                        contact: '',
+                        cta: '',
+                        imageUrl: data.imageUrl,
+                    });
                     setStep('result');
                 }
             } catch (e) {
@@ -135,6 +152,7 @@ ${act.target_age_group ? `קהל יעד: ${act.target_age_group}` : ''}`;
     const handleDownload = async () => {
         if (!flyerRef.current) return;
         try {
+            const html2canvas = (await import('html2canvas')).default;
             const canvas = await html2canvas(flyerRef.current, {
                 useCORS: true,
                 scale: 2,
@@ -320,10 +338,13 @@ ${act.target_age_group ? `קהל יעד: ${act.target_age_group}` : ''}`;
                                             </div>
                                         </div>
                                         <div style={{ flex: 1 }}>
-                                            <img 
-                                                src={flyerData.imageUrl} 
-                                                alt="Activity" 
-                                                style={{ width: '100%', borderRadius: '12px', boxShadow: 'var(--shadow-md)', border: `4px solid white` }}
+                                            <Image
+                                                src={flyerData.imageUrl}
+                                                alt="Activity"
+                                                width={420}
+                                                height={420}
+                                                unoptimized
+                                                style={{ width: '100%', height: 'auto', borderRadius: '12px', boxShadow: 'var(--shadow-md)', border: '4px solid white' }}
                                             />
                                         </div>
                                     </div>
@@ -351,7 +372,7 @@ ${act.target_age_group ? `קהל יעד: ${act.target_age_group}` : ''}`;
                             ) : (
                                 <div className="card" style={{ padding: '2rem', maxWidth: '600px', width: '100%' }}>
                                      {flyerData?.imageUrl && (
-                                        <img src={flyerData.imageUrl} alt="Post" style={{ width: '100%', borderRadius: '12px', marginBottom: '1.5rem' }} />
+                                        <Image src={flyerData.imageUrl} alt="Post" width={560} height={560} unoptimized style={{ width: '100%', height: 'auto', borderRadius: '12px', marginBottom: '1.5rem' }} />
                                     )}
                                     <div style={{ whiteSpace: 'pre-wrap', fontSize: '1.1rem', lineHeight: 1.8 }}>{resultText}</div>
                                 </div>

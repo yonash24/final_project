@@ -1,17 +1,24 @@
 'use server';
 
-import { supabaseServer } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
 import { z } from 'zod';
 
+import { createSSRClient, supabaseServer } from '@/lib/supabase/server';
 
 const loginSchema = z.object({
     email: z.string().email('אימייל לא תקין'),
     password: z.string().min(6, 'סיסמה חייבת להכיל לפחות 6 תווים'),
 });
 
-export async function loginAdmin(prevState: any, formData: FormData) {
+interface LoginState {
+    message: string | null;
+    error: {
+        email?: string[];
+        password?: string[];
+    } | null;
+}
+
+export async function loginAdmin(prevState: LoginState, formData: FormData): Promise<LoginState> {
     const email = formData.get('email') as string;
     const password = formData.get('password') as string;
 
@@ -20,46 +27,46 @@ export async function loginAdmin(prevState: any, formData: FormData) {
     if (!validatedFields.success) {
         return {
             error: validatedFields.error.flatten().fieldErrors,
+            message: null,
         };
     }
 
-    // Use RPC to verify credentials from custom management_users table
-    const { data: verifiedUsers, error: authError } = await supabaseServer.rpc('verify_admin_password', {
-        p_email: email,
-        p_password: password
+    const supabase = await createSSRClient();
+    const { data: signInData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
     });
 
     if (authError) {
         console.error('Auth error:', authError);
-        return { message: 'שגיאת שרת פנימית' };
+        return { message: 'אימייל או סיסמה שגויים', error: null };
     }
 
-    const user = Array.isArray(verifiedUsers) ? verifiedUsers[0] : verifiedUsers;
+    const userId = signInData.user?.id;
+    if (!userId) {
+        return { message: 'לא הצלחנו לזהות את המשתמש.', error: null };
+    }
 
-    if (!user) {
+    const { data: adminProfile, error: adminError } = await supabaseServer
+        .from('admin_users')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
+
+    if (adminError || !adminProfile) {
+        await supabase.auth.signOut();
         return {
-            message: 'אימייל או סיסמה שגויים',
+            message: 'אין לך הרשאות גישה למערכת הניהול',
+            error: null,
         };
     }
-
-    const cookieStore = await cookies();
-    
-    // Set a simple session cookie (In production, use a signed JWT)
-    cookieStore.set('admin_session', user.id, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24, // 1 day
-        path: '/',
-    });
 
     redirect('/admin');
 }
 
 
 export async function logoutAdmin() {
-    const cookieStore = await cookies();
-    cookieStore.delete('admin_session');
+    const supabase = await createSSRClient();
+    await supabase.auth.signOut();
     redirect('/admin/login');
 }
-

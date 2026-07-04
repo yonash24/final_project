@@ -32,12 +32,13 @@ export async function POST(request: NextRequest) {
             id: data.id,
             message: 'הרשמה בוצעה בהצלחה',
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
+        const details = error instanceof Error ? error.message : 'Unknown error';
         console.error('[RegistrationsAPI] 🛑 Error Details:', error);
         return Response.json(
             { 
                 error: 'אירעה שגיאה בשמירת ההרשמה. אנא נסה שוב מאוחר יותר.',
-                details: error.message 
+                details
             },
             { status: 500 },
         );

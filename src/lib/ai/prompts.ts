@@ -250,7 +250,7 @@ export const QUICK_ACTIONS = [
 // HELPER: Format DB results for the AI context
 // ─────────────────────────────────────────────
 
-export function formatActivitiesForContext(activities: any[]): string {
+export function formatActivitiesForContext(activities: ActivityRow[]): string {
   if (!activities || activities.length === 0) {
     return 'לא נמצאו חוגים תואמים בדאטהבייס.';
   }
@@ -278,7 +278,7 @@ export function formatActivitiesForContext(activities: any[]): string {
     .join('\n\n');
 }
 
-export function formatEventsForContext(events: any[]): string {
+export function formatEventsForContext(events: EventRow[]): string {
   if (!events || events.length === 0) {
     return 'לא נמצאו אירועים תואמים בדאטהבייס.';
   }
@@ -302,3 +302,4 @@ export function formatEventsForContext(events: any[]): string {
     })
     .join('\n\n');
 }
+import type { ActivityRow, EventRow } from '@/lib/db/chat-queries';

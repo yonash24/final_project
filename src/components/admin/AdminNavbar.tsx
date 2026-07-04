@@ -1,8 +1,7 @@
 "use client";
 import Link from 'next/link';
-import { LayoutDashboard, BookOpen, Calendar, Users, Settings, LogOut, Sparkles, Megaphone, Palette } from 'lucide-react';
+import { BookOpen, Calendar, Users, Settings, LogOut, Sparkles, Megaphone, Palette, Upload } from 'lucide-react';
 import { logoutAdmin } from '@/app/admin/login/actions';
-import { supabase } from '@/lib/supabase/client';
 import { useState, useEffect } from 'react';
 
 export default function AdminNavbar() {
@@ -10,8 +9,14 @@ export default function AdminNavbar() {
 
     useEffect(() => {
         async function getUser() {
-            const { data: { user } } = await supabase.auth.getUser();
-            setUserEmail(user?.email || null);
+            try {
+                const response = await fetch('/api/admin/me');
+                if (!response.ok) return;
+                const data = await response.json();
+                setUserEmail(data.email ?? null);
+            } catch (error) {
+                console.error('Failed to fetch admin profile', error);
+            }
         }
         getUser();
     }, []);
@@ -32,7 +37,7 @@ export default function AdminNavbar() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
                 <Link href="/admin" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 800, color: 'var(--accent-primary)', fontSize: '1.25rem' }}>
                     <Sparkles />
-                    <span>ניהול מתנ"ס</span>
+                    <span>ניהול מתנ&quot;ס</span>
                 </Link>
 
                 <div style={{ display: 'flex', gap: '1rem' }}>
@@ -40,6 +45,7 @@ export default function AdminNavbar() {
                     <NavLink href="/admin/events" icon={<Calendar size={18} />} label="אירועים" />
                     <NavLink href="/admin/feed" icon={<Megaphone size={18} />} label="פיד קהילתי" />
                     <NavLink href="/admin/studio" icon={<Palette size={18} />} label="סטודיו גנרטיבי" />
+                    <NavLink href="/admin/classes/import" icon={<Upload size={18} />} label="ייבוא חוגים" />
                     <NavLink href="/admin/members" icon={<Users size={18} />} label="משתתפים" />
                     <NavLink href="/admin/settings" icon={<Settings size={18} />} label="הגדרות" />
                 </div>

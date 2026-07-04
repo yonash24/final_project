@@ -1,60 +1,86 @@
 "use client";
+
+import { Send, Trash2, Megaphone, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
 import AdminNavbar from '@/components/admin/AdminNavbar';
-import { Send, Trash2, Megaphone, X, CheckCircle2, AlertCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase/client';
+import type { AdminPost } from '@/lib/admin/types';
 
 export default function AdminFeedPage() {
-    const [posts, setPosts] = useState<any[]>([]);
+    const [posts, setPosts] = useState<AdminPost[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [saving, setSaving] = useState(false);
     const [newPost, setNewPost] = useState({ title: '', content: '' });
 
-    useEffect(() => {
-        fetchPosts();
-    }, []);
-
-    async function fetchPosts() {
-        setLoading(true);
-        const { data, error } = await supabase.from('posts').select('*').order('created_at', { ascending: false });
-        if (data) setPosts(data);
-        if (error) console.error('Error fetching posts:', error);
-        setLoading(false);
+    async function loadPosts() {
+        const response = await fetch('/api/admin/posts');
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Failed to fetch posts');
+        return data as AdminPost[];
     }
 
-    async function handleSubmit(e: React.FormEvent) {
-        e.preventDefault();
+    useEffect(() => {
+        let ignore = false;
+        void loadPosts()
+            .then((data) => {
+                if (!ignore) setPosts(data);
+            })
+            .catch((error) => {
+                console.error('Error fetching posts:', error);
+            })
+            .finally(() => {
+                if (!ignore) setLoading(false);
+            });
+
+        return () => {
+            ignore = true;
+        };
+    }, []);
+
+    async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+        event.preventDefault();
         setSaving(true);
+        setLoading(true);
 
-        // Explicit save to database
-        const { data, error } = await supabase.from('posts').insert([
-            {
-                title: newPost.title,
-                content: newPost.content,
-                author_name: 'הנהלת המתנ"ס',
-                author_role: 'admin'
-            }
-        ]).select();
+        try {
+            const response = await fetch('/api/admin/posts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newPost),
+            });
 
-        setSaving(false);
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed to save post');
 
-        if (!error) {
-            alert('✅ הפוסט נשמר בהצלחה בבסיס הנתונים!');
             setShowModal(false);
             setNewPost({ title: '', content: '' });
-            fetchPosts();
-        } else {
-            console.error('DB Error:', error);
-            alert('❌ שגיאה בשמירה לדאטהבייס: ' + error.message);
+            setPosts(await loadPosts());
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'שגיאה בשמירה';
+            alert(message);
+        } finally {
+            setSaving(false);
+            setLoading(false);
         }
     }
 
     async function deletePost(id: string) {
-        if (confirm('האם למחוק פוסט זה? פעולה זו היא סופית בבסיס הנתונים.')) {
-            const { error } = await supabase.from('posts').delete().eq('id', id);
-            if (!error) fetchPosts();
-            else alert('שגיאה במחיקה: ' + error.message);
+        if (!confirm('האם למחוק פוסט זה?')) return;
+
+        setLoading(true);
+        try {
+            const response = await fetch(`/api/admin/posts/${id}`, { method: 'DELETE' });
+            if (!response.ok) {
+                const data = await response.json();
+                throw new Error(data.error || 'Delete failed');
+            }
+            setPosts(await loadPosts());
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'שגיאה במחיקה';
+            alert(message);
+        } finally {
+            setLoading(false);
         }
     }
 
@@ -65,7 +91,7 @@ export default function AdminFeedPage() {
                 <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                     <div>
                         <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>ניהול פיד קהילתי 📢</h1>
-                        <p style={{ color: 'var(--text-secondary)' }}>פרסום הודעות ועדכונים חשובים השמורים במסד הנתונים</p>
+                        <p style={{ color: 'var(--text-secondary)' }}>פרסום הודעות ועדכונים חשובים דרך API מאובטח</p>
                     </div>
                     <button onClick={() => setShowModal(true)} className="btn btn-primary btn-md">
                         <Megaphone size={18} /> פרסם הודעה חדשה
@@ -77,7 +103,7 @@ export default function AdminFeedPage() {
                         <div style={{ textAlign: 'center', padding: '2rem' }}>טוען הודעות...</div>
                     ) : posts.length === 0 ? (
                         <div className="card" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>אין הודעות בפיד. צור הודעה חדשה!</div>
-                    ) : posts.map(post => (
+                    ) : posts.map((post) => (
                         <div key={post.id} className="card" style={{ padding: '1.5rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
                                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -97,7 +123,6 @@ export default function AdminFeedPage() {
                             </div>
                             {post.title && <h3 style={{ marginBottom: '0.5rem', fontSize: '1.25rem' }}>{post.title}</h3>}
                             <div style={{ whiteSpace: 'pre-wrap', lineHeight: '1.6', color: 'var(--text-secondary)' }}>{post.content}</div>
-                            <div style={{ marginTop: '1rem', fontSize: '0.75rem', color: '#ccc', textAlign: 'left' }}>ID: {post.id}</div>
                         </div>
                     ))}
                 </div>
@@ -118,7 +143,7 @@ export default function AdminFeedPage() {
                                     className="input-field"
                                     placeholder="למשל: עדכון דחוף לגבי חופשת הפסח"
                                     value={newPost.title}
-                                    onChange={e => setNewPost({ ...newPost, title: e.target.value })}
+                                    onChange={(event) => setNewPost((prev) => ({ ...prev, title: event.target.value }))}
                                 />
                             </div>
                             <div>
@@ -129,11 +154,11 @@ export default function AdminFeedPage() {
                                     placeholder="כתבו כאן את התוכן המלא..."
                                     style={{ height: '150px', paddingTop: '0.8rem' }}
                                     value={newPost.content}
-                                    onChange={e => setNewPost({ ...newPost, content: e.target.value })}
+                                    onChange={(event) => setNewPost((prev) => ({ ...prev, content: event.target.value }))}
                                 />
                             </div>
                             <button type="submit" disabled={saving} className="btn btn-primary btn-md" style={{ gap: '0.5rem' }}>
-                                {saving ? 'שומר בדאטהבייס...' : <><Send size={18} /> שמור ופרסם לדאטהבייס</>}
+                                {saving ? 'שומר...' : <><Send size={18} /> שמור ופרסם</>}
                             </button>
                         </form>
                     </div>
