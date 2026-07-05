@@ -519,7 +519,7 @@ export default function ChatPage() {
                             </div>
                             <div>
                                 <div className="chat-header-title">מתני 🤖</div>
-                                <div className="chat-header-subtitle">נציג חכם של המתנ&quot;ס</div>
+                                <div className="chat-header-subtitle">דברו איתי פשוט, ואני אכוון אתכם</div>
                             </div>
                         </div>
 
@@ -540,7 +540,7 @@ export default function ChatPage() {
                     {/* Quick action chips */}
                     {showQuickActions && (
                         <div className="chat-quick-actions animate-fade-up">
-                            <p className="chat-quick-label">שאל אותי למשל:</p>
+                            <p className="chat-quick-label">אפשר להתחיל ממשפט פשוט כמו:</p>
                             <div className="chat-quick-grid">
                                 {QUICK_ACTIONS.map((action) => (
                                     <button
@@ -634,7 +634,7 @@ export default function ChatPage() {
                             <Send size={20} />
                         </button>
                     </form>
-                    <p className="chat-hint">מוגן על ידי AI · מתני עונה רק על שאלות הקשורות למתנ&quot;ס</p>
+                    <p className="chat-hint">כאן מדברים פשוט. מתני עוזר רק בנושאים של חוגים, אירועים, הרשמה והכוונה במתנ&quot;ס.</p>
                 </footer>
             </div>
 

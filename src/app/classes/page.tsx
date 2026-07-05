@@ -7,6 +7,25 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import RegistrationModal from '@/components/ui/RegistrationModal';
 
+const needPresets = [
+    {
+        label: 'משהו רגוע לגיל שלישי',
+        apply: () => ({ searchTerm: '', selectedCategory: 'all', selectedAgeGroup: 'seniors', availabilityFilter: 'all' as const }),
+    },
+    {
+        label: 'פעילות לילדים עם מקום פנוי',
+        apply: () => ({ searchTerm: '', selectedCategory: 'all', selectedAgeGroup: 'kids', availabilityFilter: 'open' as const }),
+    },
+    {
+        label: 'חוגים בחינם',
+        apply: () => ({ searchTerm: 'חינם', selectedCategory: 'all', selectedAgeGroup: 'all', availabilityFilter: 'all' as const }),
+    },
+    {
+        label: 'משהו חברתי למבוגרים',
+        apply: () => ({ searchTerm: 'קבוצה', selectedCategory: 'all', selectedAgeGroup: 'adults', availabilityFilter: 'all' as const }),
+    },
+];
+
 interface Activity {
     id: string;
     title_he: string;
@@ -55,7 +74,16 @@ export default function ClassesPage() {
         const spotsLeft = item.max_participants != null
             ? item.max_participants - (item.current_participants ?? 0)
             : null;
-        const matchesSearch = [item.title_he, item.description_he, item.instructor_name, item.location]
+        const matchesSearch = [
+            item.title_he,
+            item.description_he,
+            item.instructor_name,
+            item.location,
+            item.categories?.name_he,
+            item.target_age_group === 'seniors' ? 'גיל שלישי קשישים מבוגרים רגוע' : null,
+            item.target_age_group === 'kids' ? 'ילדים הורים משפחה' : null,
+            item.price === 0 ? 'חינם ללא עלות' : null,
+        ]
             .filter(Boolean)
             .some((value) => value?.toLowerCase().includes(searchTerm.toLowerCase()));
         const matchesCategory = selectedCategory === 'all' || item.categories?.name_he === selectedCategory;
@@ -76,7 +104,30 @@ export default function ClassesPage() {
                 <main style={{ padding: '3rem 0', minHeight: 'calc(100vh - 100px)' }}>
                     <header style={{ marginBottom: '2rem' }}>
                         <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>חוגים ופעילויות 🎨</h1>
-                        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>חיפוש מהיר לפי נושא, קהל יעד וזמינות מקומות.</p>
+                        <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>אפשר לחפש לפי נושא, גיל, זמינות או פשוט לפי צורך יומיומי.</p>
+
+                        <div className="friendly-helper-card">
+                            <strong>מחפשים משהו בלי להסתבך?</strong>
+                            <p>אפשר להתחיל מאחד המסלולים המהירים כאן, או לכתוב מילה פשוטה כמו &quot;רגוע&quot;, &quot;לילדים&quot; או &quot;חינם&quot;.</p>
+                            <div className="pill-row">
+                                {needPresets.map((preset) => (
+                                    <button
+                                        key={preset.label}
+                                        type="button"
+                                        className="pill-choice"
+                                        onClick={() => {
+                                            const values = preset.apply();
+                                            setSearchTerm(values.searchTerm);
+                                            setSelectedCategory(values.selectedCategory);
+                                            setSelectedAgeGroup(values.selectedAgeGroup);
+                                            setAvailabilityFilter(values.availabilityFilter);
+                                        }}
+                                    >
+                                        {preset.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
 
                         <div className="discovery-toolbar">
                             <label className="discovery-search">
@@ -84,7 +135,7 @@ export default function ClassesPage() {
                                 <input
                                     value={searchTerm}
                                     onChange={(event) => setSearchTerm(event.target.value)}
-                                    placeholder="חפשו חוג, מדריך או מיקום"
+                                    placeholder="חפשו חוג, צורך, מדריך או מיקום"
                                 />
                             </label>
                             <div className="discovery-filters">
@@ -122,7 +173,7 @@ export default function ClassesPage() {
                         <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-secondary)' }}>טוען חוגים...</div>
                     ) : filteredClasses.length === 0 ? (
                         <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
-                            לא נמצאו חוגים לפי הסינון שבחרת. נסו להרחיב את החיפוש או לאפס מסננים.
+                            לא מצאנו כרגע משהו שמתאים בדיוק למה שבחרת. נסו לחפש מילה פשוטה אחרת, להרחיב את הסינון או לעבור ל&quot;דברו איתי פשוט&quot;.
                         </div>
                     ) : (
                         <div className="features-grid" style={{ padding: 0 }}>

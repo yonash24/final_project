@@ -23,6 +23,7 @@ export default function RegistrationModal({ activity, onClose }: RegistrationMod
     const [step, setStep] = useState<Step>('form');
     const [form, setForm] = useState({ name: '', phone: '', email: '', notes: '' });
     const [errors, setErrors] = useState<Record<string, string>>({});
+    const [formStep, setFormStep] = useState<1 | 2>(1);
 
     function validate() {
         const newErrors: Record<string, string> = {};
@@ -71,6 +72,19 @@ export default function RegistrationModal({ activity, onClose }: RegistrationMod
     function handleChange(field: string, value: string) {
         setForm((prev) => ({ ...prev, [field]: value }));
         if (errors[field]) setErrors((prev) => ({ ...prev, [field]: '' }));
+    }
+
+    function handleNextStep() {
+        const newErrors: Record<string, string> = {};
+        if (!form.name.trim()) newErrors.name = 'שדה חובה';
+        if (!form.phone.trim() || !/^[0-9\-+ ]{9,15}$/.test(form.phone.trim())) {
+            newErrors.phone = 'מספר טלפון לא תקין';
+        }
+        setErrors(newErrors);
+
+        if (Object.keys(newErrors).length === 0) {
+            setFormStep(2);
+        }
     }
 
     // Block scroll while open
@@ -123,6 +137,17 @@ export default function RegistrationModal({ activity, onClose }: RegistrationMod
                         </div>
                     ) : (
                         <form onSubmit={handleSubmit} noValidate>
+                            <div className="modal-stepper">
+                                <div className={`modal-step-chip ${formStep === 1 ? 'is-active' : 'is-complete'}`}>1. פרטים בסיסיים</div>
+                                <div className={`modal-step-chip ${formStep === 2 ? 'is-active' : ''}`}>2. השלמה קצרה</div>
+                            </div>
+
+                            <p className="modal-step-text">
+                                {formStep === 1
+                                    ? 'נתחיל רק משם וטלפון, כדי שיהיה קל ומהיר.'
+                                    : 'כאן אפשר להוסיף פרטים רק אם נוח לכם. אפשר גם לדלג ולשלוח.'}
+                            </p>
+
                             <div className="modal-form-grid">
                                 {/* Full name */}
                                 <div className="modal-field">
@@ -161,56 +186,85 @@ export default function RegistrationModal({ activity, onClose }: RegistrationMod
                                 </div>
 
                                 {/* Email */}
-                                <div className="modal-field" style={{ gridColumn: '1 / -1' }}>
-                                    <label htmlFor="reg-email" className="modal-label">
-                                        <Mail size={14} /> אימייל (אופציונלי)
-                                    </label>
-                                    <input
-                                        id="reg-email"
-                                        type="email"
-                                        className={`modal-input ${errors.email ? 'modal-input-error' : ''}`}
-                                        placeholder="israel@example.com"
-                                        value={form.email}
-                                        onChange={(e) => handleChange('email', e.target.value)}
-                                        disabled={step === 'submitting'}
-                                        autoComplete="email"
-                                    />
-                                    {errors.email && <span className="modal-error">{errors.email}</span>}
-                                </div>
+                                {formStep === 2 && (
+                                    <div className="modal-field" style={{ gridColumn: '1 / -1' }}>
+                                        <label htmlFor="reg-email" className="modal-label">
+                                            <Mail size={14} /> אימייל (אופציונלי)
+                                        </label>
+                                        <input
+                                            id="reg-email"
+                                            type="email"
+                                            className={`modal-input ${errors.email ? 'modal-input-error' : ''}`}
+                                            placeholder="israel@example.com"
+                                            value={form.email}
+                                            onChange={(e) => handleChange('email', e.target.value)}
+                                            disabled={step === 'submitting'}
+                                            autoComplete="email"
+                                        />
+                                        {errors.email && <span className="modal-error">{errors.email}</span>}
+                                    </div>
+                                )}
 
                                 {/* Notes */}
-                                <div className="modal-field" style={{ gridColumn: '1 / -1' }}>
-                                    <label htmlFor="reg-notes" className="modal-label">
-                                        <MessageSquare size={14} /> הערות (אופציונלי)
-                                    </label>
-                                    <textarea
-                                        id="reg-notes"
-                                        className="modal-input modal-textarea"
-                                        placeholder="כל מידע שחשוב לנו לדעת..."
-                                        value={form.notes}
-                                        onChange={(e) => handleChange('notes', e.target.value)}
-                                        disabled={step === 'submitting'}
-                                        rows={3}
-                                    />
-                                </div>
+                                {formStep === 2 && (
+                                    <div className="modal-field" style={{ gridColumn: '1 / -1' }}>
+                                        <label htmlFor="reg-notes" className="modal-label">
+                                            <MessageSquare size={14} /> הערות (אופציונלי)
+                                        </label>
+                                        <textarea
+                                            id="reg-notes"
+                                            className="modal-input modal-textarea"
+                                            placeholder="כל מידע שחשוב לנו לדעת, או שאלה שתרצו שנחזור אליה..."
+                                            value={form.notes}
+                                            onChange={(e) => handleChange('notes', e.target.value)}
+                                            disabled={step === 'submitting'}
+                                            rows={3}
+                                        />
+                                    </div>
+                                )}
                             </div>
 
-                            <button
-                                type="submit"
-                                className="btn btn-primary btn-lg"
-                                style={{ width: '100%', marginTop: '1.5rem' }}
-                                disabled={step === 'submitting'}
-                                id="modal-submit-button"
-                            >
-                                {step === 'submitting' ? (
-                                    <>
-                                        <Loader2 size={18} className="activity-spinner" />
-                                        שולח...
-                                    </>
-                                ) : (
-                                    '✍️ שלח הרשמה'
+                            <div className="modal-actions-row">
+                                {formStep === 2 && (
+                                    <button
+                                        type="button"
+                                        className="btn btn-secondary btn-lg"
+                                        style={{ flex: 1 }}
+                                        onClick={() => setFormStep(1)}
+                                        disabled={step === 'submitting'}
+                                    >
+                                        חזרה
+                                    </button>
                                 )}
-                            </button>
+
+                                {formStep === 1 ? (
+                                    <button
+                                        type="button"
+                                        className="btn btn-primary btn-lg"
+                                        style={{ width: '100%' }}
+                                        onClick={handleNextStep}
+                                    >
+                                        להמשך קצר
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="submit"
+                                        className="btn btn-primary btn-lg"
+                                        style={{ flex: 1 }}
+                                        disabled={step === 'submitting'}
+                                        id="modal-submit-button"
+                                    >
+                                        {step === 'submitting' ? (
+                                            <>
+                                                <Loader2 size={18} className="activity-spinner" />
+                                                שולח...
+                                            </>
+                                        ) : (
+                                            '✍️ שלח הרשמה'
+                                        )}
+                                    </button>
+                                )}
+                            </div>
 
                             <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', textAlign: 'center', marginTop: '0.75rem' }}>
                                 פרטיך מאובטחים ולא יועברו לצדדים שלישיים

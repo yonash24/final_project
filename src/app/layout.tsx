@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'המתנס הדיגיטלי החכם',
-  description: 'מערכת ניהול חכמה למרכזים קהילתיים כוללת צ\'אט בינה מלאכותית ויצירת תוכן לשיווק',
+  title: 'המתנ"ס הדיגיטלי',
+  description: 'כל המידע על חוגים, אירועים, עדכוני קהילה ועזרה מהירה במקום אחד נעים ופשוט.',
 };
 
 export default function RootLayout({

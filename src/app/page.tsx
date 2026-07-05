@@ -1,60 +1,94 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import {
+  ArrowLeft,
   CalendarDays,
-  LayoutDashboard,
+  HeartHandshake,
+  Info,
   MessageSquare,
-  Palette,
-  ShieldCheck,
+  MapPin,
+  Search,
   Sparkles,
-  Upload,
+  Ticket,
   Users,
 } from 'lucide-react';
 
 import Navbar from '@/components/layout/Navbar';
 
-const residentBenefits = [
-  'חיפוש חוגים לפי גיל, יום, מחיר וזמינות',
-  'צ׳אט שמחזיר רק את המידע שהתבקש',
-  'גישה מהירה לאירועים, הרשמה ופרטי קשר',
+const familyBenefits = [
+  'איתור חוגים לפי גיל, יום, תחום עניין ומחיר',
+  'צפייה באירועים קרובים, מועדים ומיקומים בלי להסתבך',
+  'גישה מהירה לעדכונים, הודעות קהילה ופרטי הרשמה',
 ];
 
-const managerBenefits = [
-  'ניהול חוגים ואירועים מאזור מנהלים מאובטח',
-  'ייבוא אקסל עם Preview, מיפוי עמודות ואישור',
-  'פרסום תוכן שיווקי ועדכונים קהילתיים ממקום אחד',
+const supportBenefits = [
+  'עזרה מהירה בשפה פשוטה למי שלא בטוח איפה למצוא כל דבר',
+  'הכוונה לפעילויות מתאימות לילדים, נוער, מבוגרים וגיל שלישי',
+  'מידע ברור על שעות, עלויות, מדריכים ודרכי הגעה',
 ];
 
-const workflowSteps = [
+const quickStartCards = [
   {
-    title: 'מזינים נתונים',
-    text: 'מעלים חוגים ואירועים ידנית או מקובץ אקסל מסודר.',
-    icon: Upload,
+    title: 'לא בטוחים מאיפה מתחילים',
+    text: 'מסלול קצר ופשוט שמכוון אתכם צעד אחר צעד לפי מי אתם מחפשים ומה נוח לכם.',
+    icon: Sparkles,
   },
   {
-    title: 'המערכת בודקת',
-    text: 'מזהה כפילויות, מאמתת שדות ומכינה את המידע להצגה.',
-    icon: ShieldCheck,
+    title: 'מוצאים פעילות מתאימה',
+    text: 'מחפשים חוגים ופעילויות לפי גיל, תחום עניין, ימים פנויים ומקומות זמינים.',
+    icon: Search,
   },
   {
-    title: 'התושבים מקבלים תשובה',
-    text: 'הצ׳אט והעמודים הציבוריים מחזירים רק את מה שרלוונטי לבקשה.',
+    title: 'מתעדכנים במה שקורה',
+    text: 'רואים אירועים קרובים, מועדים מיוחדים וחדשות קהילתיות במקום אחד מסודר.',
+    icon: CalendarDays,
+  },
+  {
+    title: 'מקבלים עזרה בדרך',
+    text: 'אפשר לבקש הכוונה בשפה חופשית ולקבל תשובה פשוטה וברורה בלי לחפש לבד.',
     icon: MessageSquare,
+  },
+];
+
+const communityHighlights = [
+  {
+    title: 'חוגים לכל שלב בחיים',
+    text: 'אומנות, ספורט, העשרה ופעילויות פנאי לילדים, נוער, מבוגרים וגיל שלישי.',
+    icon: Users,
+    tone: 'icon-blue',
+  },
+  {
+    title: 'אירועים ומפגשים קהילתיים',
+    text: 'הרצאות, מופעים, סדנאות, ימי שיא ומפגשים שכונתיים שמתאימים לכל המשפחה.',
+    icon: Ticket,
+    tone: 'icon-orange',
+  },
+  {
+    title: 'עדכונים שוטפים',
+    text: 'פיד קהילתי עם הודעות, שינויים חשובים, הזמנות לאירועים ודברים שטוב לדעת מראש.',
+    icon: HeartHandshake,
+    tone: 'icon-green',
+  },
+  {
+    title: 'מידע שימושי לפני שמגיעים',
+    text: 'כתובות, שעות, מחירים, מדריכים ופרטים חשובים שמופיעים בצורה ברורה ונגישה.',
+    icon: MapPin,
+    tone: 'icon-blue',
   },
 ];
 
 const faqs = [
   {
-    q: 'מה היתרון של הצ׳אט על פני חיפוש רגיל?',
-    a: 'הצ׳אט מבין שאלות טבעיות כמו גיל, יום, מחיר או שם חוג, ומחזיר תשובה ממוקדת במקום לחייב את המשתמש לעבור בין מסכים.',
+    q: 'איפה הכי כדאי להתחיל אם אני חדש/ה כאן?',
+    a: 'מומלץ להתחיל מרשימת החוגים או לוח האירועים. אם לא בטוחים מה מתאים, אפשר להשתמש בעזרה המהירה ולקבל הכוונה לפי גיל, תחום עניין או יום פנוי.',
   },
   {
-    q: 'איך מייבאים הרבה חוגים בבת אחת?',
-    a: 'באזור המנהלים מעלים קובץ `xlsx` או `csv`, ממפים את העמודות, רואים preview, ורק אחר כך מאשרים כתיבה למערכת.',
+    q: 'האם אפשר לראות מראש אם נשארו מקומות?',
+    a: 'כן. בדפי החוגים והאירועים אפשר לראות זמינות, מקומות אחרונים או אם הפעילות כבר מלאה.',
   },
   {
-    q: 'האם אפשר להשתמש במערכת גם לאירועים?',
-    a: 'כן. יש דפי אירועים לציבור, ניהול אירועים בצד האדמין, וגם הצ׳אט יודע להחזיר אירועים בלבד כשזה מה שהתבקש.',
+    q: 'אפשר למצוא גם מידע על מיקום, מחיר ושעות?',
+    a: 'כן. בכל פעילות מוצגים פרטים חשובים כמו גיל מתאים, שעות, עלות, מיקום ומי המדריך או המדריכה.',
   },
 ];
 
@@ -68,41 +102,45 @@ export default function Home() {
           <div className="hero-content animate-fade-up" style={{ animationDelay: '0.2s' }}>
             <div className="hero-badge">
               <Sparkles size={16} className="mr-2" />
-              פלטפורמה חכמה למרכזים קהילתיים
+              הבית הקהילתי שלכם, גם אונליין
             </div>
             <h1 className="hero-title">
-              ניהול קהילה <span>מדויק</span>,
+              כל מה שקורה במתנ&quot;ס
               <br />
-              שירות תושבים <span>מהיר</span>.
+              במקום אחד <span>ברור ונעים</span>.
             </h1>
             <p className="hero-subtitle">
-              מערכת אחת שמחברת בין הנהלת המתנ&quot;ס, התוכן הקהילתי והצ׳אט. הנתונים נשמרים במקום אחד, השאלות מקבלות תשובות ממוקדות,
-              והצוות חוסך זמן יקר בניהול ובעדכונים.
+              כאן אפשר למצוא חוגים, אירועים, עדכוני קהילה ועזרה מהירה בלי להסתבך. האתר בנוי כך שגם מי שלא מרגיש טכנולוגי יוכל להבין
+              מיד איפה נרשמים, מה קורה השבוע ואילו פעילויות מתאימות למשפחה שלו.
             </p>
 
             <div className="hero-actions">
-              <Link href="/chat" className="btn btn-primary btn-lg">
-                <MessageSquare size={20} />
-                נסה את הצ׳אט
+              <Link href="/start" className="btn btn-primary btn-lg">
+                <Sparkles size={20} />
+                מאיפה הכי כדאי להתחיל?
               </Link>
-              <Link href="/admin/login" className="btn btn-secondary btn-lg">
-                <LayoutDashboard size={20} />
-                כניסת מנהלים
+              <Link href="/classes" className="btn btn-primary btn-lg">
+                <Users size={20} />
+                לחוגים ופעילויות
+              </Link>
+              <Link href="/chat" className="btn btn-secondary btn-lg">
+                <MessageSquare size={20} />
+                דברו איתי פשוט
               </Link>
             </div>
 
             <div className="hero-stats">
               <div className="hero-stat-card">
-                <strong>צ׳אט ממוקד</strong>
-                <span>תשובות מדויקות בלי הרחבות מיותרות</span>
+                <strong>חוגים לכל גיל</strong>
+                <span>ילדים, נוער, מבוגרים וגיל שלישי</span>
               </div>
               <div className="hero-stat-card">
-                <strong>ייבוא בטוח</strong>
-                <span>Preview ואישור לפני כתיבה למערכת</span>
+                <strong>עדכונים קהילתיים</strong>
+                <span>אירועים, הודעות ושינויים חשובים</span>
               </div>
               <div className="hero-stat-card">
-                <strong>ניהול מאובטח</strong>
-                <span>גישה והרשאות דרך Supabase Auth</span>
+                <strong>עזרה פשוטה</strong>
+                <span>הכוונה מהירה גם בלי ידע טכני</span>
               </div>
             </div>
           </div>
@@ -110,7 +148,7 @@ export default function Home() {
           <div className="hero-image-wrapper animate-fade-up animate-float" style={{ animationDelay: '0.4s' }}>
             <Image
               src="/images/hero.png"
-              alt="Community center dashboard illustration"
+              alt="איור של פעילות קהילתית במתנס"
               width={900}
               height={680}
               priority
@@ -122,12 +160,12 @@ export default function Home() {
 
       <section className="features-section">
         <div className="features-header animate-fade-up">
-          <h2 className="features-title">איך המערכת עובדת</h2>
-          <p>זרימה ברורה אחת שמחברת מידע, שירות לתושבים וכלי ניהול.</p>
+          <h2 className="features-title">מה אפשר לעשות כאן</h2>
+          <p>המסלולים המרכזיים שמעניינים תושבים, משפחות וקהילה.</p>
         </div>
 
         <div className="workflow-grid">
-          {workflowSteps.map((step, index) => {
+          {quickStartCards.map((step, index) => {
             const Icon = step.icon;
             return (
               <div key={step.title} className="feature-card animate-fade-up" style={{ animationDelay: `${0.12 * (index + 1)}s` }}>
@@ -147,29 +185,32 @@ export default function Home() {
           <article className="glass-panel info-panel">
             <div className="hero-badge" style={{ marginBottom: '1rem' }}>
               <Users size={16} />
-              לתושבים
+              למשפחות ולתושבים
             </div>
-            <h2>חוויה פשוטה גם כשיש הרבה פעילויות</h2>
+            <h2>מוצאים בקלות את מה שמתאים לכם</h2>
             <ul className="feature-list">
-              {residentBenefits.map((item) => (
+              {familyBenefits.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
-            <Link href="/classes" className="btn btn-secondary btn-md">לצפייה בחוגים</Link>
+            <Link href="/classes" className="btn btn-secondary btn-md">לרשימת החוגים</Link>
           </article>
 
           <article className="glass-panel info-panel">
             <div className="hero-badge" style={{ marginBottom: '1rem', background: '#fff7ed', color: '#c2410c' }}>
-              <LayoutDashboard size={16} />
-              למנהלים
+              <Info size={16} />
+              למי שרוצה הכוונה
             </div>
-            <h2>תפעול מהיר בלי כפילויות ובלי בלגן</h2>
+            <h2>גם אם לא בטוחים מאיפה להתחיל</h2>
             <ul className="feature-list">
-              {managerBenefits.map((item) => (
+              {supportBenefits.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
-            <Link href="/admin/classes/import" className="btn btn-primary btn-md">למסך הייבוא</Link>
+            <div className="hero-actions" style={{ marginTop: 0 }}>
+              <Link href="/start" className="btn btn-secondary btn-md">הכוונה צעד אחר צעד</Link>
+              <Link href="/chat" className="btn btn-primary btn-md">לדבר איתי פשוט</Link>
+            </div>
           </article>
         </div>
       </section>
@@ -177,31 +218,21 @@ export default function Home() {
       <section className="showcase-section">
         <div className="container">
           <div className="features-header animate-fade-up">
-            <h2 className="features-title">יכולות מרכזיות</h2>
-            <p>מה שהמערכת כבר יודעת לעשות בפועל.</p>
+            <h2 className="features-title">מה תמצאו באתר</h2>
+            <p>המידע החשוב באמת לפני הרשמה, הגעה או התעדכנות.</p>
           </div>
 
           <div className="showcase-grid">
-            <div className="showcase-card">
-              <div className="feature-icon-wrapper icon-blue"><MessageSquare size={28} /></div>
-              <h3>צ׳אט לתושבים</h3>
-              <p>חיפוש ממוקד של חוגים, מחירים, אירועים ופרטי פעילות.</p>
-            </div>
-            <div className="showcase-card">
-              <div className="feature-icon-wrapper icon-orange"><Upload size={28} /></div>
-              <h3>ייבוא חוגים מאקסל</h3>
-              <p>העלאה, מיפוי, preview, זיהוי כפילויות ואישור לפני עדכון המערכת.</p>
-            </div>
-            <div className="showcase-card">
-              <div className="feature-icon-wrapper icon-green"><CalendarDays size={28} /></div>
-              <h3>ניהול אירועים</h3>
-              <p>שמירה, עדכון ופרסום אירועים קהילתיים מתוך אזור הניהול.</p>
-            </div>
-            <div className="showcase-card">
-              <div className="feature-icon-wrapper icon-blue"><Palette size={28} /></div>
-              <h3>סטודיו שיווקי</h3>
-              <p>יצירת פוסטים ופליירים מתוך נתוני החוגים הקיימים.</p>
-            </div>
+            {communityHighlights.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.title} className="showcase-card">
+                  <div className={`feature-icon-wrapper ${item.tone}`}><Icon size={28} /></div>
+                  <h3>{item.title}</h3>
+                  <p>{item.text}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -227,12 +258,15 @@ export default function Home() {
       <section className="cta-section">
         <div className="container cta-panel">
           <div>
-            <h2>רוצה לראות את זה בפעולה?</h2>
-            <p>אפשר להתחיל בצ׳אט, לבדוק חוגים ואירועים, או להיכנס לאזור הניהול ולהעלות נתונים.</p>
+            <h2>רוצים להתחיל ממשהו פשוט?</h2>
+            <p>אפשר להתחיל ממסלול מודרך, לבדוק מה קורה השבוע או פשוט לכתוב בשפה חופשית מה אתם צריכים.</p>
           </div>
           <div className="hero-actions">
-            <Link href="/chat" className="btn btn-primary btn-lg">לצ׳אט</Link>
-            <Link href="/admin/login" className="btn btn-secondary btn-lg">לניהול</Link>
+            <Link href="/start" className="btn btn-secondary btn-lg">להתחיל בהכוונה</Link>
+            <Link href="/chat" className="btn btn-primary btn-lg">
+              לדבר איתי פשוט
+              <ArrowLeft size={18} />
+            </Link>
           </div>
         </div>
       </section>

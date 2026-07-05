@@ -36,9 +36,12 @@ export default function FeedPage() {
                     <div style={{ width: '100%', maxWidth: '600px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
                         <h1 style={{ textAlign: 'center', marginBottom: '1rem' }}>פיד קהילתי 🏠</h1>
+                        <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                            עדכונים, הודעות וחדשות מהקהילה ומהמתנ&quot;ס במקום אחד.
+                        </p>
 
                         {loading ? (
-                            <div style={{ textAlign: 'center', padding: '2rem' }}>טוען עדכונים מהדאטהבייס...</div>
+                            <div style={{ textAlign: 'center', padding: '2rem' }}>טוען עדכונים קהילתיים...</div>
                         ) : posts.length === 0 ? (
                             <div className="card" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>עוד לא פורסמו הודעות בפיד הקהילתי.</div>
                         ) : posts.map((post, idx) => (
