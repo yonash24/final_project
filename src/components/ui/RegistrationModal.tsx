@@ -10,6 +10,8 @@ interface Activity {
     days_of_week?: string | null;
     start_time?: string | null;
     location?: string | null;
+    max_participants?: number | null;
+    current_participants?: number | null;
 }
 
 interface RegistrationModalProps {
@@ -17,13 +19,19 @@ interface RegistrationModalProps {
     onClose: () => void;
 }
 
-type Step = 'form' | 'submitting' | 'success';
+type Step = 'form' | 'submitting' | 'success' | 'waitlist_success' | 'feedback';
 
 export default function RegistrationModal({ activity, onClose }: RegistrationModalProps) {
     const [step, setStep] = useState<Step>('form');
     const [form, setForm] = useState({ name: '', phone: '', email: '', notes: '' });
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [formStep, setFormStep] = useState<1 | 2>(1);
+    const [feedbackRating, setFeedbackRating] = useState(0);
+    const [feedbackSent, setFeedbackSent] = useState(false);
+
+    const isFull = activity.max_participants != null && activity.current_participants != null
+        && activity.current_participants >= activity.max_participants;
+    const isWaitlist = isFull;
 
     function validate() {
         const newErrors: Record<string, string> = {};
@@ -60,7 +68,7 @@ export default function RegistrationModal({ activity, onClose }: RegistrationMod
                 throw new Error(data.error || 'Failed to register');
             }
 
-            setStep('success');
+            setStep(isWaitlist ? 'waitlist_success' : 'success');
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : 'אירעה שגיאה בשליחת הטופס. אנא נסה שוב.';
             console.error('[Registration] Failed:', message);
@@ -97,8 +105,11 @@ export default function RegistrationModal({ activity, onClose }: RegistrationMod
                 {/* ── Header ── */}
                 <div className="modal-header">
                     <div>
-                        <h2 className="modal-title">הרשמה לחוג</h2>
+                        <h2 className="modal-title">{isWaitlist ? 'הרשמה לרשימת המתנה' : 'הרשמה לחוג'}</h2>
                         <div className="modal-subtitle">{activity.title_he}</div>
+                        {isWaitlist && (
+                            <div style={{ fontSize: '0.8rem', color: '#b45309', marginTop: '0.25rem', fontWeight: 600 }}>⚠️ החוג מלא — תירשמו לרשימת המתנה</div>
+                        )}
                     </div>
                     <button className="modal-close-btn" onClick={onClose} aria-label="סגור">
                         <X size={20} />
@@ -120,18 +131,68 @@ export default function RegistrationModal({ activity, onClose }: RegistrationMod
 
                 {/* ── Body ── */}
                 <div className="modal-body">
-                    {step === 'success' ? (
+                    {(step === 'success' || step === 'waitlist_success') ? (
                         <div className="modal-success">
                             <div className="modal-success-icon">
                                 <CheckCircle size={48} />
                             </div>
-                            <h3>הרשמה התקבלה! 🎉</h3>
+                            <h3>{step === 'waitlist_success' ? 'נרשמת לרשימת ההמתנה! 📋' : 'הרשמה התקבלה! 🎉'}</h3>
                             <p>
-                                ההרשמה שלך נקלטה עבור {activity.title_he}.
-                                <br />
-                                אישור יישלח למספר {form.phone} לאחר הפעלת ערוץ ההתראות, ובינתיים נציגנו יצור קשר לאישור סופי תוך 24 שעות.
+                                {step === 'waitlist_success'
+                                    ? <>נרשמת בהצלחה לרשימת ההמתנה של {activity.title_he}. כשיתפנה מקום — ניצור קשר מיד.</>
+                                    : <>ההרשמה שלך נקלטה עבור {activity.title_he}.<br />אישור יישלח למספר {form.phone} לאחר הפעלת ערוץ ההתראות, ובינתיים נציגנו יצור קשר לאישור סופי תוך 24 שעות.</>
+                                }
                             </p>
-                            <button className="btn btn-primary btn-md" onClick={onClose} style={{ marginTop: '1.5rem' }}>
+
+                            {/* Feedback prompt */}
+                            {!feedbackSent ? (
+                                <div style={{ marginTop: '1.5rem', padding: '1rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                                    <p style={{ fontSize: '0.85rem', marginBottom: '0.5rem', fontWeight: 600 }}>איך הייתה החוויה? 😊</p>
+                                    <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginBottom: '0.75rem' }}>
+                                        {[1, 2, 3, 4, 5].map((star) => (
+                                            <button
+                                                key={star}
+                                                type="button"
+                                                onClick={() => setFeedbackRating(star)}
+                                                style={{
+                                                    fontSize: '1.5rem', background: 'none', border: 'none', cursor: 'pointer',
+                                                    opacity: star <= feedbackRating ? 1 : 0.3,
+                                                    transform: star <= feedbackRating ? 'scale(1.1)' : 'scale(1)',
+                                                    transition: 'all 0.15s ease',
+                                                }}
+                                            >
+                                                ⭐
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {feedbackRating > 0 && (
+                                        <button
+                                            className="btn btn-secondary btn-sm"
+                                            style={{ width: '100%' }}
+                                            onClick={() => {
+                                                fetch('/api/feedback', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        activity_id: activity.id,
+                                                        feedback_type: 'registration',
+                                                        rating: feedbackRating,
+                                                        user_name: form.name,
+                                                        user_phone: form.phone,
+                                                    }),
+                                                }).catch(() => {});
+                                                setFeedbackSent(true);
+                                            }}
+                                        >
+                                            שלח דירוג
+                                        </button>
+                                    )}
+                                </div>
+                            ) : (
+                                <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#16a34a' }}>✅ תודה על המשוב!</p>
+                            )}
+
+                            <button className="btn btn-primary btn-md" onClick={onClose} style={{ marginTop: '1rem' }}>
                                 סגור
                             </button>
                         </div>

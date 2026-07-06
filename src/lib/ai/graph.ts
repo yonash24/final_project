@@ -2,6 +2,12 @@
  * graph.ts
  * Core LangGraph implementation for the AI Agent.
  * This file defines the agentic workflow as a directed graph.
+ * 
+ * Upgraded with:
+ * - RAG retrieval via semantic search
+ * - Knowledge base integration
+ * - Session preference awareness
+ * - Better fallback behavior
  */
 
 import { StateGraph, Annotation, END, START } from "@langchain/langgraph";
@@ -15,6 +21,12 @@ import {
     type ActivityRow,
     type EventRow,
 } from "@/lib/db/chat-queries";
+import {
+    semanticSearchActivities,
+    semanticSearchEvents,
+    semanticSearchKnowledge,
+    type KnowledgeResult,
+} from "./semantic-search";
 import {
     CHAT_SYSTEM_PROMPT,
     formatActivitiesForContext,
@@ -36,9 +48,10 @@ const AgentState = Annotation.Root({
     searchResults: Annotation<{
         activities: ActivityRow[];
         events: EventRow[];
+        knowledge: KnowledgeResult[];
     }>({
         reducer: (x, y) => y, // Replace results
-        default: () => ({ activities: [], events: [] }),
+        default: () => ({ activities: [], events: [], knowledge: [] }),
     }),
     response: Annotation<string>(),
     error: Annotation<string | null>(),
@@ -61,7 +74,7 @@ async function classifyNode(state: StateType) {
 }
 
 /**
- * Node 2: Retrieve relevant data from Supabase based on the intent.
+ * Node 2: Retrieve relevant data from Supabase and semantic search.
  */
 async function retrieveNode(state: StateType) {
     const classified = state.classified;
@@ -69,6 +82,7 @@ async function retrieveNode(state: StateType) {
 
     let activities: ActivityRow[] = [];
     let events: EventRow[] = [];
+    let knowledge: KnowledgeResult[] = [];
 
     switch (classified.intent) {
         case 'search_activities':
@@ -77,6 +91,10 @@ async function retrieveNode(state: StateType) {
         case 'schedule_inquiry':
         case 'availability_inquiry':
             activities = await searchActivities(classified.filters, classified.search_terms);
+            // Semantic fallback if keyword search returns nothing
+            if (activities.length === 0) {
+                activities = await semanticSearchActivities(state.message, 0.4, 6);
+            }
             break;
 
         case 'activity_details':
@@ -90,28 +108,47 @@ async function retrieveNode(state: StateType) {
             } else {
                 activities = await searchActivities(classified.filters, classified.search_terms);
             }
+            // Semantic fallback
+            if (activities.length === 0) {
+                activities = await semanticSearchActivities(state.message, 0.4, 4);
+            }
             break;
 
         case 'search_events':
             events = await searchEvents(classified.filters, classified.search_terms);
+            if (events.length === 0) {
+                events = await semanticSearchEvents(state.message, 0.4, 5);
+            }
             break;
 
-        case 'general_info':
-            const [acts, evs] = await Promise.all([
+        case 'recommendation':
+            // Use semantic search for personalized recommendations
+            activities = await semanticSearchActivities(state.message, 0.35, 8);
+            break;
+
+        case 'general_info': {
+            const [acts, evs, kbs] = await Promise.all([
                 searchActivities(classified.filters, classified.search_terms),
                 getUpcomingEvents(30),
+                semanticSearchKnowledge(state.message, 0.4, 3),
             ]);
             activities = acts;
             events = evs;
+            knowledge = kbs;
             break;
+        }
         
-        // Greeting and Off-topic don't need DB retrieval
+        // Greeting and Off-topic don't need DB retrieval, but try knowledge base
+        case 'off_topic':
+            knowledge = await semanticSearchKnowledge(state.message, 0.5, 2);
+            break;
+
         default:
             break;
     }
 
     return { 
-        searchResults: { activities, events } 
+        searchResults: { activities, events, knowledge } 
     };
 }
 
@@ -123,17 +160,24 @@ async function generateNode(state: StateType) {
     
     if (!classified) return { response: "מצטער, לא הבנתי את הבקשה." };
 
-    // Quick handle for non-DB intents
+    // Quick handle for greeting
     if (classified.intent === 'greeting') {
         return { response: "שלום! אני מתני, הסוכן החכם של המתנ\"ס. איך אוכל לעזור לך היום?" };
     }
+
+    // Off-topic with knowledge fallback
     if (classified.intent === 'off_topic') {
-        return { response: "אני כאן כדי לעזור בכל מה שקשור למתנ\"ס שלנו (חוגים, אירועים ורישום). יש משהו בתחומים האלו שאוכל לסייע בו?" };
+        if (searchResults.knowledge.length > 0) {
+            // Actually found relevant info — treat as general info
+        } else {
+            return { response: "אני כאן כדי לעזור בכל מה שקשור למתנ\"ס שלנו (חוגים, אירועים ורישום). יש משהו בתחומים האלו שאוכל לסייע בו?" };
+        }
     }
 
     const chatModel = getChatModel();
     const resultCount = searchResults.activities.length + searchResults.events.length;
     const hasResults = resultCount > 0;
+    const hasKnowledge = searchResults.knowledge.length > 0;
 
     // Build context
     let dbContext = "";
@@ -142,6 +186,13 @@ async function generateNode(state: StateType) {
         if (searchResults.activities.length > 0) parts.push(formatActivitiesForContext(searchResults.activities));
         if (searchResults.events.length > 0) parts.push(formatEventsForContext(searchResults.events));
         dbContext = parts.join("\n\n");
+    }
+
+    let knowledgeContext = "";
+    if (hasKnowledge) {
+        knowledgeContext = searchResults.knowledge
+            .map((k) => `[${k.title_he}]\n${k.content_he}`)
+            .join("\n\n");
     }
 
     const contextPrompt = `${CHAT_SYSTEM_PROMPT}
@@ -153,6 +204,8 @@ ${hasResults
 
 ## נתונים מהדאטהבייס:
 ${dbContext}
+
+${hasKnowledge ? `## מידע מבסיס הידע:\n${knowledgeContext}\n` : ''}
 
 ## הודעה מהמשתמש:
 "${message}"

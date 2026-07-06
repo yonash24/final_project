@@ -5,7 +5,7 @@ import { type ChatMessage } from '@/lib/ai/intent-classifier';
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX = 10;
+const RATE_LIMIT_MAX = 15;
 
 function checkRateLimit(ip: string): boolean {
     const now = Date.now();
@@ -41,10 +41,22 @@ export async function POST(request: NextRequest) {
         }
 
         const response = await getChatResponse(message, history);
+
+        // Fire-and-forget: log ALL queries for admin insights
+        fetch(`${request.nextUrl.origin}/api/chat/insights`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                query: message.trim(),
+                intent: response.intent,
+                resultCount: response.resultCount ?? 0,
+            }),
+        }).catch(() => {/* ignore */});
+
         return Response.json(response);
     } catch (error) {
-        const message = error instanceof Error ? error.message : 'Unknown error';
+        const errMsg = error instanceof Error ? error.message : 'Unknown error';
         console.error('[ChatAPI] Failed to handle message:', error);
-        return Response.json({ error: message }, { status: 500 });
+        return Response.json({ error: errMsg }, { status: 500 });
     }
 }

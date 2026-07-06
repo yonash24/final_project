@@ -18,6 +18,7 @@ export type IntentType =
     | 'age_inquiry'
     | 'availability_inquiry'
     | 'general_info'
+    | 'recommendation'
     | 'greeting'
     | 'off_topic';
 

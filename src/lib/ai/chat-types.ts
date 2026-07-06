@@ -15,4 +15,8 @@ export interface ChatApiResponse {
     activityCards: ActivityRow[];
     eventCards: EventRow[];
     clarificationOptions?: ClarificationOption[];
+    /** RAG knowledge context used for the response (for debugging/insights) */
+    knowledgeContext?: string;
+    /** Suggested similar activities (populated for recommendation responses) */
+    similarActivities?: { id: string; title_he: string; similarity: number }[];
 }

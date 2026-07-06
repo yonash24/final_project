@@ -48,6 +48,7 @@ export default function AdminPage() {
                             <QuickAction href="/admin/events" title="ניהול אירועים" desc="פרסום אירועים קהילתיים חדשים" />
                             <QuickAction href="/admin/studio" title="סטודיו שיווקי" desc="יצירת תוכן שיווקי ב-AI" />
                             <QuickAction href="/admin/members" title="ניהול משתתפים" desc="ייצוא וייבוא נתוני משתתפים" />
+                            <QuickAction href="/admin/insights" title="תובנות AI 🧠" desc="שאילתות פופולריות, כשלים וכוונות" />
                             <QuickAction href="/chat" title="צפייה כתושב" desc="בדיקת ה-AI מצד המשתמש" outLink />
                         </div>
                     </div>

@@ -51,7 +51,8 @@ export const INTENT_CLASSIFIER_SYSTEM_PROMPT = `
 - **schedule_inquiry**: שאלה על לוח זמנים/שעות
 - **age_inquiry**: חוגים לפי גיל מסוים
 - **availability_inquiry**: מקומות פנויים
-- **general_info**: מידע כללי על המתנ"ס
+- **general_info**: מידע כללי על המתנ"ס (שעות, מדיניות, נגישות, שאלות כלליות)
+- **recommendation**: בקשה להמלצה אישית ("מה מתאים לי", "מה אתה ממליץ", "אני מחפש משהו בשבילי")
 - **greeting**: ברכה/פתיחת שיחה
 - **off_topic**: לא קשור למתנ"ס
 

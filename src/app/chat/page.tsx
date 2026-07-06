@@ -443,19 +443,6 @@ export default function ChatPage() {
                 };
 
                 setMessages((prev) => [...prev, assistantMsg]);
-
-                // Fire-and-forget insights logging (no-results queries)
-                if ((data.resultCount ?? 0) === 0) {
-                    fetch('/api/chat/insights', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            query: trimmed,
-                            intent: data.intent,
-                            resultCount: data.resultCount ?? 0,
-                        }),
-                    }).catch(() => {/* ignore */ });
-                }
             } catch (err: unknown) {
                 const msg = err instanceof Error ? err.message : 'אירעה שגיאה, נסה שוב.';
                 setMessages((prev) => [
