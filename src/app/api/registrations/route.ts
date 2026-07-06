@@ -7,6 +7,7 @@ import { NextRequest } from 'next/server';
 import { createRegistration } from '@/lib/db/chat-queries';
 import { supabaseServer } from '@/lib/supabase/server';
 import {
+    ensureWhatsAppOptInFromRegistration,
     queueRegistrationConfirmation,
     scheduleClassReminder,
 } from '@/lib/notifications/service';
@@ -31,6 +32,8 @@ export async function POST(request: NextRequest) {
             email,
             notes,
         });
+
+        await ensureWhatsAppOptInFromRegistration(phone, full_name);
 
         const { data: activity } = await supabaseServer
             .from('activities')

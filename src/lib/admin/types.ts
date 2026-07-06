@@ -50,7 +50,7 @@ export interface AdminPost {
 export interface AdminNotificationSettings {
     id: string;
     channel: 'whatsapp';
-    provider: string;
+    provider: 'mock-whatsapp' | 'twilio-whatsapp' | 'meta-cloud-api';
     is_enabled: boolean;
     send_registration_confirmations: boolean;
     send_class_reminders: boolean;
@@ -58,12 +58,19 @@ export interface AdminNotificationSettings {
     reminder_lead_hours: number;
     admin_contact_name: string | null;
     admin_contact_phone: string | null;
+    provider_config: {
+        twilio_from_number?: string;
+        meta_phone_number_id?: string;
+        meta_business_account_id?: string;
+        status_callback_url?: string;
+        test_recipient_phone?: string;
+    } | null;
     updated_at: string;
 }
 
 export interface AdminNotificationTemplate {
     id: string;
-    template_key: 'registration_confirmation' | 'class_reminder' | 'event_reminder';
+    template_key: 'registration_confirmation' | 'class_reminder' | 'event_reminder' | 'change_notification';
     channel: 'whatsapp';
     label: string;
     description: string | null;
@@ -77,17 +84,37 @@ export interface AdminNotificationDelivery {
     id: string;
     channel: 'whatsapp';
     provider: string;
-    template_key: 'registration_confirmation' | 'class_reminder' | 'event_reminder' | null;
+    template_key: 'registration_confirmation' | 'class_reminder' | 'event_reminder' | 'change_notification' | null;
     recipient_name: string | null;
     recipient_phone: string;
-    status: 'pending' | 'simulated' | 'sent' | 'failed';
+    status: 'pending' | 'processing' | 'retrying' | 'suppressed' | 'simulated' | 'sent' | 'delivered' | 'failed';
     payload: Record<string, unknown>;
     rendered_body: string | null;
+    related_conversation_id: string | null;
     scheduled_for: string;
+    attempts_count: number;
+    last_attempted_at: string | null;
+    next_retry_at: string | null;
     processed_at: string | null;
     delivered_at: string | null;
+    provider_message_id: string | null;
     error_message: string | null;
+    last_error_code: string | null;
+    provider_response: Record<string, unknown> | null;
+    idempotency_key: string | null;
     created_at: string;
+}
+
+export interface AdminNotificationProviderStatus {
+    provider: 'mock-whatsapp' | 'twilio-whatsapp' | 'meta-cloud-api';
+    mode: 'mock' | 'live';
+    isConfigured: boolean;
+    requiredEnvVars: Array<{
+        name: string;
+        present: boolean;
+        description: string;
+    }>;
+    warnings: string[];
 }
 
 export interface AdminMember {
