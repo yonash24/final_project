@@ -7,7 +7,10 @@ This document records the current verification status for the in-app chat and Wh
 - Code fixes for chat runtime compatibility, WhatsApp webhook idempotency, and outbound reply recovery are merged.
 - `npm run test`, `npx tsc --noEmit`, `npm run lint`, and `npm run build` pass locally.
 - Gemini API reachability was verified from this environment.
-- Supabase reachability was not verifiable from this environment because DNS resolution for `NEXT_PUBLIC_SUPABASE_URL` failed.
+- The configured Supabase host is currently invalid or unavailable: public DNS returned `Status: 3` (`NXDOMAIN`) for `psyfvzbkghfnrhiybpuz.supabase.co`.
+- With the current broken Supabase URL:
+  - `POST /api/chat` still returns `200` with a safe clarification response
+  - `POST /api/webhooks/whatsapp/mock-whatsapp` returns `500` with JSON `{ "error": "Webhook processing failed" }`
 
 ## Chat-Related Code Paths
 
@@ -160,5 +163,7 @@ curl -X POST http://localhost:3000/api/webhooks/whatsapp/mock-whatsapp \
 During local verification from this environment, direct requests to `NEXT_PUBLIC_SUPABASE_URL` failed with:
 
 - `curl: (6) Could not resolve host`
+
+Public DNS-over-HTTPS verification also returned `NXDOMAIN` for the configured hostname, which means the current Supabase project URL is not resolvable globally, not just from this shell.
 
 Until that DNS or network issue is resolved, full end-to-end verification that depends on Supabase-backed chat search, persistence, and WhatsApp storage cannot be proven from this environment.
