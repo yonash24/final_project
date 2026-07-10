@@ -5,6 +5,7 @@
  */
 
 import { getClassifierModel } from './gemini';
+import { parseJsonObjectResponse } from './json-response';
 import { INTENT_CLASSIFIER_SYSTEM_PROMPT } from './prompts';
 
 // ─── Types ──────────────────────────────────────────────
@@ -110,7 +111,7 @@ export async function classifyIntent(
         }
 
         // Parse JSON — the classifier model forces JSON output
-        const parsed = JSON.parse(text) as ClassifiedIntent;
+        const parsed = parseJsonObjectResponse<ClassifiedIntent>(text);
 
         // Ensure all expected fields exist with defaults
         return {

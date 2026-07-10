@@ -1,6 +1,6 @@
 /**
  * embeddings.ts
- * Utility for generating text embeddings using Gemini text-embedding-004.
+ * Utility for generating text embeddings using a supported Gemini embedding model.
  * Used for semantic search / RAG across activities, events, and knowledge base.
  */
 
@@ -21,9 +21,17 @@ function getGenAI(): GoogleGenerativeAI {
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
     const genAI = getGenAI();
-    const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-embedding-001' });
+    const request = {
+        content: {
+            role: 'user',
+            parts: [{ text }],
+        },
+        // The live API accepts outputDimensionality even though the installed SDK types do not.
+        outputDimensionality: 768,
+    } as unknown as Parameters<typeof model.embedContent>[0];
 
-    const result = await model.embedContent(text);
+    const result = await model.embedContent(request);
     return result.embedding.values;
 }
 
