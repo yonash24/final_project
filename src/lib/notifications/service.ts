@@ -28,6 +28,11 @@ import {
     renderTemplate,
     shouldSuppressOutbound,
 } from '@/lib/notifications/utils';
+import {
+    isDuplicateDatabaseError,
+    mapDeliveryStatus,
+    mapWhatsAppEventType,
+} from '@/lib/notifications/service-helpers';
 
 const notificationSettingsSchema = z.object({
     provider: z.enum(['mock-whatsapp', 'twilio-whatsapp', 'meta-cloud-api']),
@@ -280,6 +285,13 @@ async function appendWhatsAppMessage(args: {
     receivedAt?: string | null;
     sentAt?: string | null;
 }) {
+    if (args.providerMessageId) {
+        const existing = await findWhatsAppMessageByProviderMessageId(args.provider, args.providerMessageId);
+        if (existing) {
+            return existing;
+        }
+    }
+
     const { data, error } = await supabaseServer
         .from('whatsapp_messages')
         .insert([{
@@ -300,7 +312,16 @@ async function appendWhatsAppMessage(args: {
         .select('*')
         .single();
 
-    if (error) throw error;
+    if (error) {
+        if (args.providerMessageId && isDuplicateDatabaseError(error)) {
+            const existing = await findWhatsAppMessageByProviderMessageId(args.provider, args.providerMessageId);
+            if (existing) {
+                return existing;
+            }
+        }
+
+        throw error;
+    }
     return data as WhatsAppMessageRecord;
 }
 
@@ -314,6 +335,19 @@ async function appendWhatsAppEvent(args: {
     payload?: Record<string, unknown>;
     occurredAt?: string;
 }) {
+    const occurredAt = args.occurredAt ?? new Date().toISOString();
+    const existing = await findExistingWhatsAppEvent({
+        provider: args.provider,
+        providerMessageId: args.providerMessageId ?? null,
+        eventType: args.eventType,
+        eventStatus: args.eventStatus ?? null,
+        occurredAt,
+    });
+
+    if (existing) {
+        return existing;
+    }
+
     const { data, error } = await supabaseServer
         .from('whatsapp_message_events')
         .insert([{
@@ -324,7 +358,7 @@ async function appendWhatsAppEvent(args: {
             event_status: args.eventStatus ?? null,
             provider_message_id: args.providerMessageId ?? null,
             payload: args.payload ?? {},
-            occurred_at: args.occurredAt ?? new Date().toISOString(),
+            occurred_at: occurredAt,
         }])
         .select('*')
         .single();
@@ -362,14 +396,40 @@ async function syncConversationActivity(conversationId: string, updates: {
 async function getConversationHistory(conversationId: string) {
     const { data, error } = await supabaseServer
         .from('whatsapp_messages')
-        .select('direction, body')
+        .select('id, direction, body')
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: false })
         .limit(6);
 
     if (error) throw error;
 
-    return ((data ?? []) as Array<{ direction: 'inbound' | 'outbound'; body: string | null }>)
+    return ((data ?? []) as Array<{ id: string; direction: 'inbound' | 'outbound'; body: string | null }>)
+        .reverse()
+        .filter((item) => Boolean(item.body))
+        .map((item) => ({
+            role: item.direction === 'inbound' ? 'user' : 'assistant',
+            content: item.body ?? '',
+        })) as ChatMessage[];
+}
+
+async function getConversationHistoryExcludingMessage(conversationId: string, excludedMessageId?: string | null) {
+    const history = await getConversationHistory(conversationId);
+
+    if (!excludedMessageId) {
+        return history;
+    }
+
+    const { data, error } = await supabaseServer
+        .from('whatsapp_messages')
+        .select('id, direction, body')
+        .eq('conversation_id', conversationId)
+        .neq('id', excludedMessageId)
+        .order('created_at', { ascending: false })
+        .limit(6);
+
+    if (error) throw error;
+
+    return ((data ?? []) as Array<{ id: string; direction: 'inbound' | 'outbound'; body: string | null }>)
         .reverse()
         .filter((item) => Boolean(item.body))
         .map((item) => ({
@@ -412,6 +472,13 @@ async function createDelivery(args: {
     renderedBody: string;
     idempotencyKey?: string | null;
 }) {
+    if (args.idempotencyKey) {
+        const existing = await findDeliveryByIdempotencyKey(args.idempotencyKey);
+        if (existing) {
+            return existing;
+        }
+    }
+
     const { data, error } = await supabaseServer
         .from('notification_deliveries')
         .insert([{
@@ -433,7 +500,16 @@ async function createDelivery(args: {
         .select('*')
         .single();
 
-    if (error) throw error;
+    if (error) {
+        if (args.idempotencyKey && isDuplicateDatabaseError(error)) {
+            const existing = await findDeliveryByIdempotencyKey(args.idempotencyKey);
+            if (existing) {
+                return existing;
+            }
+        }
+
+        throw error;
+    }
 
     const delivery = data as NotificationDeliveryRecord;
     await appendWhatsAppEvent({
@@ -448,6 +524,74 @@ async function createDelivery(args: {
     });
 
     return delivery;
+}
+
+async function findDeliveryByIdempotencyKey(idempotencyKey: string) {
+    const { data, error } = await supabaseServer
+        .from('notification_deliveries')
+        .select('*')
+        .eq('idempotency_key', idempotencyKey)
+        .maybeSingle();
+
+    if (error) throw error;
+    return data as NotificationDeliveryRecord | null;
+}
+
+async function findWhatsAppMessageByProviderMessageId(
+    provider: NotificationSettingsRecord['provider'],
+    providerMessageId: string,
+) {
+    const { data, error } = await supabaseServer
+        .from('whatsapp_messages')
+        .select('*')
+        .eq('provider', provider)
+        .eq('provider_message_id', providerMessageId)
+        .maybeSingle();
+
+    if (error) throw error;
+    return data as WhatsAppMessageRecord | null;
+}
+
+async function findExistingWhatsAppEvent(args: {
+    provider: NotificationSettingsRecord['provider'];
+    providerMessageId?: string | null;
+    eventType: WhatsAppMessageEventRecord['event_type'];
+    eventStatus?: string | null;
+    occurredAt: string;
+}) {
+    let query = supabaseServer
+        .from('whatsapp_message_events')
+        .select('*')
+        .eq('provider', args.provider)
+        .eq('event_type', args.eventType)
+        .eq('occurred_at', args.occurredAt);
+
+    query = args.eventStatus == null
+        ? query.is('event_status', null)
+        : query.eq('event_status', args.eventStatus);
+
+    query = args.providerMessageId == null
+        ? query.is('provider_message_id', null)
+        : query.eq('provider_message_id', args.providerMessageId);
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) throw error;
+    return data as WhatsAppMessageEventRecord | null;
+}
+
+async function findReplyForInboundMessage(inboundMessageId: string) {
+    const { data, error } = await supabaseServer
+        .from('whatsapp_messages')
+        .select('*')
+        .eq('in_reply_to_message_id', inboundMessageId)
+        .eq('direction', 'outbound')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+    if (error) throw error;
+    return data as WhatsAppMessageRecord | null;
 }
 
 async function buildDeliveryForTemplate(args: {
@@ -969,9 +1113,9 @@ export async function handleIncomingWhatsAppMessage(message: WhatsAppInboundMess
         contactName: message.profileName,
         optInStatus: nextOptStatus,
     });
-    const history = await getConversationHistory(conversation.id);
+    const existingInboundRecord = await findWhatsAppMessageByProviderMessageId(message.provider, message.providerMessageId);
 
-    const inboundRecord = await appendWhatsAppMessage({
+    const inboundRecord = existingInboundRecord ?? await appendWhatsAppMessage({
         conversationId: conversation.id,
         memberId: member.id,
         provider: message.provider,
@@ -984,15 +1128,17 @@ export async function handleIncomingWhatsAppMessage(message: WhatsAppInboundMess
         receivedAt: message.receivedAt,
     });
 
-    await appendWhatsAppEvent({
-        messageId: inboundRecord.id,
-        provider: message.provider,
-        eventType: 'received',
-        eventStatus: 'received',
-        providerMessageId: message.providerMessageId,
-        payload: message.rawPayload,
-        occurredAt: message.receivedAt,
-    });
+    if (!existingInboundRecord) {
+        await appendWhatsAppEvent({
+            messageId: inboundRecord.id,
+            provider: message.provider,
+            eventType: 'received',
+            eventStatus: 'received',
+            providerMessageId: message.providerMessageId,
+            payload: message.rawPayload,
+            occurredAt: message.receivedAt,
+        });
+    }
 
     await syncConversationActivity(conversation.id, {
         lastInboundAt: message.receivedAt,
@@ -1000,8 +1146,19 @@ export async function handleIncomingWhatsAppMessage(message: WhatsAppInboundMess
         optInStatus: nextOptStatus,
     });
 
+    const existingReply = await findReplyForInboundMessage(inboundRecord.id);
+    if (existingReply) {
+        console.info('[WhatsApp] Duplicate inbound message ignored because a reply already exists.', {
+            provider: message.provider,
+            providerMessageId: message.providerMessageId,
+            inboundMessageId: inboundRecord.id,
+            replyMessageId: existingReply.id,
+        });
+        return;
+    }
+
     if (command) {
-        await sendConversationReply({
+        const reply = await sendConversationReply({
             conversation,
             memberId: member.id,
             recipientName: member.full_name,
@@ -1012,11 +1169,18 @@ export async function handleIncomingWhatsAppMessage(message: WhatsAppInboundMess
             },
             inReplyToMessageId: inboundRecord.id,
         });
+        if (!reply) {
+            console.warn('[WhatsApp] Command reply was queued but not persisted as an outbound message.', {
+                provider: message.provider,
+                providerMessageId: message.providerMessageId,
+                command,
+            });
+        }
         return;
     }
 
     if (nextOptStatus === 'opted_out') {
-        await sendConversationReply({
+        const reply = await sendConversationReply({
             conversation,
             memberId: member.id,
             recipientName: member.full_name,
@@ -1027,55 +1191,77 @@ export async function handleIncomingWhatsAppMessage(message: WhatsAppInboundMess
             },
             inReplyToMessageId: inboundRecord.id,
         });
+        if (!reply) {
+            console.warn('[WhatsApp] Opt-out gated reply was queued but not persisted as an outbound message.', {
+                provider: message.provider,
+                providerMessageId: message.providerMessageId,
+            });
+        }
         return;
     }
 
-    const chatResponse = await getChatResponse(message.text, history);
+    try {
+        const history = await getConversationHistoryExcludingMessage(conversation.id, inboundRecord.id);
+        const chatResponse = await getChatResponse(message.text, history);
+        const reply = await sendConversationReply({
+            conversation,
+            memberId: member.id,
+            recipientName: member.full_name,
+            recipientPhone: normalizedPhone,
+            body: chatResponse.response,
+            payload: {
+                source: 'whatsapp_chat',
+                intent: chatResponse.intent,
+                responseType: chatResponse.responseType,
+            },
+            chatResponse: chatResponse as unknown as Record<string, unknown>,
+            inReplyToMessageId: inboundRecord.id,
+        });
 
-    await sendConversationReply({
-        conversation,
-        memberId: member.id,
-        recipientName: member.full_name,
-        recipientPhone: normalizedPhone,
-        body: chatResponse.response,
-        payload: {
-            source: 'whatsapp_chat',
-            intent: chatResponse.intent,
-            responseType: chatResponse.responseType,
-        },
-        chatResponse: chatResponse as unknown as Record<string, unknown>,
-        inReplyToMessageId: inboundRecord.id,
-    });
-}
+        if (!reply) {
+            console.warn('[WhatsApp] AI reply delivery was queued but not persisted as an outbound message.', {
+                provider: message.provider,
+                providerMessageId: message.providerMessageId,
+                inboundMessageId: inboundRecord.id,
+            });
+        }
+    } catch (error) {
+        console.error('[WhatsApp] Failed to generate chat reply.', {
+            provider: message.provider,
+            providerMessageId: message.providerMessageId,
+            inboundMessageId: inboundRecord.id,
+            error: error instanceof Error ? error.message : String(error),
+        });
 
-function mapDeliveryStatus(status: string) {
-    switch (status) {
-        case 'delivered':
-        case 'read':
-            return 'delivered';
-        case 'accepted':
-        case 'queued':
-        case 'sent':
-            return 'sent';
-        case 'failed':
-        case 'undelivered':
-            return 'failed';
-        default:
-            return 'sent';
-    }
-}
+        try {
+            const fallbackReply = await sendConversationReply({
+                conversation,
+                memberId: member.id,
+                recipientName: member.full_name,
+                recipientPhone: normalizedPhone,
+                body: 'מצטער, הייתה לי תקלה רגעית ולא הצלחתי לענות. אפשר לנסות שוב בעוד דקה, או לנסח את השאלה מחדש.',
+                payload: {
+                    source: 'whatsapp_chat',
+                    fallback: true,
+                },
+                inReplyToMessageId: inboundRecord.id,
+            });
 
-function mapEventType(status: string): WhatsAppMessageEventRecord['event_type'] {
-    switch (status) {
-        case 'delivered':
-            return 'provider_delivered';
-        case 'read':
-            return 'provider_read';
-        case 'failed':
-        case 'undelivered':
-            return 'provider_failed';
-        default:
-            return 'provider_accepted';
+            if (!fallbackReply) {
+                console.error('[WhatsApp] Failed to persist fallback reply after chat error.', {
+                    provider: message.provider,
+                    providerMessageId: message.providerMessageId,
+                    inboundMessageId: inboundRecord.id,
+                });
+            }
+        } catch (fallbackError) {
+            console.error('[WhatsApp] Fallback reply flow failed after chat error.', {
+                provider: message.provider,
+                providerMessageId: message.providerMessageId,
+                inboundMessageId: inboundRecord.id,
+                error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError),
+            });
+        }
     }
 }
 
@@ -1103,7 +1289,7 @@ export async function handleWhatsAppStatusEvent(event: WhatsAppStatusEvent) {
         messageId: typedMessage?.id ?? null,
         deliveryId: typedMessage?.delivery_id ?? null,
         provider: event.provider,
-        eventType: mapEventType(event.status),
+        eventType: mapWhatsAppEventType(event.status),
         eventStatus: event.status,
         providerMessageId: event.providerMessageId,
         payload: event.rawPayload,
