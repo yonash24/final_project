@@ -99,7 +99,7 @@ export default function Home() {
         <Navbar />
 
         <header className="hero">
-          <div className="hero-content animate-fade-up" style={{ animationDelay: '0.2s' }}>
+          <div className="hero-content animate-fade-up" style={{ animationDelay: '0.15s' }}>
             <div className="hero-badge">
               <Sparkles size={16} className="mr-2" />
               הבית הקהילתי שלכם, גם אונליין
@@ -145,7 +145,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="hero-image-wrapper animate-fade-up animate-float" style={{ animationDelay: '0.4s' }}>
+          <div className="hero-image-wrapper animate-fade-up animate-float" style={{ animationDelay: '0.3s' }}>
             <Image
               src="/images/hero.png"
               alt="איור של פעילות קהילתית במתנס"
@@ -168,7 +168,7 @@ export default function Home() {
           {quickStartCards.map((step, index) => {
             const Icon = step.icon;
             return (
-              <div key={step.title} className="feature-card animate-fade-up" style={{ animationDelay: `${0.12 * (index + 1)}s` }}>
+              <div key={step.title} className="feature-card animate-fade-up" style={{ animationDelay: `${0.1 * (index + 1)}s` }}>
                 <div className="feature-icon-wrapper icon-blue">
                   <Icon size={30} />
                 </div>
@@ -197,7 +197,7 @@ export default function Home() {
           </article>
 
           <article className="glass-panel info-panel">
-            <div className="hero-badge" style={{ marginBottom: '1rem', background: '#fff7ed', color: '#c2410c' }}>
+            <div className="hero-badge" style={{ marginBottom: '1rem', background: 'var(--accent-50)', color: 'var(--accent-700)', borderColor: 'var(--accent-100)' }}>
               <Info size={16} />
               למי שרוצה הכוונה
             </div>
