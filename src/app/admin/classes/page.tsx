@@ -198,12 +198,12 @@ export default function AdminClassesPage() {
     }
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
+        <div className="admin-root">
             <AdminNavbar />
-            <main className="container" style={{ padding: '2rem 0' }}>
-                <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', gap: '1rem', flexWrap: 'wrap' }}>
+            <main className="admin-container" id="main-content">
+                <header className="admin-page-header">
                     <div>
-                        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>ניהול חוגים 📚</h1>
+                        <h1 style={{ fontSize: 'var(--text-3xl)', marginBottom: '0.5rem' }}>ניהול חוגים 📚</h1>
                         <p style={{ color: 'var(--text-secondary)' }}>עריכה מהירה של פרטי חוג, זמינות משתתפים ותאריכי פתיחה.</p>
                     </div>
                     <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -216,7 +216,7 @@ export default function AdminClassesPage() {
                     </div>
                 </header>
 
-                <div className="card" style={{ padding: '1rem' }}>
+                <div className="card admin-section-card" style={{ padding: '1rem' }}>
                     {loading ? (
                         <div style={{ padding: '2rem', textAlign: 'center' }}>טוען נתונים...</div>
                     ) : (
@@ -255,8 +255,8 @@ export default function AdminClassesPage() {
                                                         fontWeight: 700,
                                                         padding: '0.2rem 0.6rem',
                                                         borderRadius: '999px',
-                                                        backgroundColor: activity.is_active ? '#dcfce7' : '#e2e8f0',
-                                                        color: activity.is_active ? '#166534' : '#475569',
+                                                        backgroundColor: activity.is_active ? 'var(--success-50)' : 'var(--neutral-200)',
+                                                        color: activity.is_active ? 'var(--success-700)' : 'var(--neutral-600)',
                                                     }}
                                                 >
                                                     {activity.is_active ? 'פעיל' : 'מושהה'}
@@ -294,7 +294,7 @@ export default function AdminClassesPage() {
                                                     style={{
                                                         fontSize: '0.82rem',
                                                         fontWeight: 700,
-                                                        color: spotsLeft === 0 ? '#dc2626' : spotsLeft < 5 ? '#b45309' : '#15803d',
+                                                        color: spotsLeft === 0 ? 'var(--error-600)' : spotsLeft < 5 ? 'var(--warning-600)' : 'var(--success-600)',
                                                     }}
                                                 >
                                                     {spotsLeft === 0 ? 'אין מקומות פנויים' : `נותרו ${spotsLeft} מקומות`}
@@ -307,17 +307,17 @@ export default function AdminClassesPage() {
                                                 className="btn btn-ghost btn-icon"
                                                 onClick={() => openEditModal(activity)}
                                                 title="ערוך חוג"
-                                                style={{ backgroundColor: '#e0f2fe' }}
+                                                style={{ backgroundColor: 'var(--primary-50)' }}
                                             >
-                                                <Pencil size={16} color="#0284c7" />
+                                                <Pencil size={16} color="var(--primary-600)" />
                                             </button>
                                             <button
                                                 className="btn btn-ghost btn-icon"
                                                 onClick={() => deleteClass(activity.id)}
-                                                style={{ backgroundColor: '#fee2e2' }}
+                                                style={{ backgroundColor: 'var(--error-100)' }}
                                                 title="מחק חוג"
                                             >
-                                                <Trash2 size={16} color="#dc2626" />
+                                                <Trash2 size={16} color="var(--error-600)" />
                                             </button>
                                         </div>
                                     </div>
@@ -329,7 +329,7 @@ export default function AdminClassesPage() {
             </main>
 
             {showModal && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(13,27,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
                     <div className="card" style={{ width: '100%', maxWidth: '840px', padding: '2rem', backgroundColor: 'white', maxHeight: '90vh', overflowY: 'auto' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', alignItems: 'center' }}>
                             <div>

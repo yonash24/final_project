@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { X, CheckCircle, Loader2, User, Phone, Mail, MessageSquare } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, CircleCheck as CheckCircle, Loader as Loader2, User, Phone, Mail, MessageSquare } from 'lucide-react';
 
 interface Activity {
     id: string;
@@ -98,9 +98,58 @@ export default function RegistrationModal({ activity, onClose }: RegistrationMod
     // Block scroll while open
     const stopPropagation = (e: React.MouseEvent) => e.stopPropagation();
 
+    // Focus trap + Esc to close + restore focus
+    const panelRef = useRef<HTMLDivElement>(null);
+    const previouslyFocused = useRef<HTMLElement | null>(null);
+
+    useEffect(() => {
+        previouslyFocused.current = document.activeElement as HTMLElement;
+        document.body.style.overflow = 'hidden';
+
+        const panel = panelRef.current;
+        const focusableSelector = 'button, input, textarea, select, a[href], [tabindex]:not([tabindex="-1"])';
+        const focusable = panel ? Array.from(panel.querySelectorAll<HTMLElement>(focusableSelector)).filter((el) => !el.hasAttribute('disabled')) : [];
+        const firstFocusable = focusable[0];
+        const closeBtn = panel?.querySelector<HTMLElement>('.modal-close-btn');
+        const target = closeBtn ?? firstFocusable;
+        target?.focus();
+
+        function handleKeyDown(e: KeyboardEvent) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                onClose();
+                return;
+            }
+            if (e.key === 'Tab' && panel) {
+                const currentFocusable = Array.from(panel.querySelectorAll<HTMLElement>(focusableSelector)).filter((el) => !el.hasAttribute('disabled'));
+                if (currentFocusable.length === 0) return;
+                const first = currentFocusable[0];
+                const last = currentFocusable[currentFocusable.length - 1];
+                if (e.shiftKey) {
+                    if (document.activeElement === first) {
+                        e.preventDefault();
+                        last.focus();
+                    }
+                } else {
+                    if (document.activeElement === last) {
+                        e.preventDefault();
+                        first.focus();
+                    }
+                }
+            }
+        }
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+            document.body.style.overflow = '';
+            previouslyFocused.current?.focus();
+        };
+    }, [onClose]);
+
     return (
         <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true" aria-label="הרשמה לחוג">
-            <div className="modal-panel animate-fade-up" onClick={stopPropagation}>
+            <div className="modal-panel animate-scale-in" onClick={stopPropagation} ref={panelRef}>
 
                 {/* ── Header ── */}
                 <div className="modal-header">
@@ -108,7 +157,7 @@ export default function RegistrationModal({ activity, onClose }: RegistrationMod
                         <h2 className="modal-title">{isWaitlist ? 'הרשמה לרשימת המתנה' : 'הרשמה לחוג'}</h2>
                         <div className="modal-subtitle">{activity.title_he}</div>
                         {isWaitlist && (
-                            <div style={{ fontSize: '0.8rem', color: '#b45309', marginTop: '0.25rem', fontWeight: 600 }}>⚠️ החוג מלא — תירשמו לרשימת המתנה</div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--warning-600)', marginTop: '0.25rem', fontWeight: 600 }}>⚠️ החוג מלא — תירשמו לרשימת המתנה</div>
                         )}
                     </div>
                     <button className="modal-close-btn" onClick={onClose} aria-label="סגור">
@@ -146,7 +195,7 @@ export default function RegistrationModal({ activity, onClose }: RegistrationMod
 
                             {/* Feedback prompt */}
                             {!feedbackSent ? (
-                                <div style={{ marginTop: '1.5rem', padding: '1rem', background: '#f8fafc', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                                <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-subtle)' }}>
                                     <p style={{ fontSize: '0.85rem', marginBottom: '0.5rem', fontWeight: 600 }}>איך הייתה החוויה? 😊</p>
                                     <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginBottom: '0.75rem' }}>
                                         {[1, 2, 3, 4, 5].map((star) => (
@@ -189,7 +238,7 @@ export default function RegistrationModal({ activity, onClose }: RegistrationMod
                                     )}
                                 </div>
                             ) : (
-                                <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#16a34a' }}>✅ תודה על המשוב!</p>
+                                <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: 'var(--success-600)' }}>✅ תודה על המשוב!</p>
                             )}
 
                             <button className="btn btn-primary btn-md" onClick={onClose} style={{ marginTop: '1rem' }}>

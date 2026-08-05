@@ -523,7 +523,7 @@ export default function ChatPage() {
                 </header>
 
                 {/* ── Messages ── */}
-                <main className="chat-messages" role="log" aria-live="polite" aria-label="שיחה">
+                <main className="chat-messages" role="log" aria-live="polite" aria-label="שיחה" id="main-content">
                     {/* Quick action chips */}
                     {showQuickActions && (
                         <div className="chat-quick-actions animate-fade-up">

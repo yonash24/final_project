@@ -44,7 +44,7 @@ export default function AccessibilityControls() {
     }
 
     return (
-        <div className="accessibility-controls" aria-label="אפשרויות נגישות">
+        <div className="accessibility-controls" aria-label="אפשרויות נגישות" role="group">
             {options.map((option) => {
                 const Icon = option.icon;
 
@@ -57,7 +57,7 @@ export default function AccessibilityControls() {
                         aria-pressed={mode === option.id}
                         title={option.label}
                     >
-                        <Icon size={15} />
+                        <Icon size={15} aria-hidden="true" />
                         <span>{option.shortLabel}</span>
                     </button>
                 );

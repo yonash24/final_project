@@ -97,7 +97,7 @@ export default function StartPage() {
         <div className="container">
             <Navbar />
 
-            <main className="start-page">
+            <main className="start-page" id="main-content">
                 <header className="start-hero glass-panel">
                     <div className="hero-badge">
                         <Sparkles size={16} />

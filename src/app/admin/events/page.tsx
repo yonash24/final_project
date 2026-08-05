@@ -160,12 +160,12 @@ export default function AdminEventsPage() {
     }
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
+        <div className="admin-root">
             <AdminNavbar />
-            <main className="container" style={{ padding: '2rem 0' }}>
-                <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', gap: '1rem', flexWrap: 'wrap' }}>
+            <main className="admin-container" id="main-content">
+                <header className="admin-page-header">
                     <div>
-                        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>ניהול אירועים 📅</h1>
+                        <h1 style={{ fontSize: 'var(--text-3xl)', marginBottom: '0.5rem' }}>ניהול אירועים 📅</h1>
                         <p style={{ color: 'var(--text-secondary)' }}>עדכון מהיר של פרטי האירוע, פרסום ותפוסה במקום אחד.</p>
                     </div>
                     <button onClick={openCreateModal} className="btn btn-primary btn-md">
@@ -186,8 +186,8 @@ export default function AdminEventsPage() {
                             : Math.max((item.max_attendees ?? 0) - (item.current_attendees ?? 0), 0);
 
                         return (
-                            <div key={item.id} className="card" style={{ padding: '1.5rem', display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '1.5rem', alignItems: 'center', borderLeft: '4px solid var(--accent-secondary)' }}>
-                                <div style={{ backgroundColor: '#fffbeb', color: '#b45309', padding: '1rem', borderRadius: 'var(--radius-md)', textAlign: 'center', minWidth: '110px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <div key={item.id} className="card admin-section-card" style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: '1.5rem', alignItems: 'center', borderLeft: '4px solid var(--accent-secondary)' }}>
+                                <div style={{ backgroundColor: 'var(--warning-50)', color: 'var(--warning-600)', padding: '1rem', borderRadius: 'var(--radius-md)', textAlign: 'center', minWidth: '110px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                     <Calendar size={20} style={{ margin: '0 auto' }} />
                                     <span style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{new Date(item.event_date).toLocaleDateString('he-IL', { day: 'numeric', month: 'short' })}</span>
                                     <span style={{ fontSize: '0.8rem' }}>{item.start_time?.slice(0, 5) ?? 'שעה טרם הוגדרה'}</span>
@@ -202,8 +202,8 @@ export default function AdminEventsPage() {
                                                 fontWeight: 700,
                                                 padding: '0.2rem 0.6rem',
                                                 borderRadius: '999px',
-                                                backgroundColor: item.is_published ? '#dcfce7' : '#e2e8f0',
-                                                color: item.is_published ? '#166534' : '#475569',
+                                                backgroundColor: item.is_published ? 'var(--success-50)' : 'var(--neutral-200)',
+                                                color: item.is_published ? 'var(--success-700)' : 'var(--neutral-600)',
                                             }}
                                         >
                                             {item.is_published ? 'מפורסם' : 'טיוטה'}
@@ -211,7 +211,7 @@ export default function AdminEventsPage() {
                                     </div>
                                     <div style={{ display: 'flex', gap: '1rem', color: 'var(--text-secondary)', fontSize: '0.875rem', alignItems: 'center', flexWrap: 'wrap' }}>
                                         {item.location && (
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#b45309', background: '#fef3c7', padding: '0.2rem 0.6rem', borderRadius: '999px', fontWeight: 600 }}>
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--warning-600)', background: 'var(--warning-100)', padding: '0.2rem 0.6rem', borderRadius: '999px', fontWeight: 600 }}>
                                                 <MapPin size={14} /> {item.location}
                                             </span>
                                         )}
@@ -226,7 +226,7 @@ export default function AdminEventsPage() {
                                             </span>
                                         )}
                                         {remainingSeats != null && (
-                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700, color: remainingSeats === 0 ? '#dc2626' : remainingSeats < 10 ? '#b45309' : '#15803d' }}>
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700, color: remainingSeats === 0 ? 'var(--error-600)' : remainingSeats < 10 ? 'var(--warning-600)' : 'var(--success-600)' }}>
                                                 <Users size={14} />
                                                 {remainingSeats === 0 ? 'מלא' : `${remainingSeats} מקומות פנויים`}
                                             </span>
@@ -234,11 +234,11 @@ export default function AdminEventsPage() {
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                    <button className="btn btn-ghost btn-icon" onClick={() => openEditModal(item)} style={{ backgroundColor: '#e0f2fe' }} title="ערוך אירוע">
-                                        <Pencil size={16} color="#0284c7" />
+                                    <button className="btn btn-ghost btn-icon" onClick={() => openEditModal(item)} style={{ backgroundColor: 'var(--primary-50)' }} title="ערוך אירוע">
+                                        <Pencil size={16} color="var(--primary-600)" />
                                     </button>
-                                    <button className="btn btn-ghost btn-icon" onClick={() => deleteEvent(item.id)} style={{ color: 'var(--accent-rose)', backgroundColor: '#fee2e2' }} title="מחק אירוע">
-                                        <Trash2 size={16} color="#dc2626" />
+                                    <button className="btn btn-ghost btn-icon" onClick={() => deleteEvent(item.id)} style={{ color: 'var(--accent-rose)', backgroundColor: 'var(--error-100)' }} title="מחק אירוע">
+                                        <Trash2 size={16} color="var(--error-600)" />
                                     </button>
                                 </div>
                             </div>
@@ -248,7 +248,7 @@ export default function AdminEventsPage() {
             </main>
 
             {showModal && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(13,27,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
                     <div className="card" style={{ width: '100%', maxWidth: '640px', padding: '2rem', backgroundColor: 'white' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', alignItems: 'center' }}>
                             <div>

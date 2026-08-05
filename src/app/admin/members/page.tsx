@@ -81,12 +81,12 @@ export default function AdminMembersPage() {
     );
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
+        <div className="admin-root">
             <AdminNavbar />
-            <main className="container" style={{ padding: '2rem 0' }}>
-                <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <main className="admin-container" id="main-content">
+                <header className="admin-page-header">
                     <div>
-                        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>ניהול משתתפים 👥</h1>
+                        <h1 style={{ fontSize: 'var(--text-3xl)', marginBottom: '0.5rem' }}>ניהול משתתפים 👥</h1>
                         <p style={{ color: 'var(--text-secondary)' }}>בסיס הנתונים של תושבי הקהילה ({members.length} רשומים)</p>
                     </div>
                     <button onClick={() => setShowModal(true)} className="btn btn-primary btn-md">
@@ -146,7 +146,7 @@ export default function AdminMembersPage() {
             </main>
 
             {showModal && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(13,27,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
                     <div className="card" style={{ width: '100%', maxWidth: '450px', padding: '2rem', backgroundColor: 'white' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
                             <h2>הוספת משתתף חדש</h2>

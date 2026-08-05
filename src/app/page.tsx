@@ -11,6 +11,7 @@ import {
   Sparkles,
   Ticket,
   Users,
+  ChevronDown,
 } from 'lucide-react';
 
 import Navbar from '@/components/layout/Navbar';
@@ -101,7 +102,7 @@ export default function Home() {
         <header className="hero">
           <div className="hero-content animate-fade-up" style={{ animationDelay: '0.15s' }}>
             <div className="hero-badge">
-              <Sparkles size={16} className="mr-2" />
+              <Sparkles size={16} />
               הבית הקהילתי שלכם, גם אונליין
             </div>
             <h1 className="hero-title">
@@ -146,6 +147,7 @@ export default function Home() {
           </div>
 
           <div className="hero-image-wrapper animate-fade-up animate-float" style={{ animationDelay: '0.3s' }}>
+            <div className="hero-image-glow" aria-hidden="true" />
             <Image
               src="/images/hero.png"
               alt="איור של פעילות קהילתית במתנס"
@@ -170,7 +172,7 @@ export default function Home() {
             return (
               <div key={step.title} className="feature-card animate-fade-up" style={{ animationDelay: `${0.1 * (index + 1)}s` }}>
                 <div className="feature-icon-wrapper icon-blue">
-                  <Icon size={30} />
+                  <Icon size={28} />
                 </div>
                 <h3>{step.title}</h3>
                 <p>{step.text}</p>
@@ -197,7 +199,7 @@ export default function Home() {
           </article>
 
           <article className="glass-panel info-panel">
-            <div className="hero-badge" style={{ marginBottom: '1rem', background: 'var(--accent-50)', color: 'var(--accent-700)', borderColor: 'var(--accent-100)' }}>
+            <div className="hero-badge" style={{ marginBottom: '1rem', background: 'var(--accent-50)', color: 'var(--accent-600)', borderColor: 'var(--accent-100)' }}>
               <Info size={16} />
               למי שרוצה הכוונה
             </div>
@@ -227,7 +229,7 @@ export default function Home() {
               const Icon = item.icon;
               return (
                 <div key={item.title} className="showcase-card">
-                  <div className={`feature-icon-wrapper ${item.tone}`}><Icon size={28} /></div>
+                  <div className={`feature-icon-wrapper ${item.tone}`}><Icon size={26} /></div>
                   <h3>{item.title}</h3>
                   <p>{item.text}</p>
                 </div>
@@ -246,10 +248,15 @@ export default function Home() {
 
           <div className="faq-grid">
             {faqs.map((faq) => (
-              <article key={faq.q} className="faq-card">
-                <h3>{faq.q}</h3>
-                <p>{faq.a}</p>
-              </article>
+              <details key={faq.q} className="faq-card">
+                <summary>
+                  <span>{faq.q}</span>
+                  <ChevronDown size={20} aria-hidden="true" />
+                </summary>
+                <div className="faq-card-body">
+                  <p>{faq.a}</p>
+                </div>
+              </details>
             ))}
           </div>
         </div>

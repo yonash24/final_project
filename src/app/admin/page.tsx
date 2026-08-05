@@ -27,21 +27,21 @@ export default function AdminPage() {
     }, []);
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
+        <div className="admin-root">
             <AdminNavbar />
-            <main className="container" style={{ padding: '2rem 0' }}>
-                <h1 style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>לוח בקרה 🚀</h1>
+            <main className="admin-container" id="main-content">
+                <h1 style={{ fontSize: 'var(--text-4xl)', marginBottom: '1rem' }}>לוח בקרה 🚀</h1>
                 <p style={{ color: 'var(--text-secondary)', marginBottom: '3rem' }}>ברוך הבא למערכת הניהול. כאן תוכל לראות תמונת מצב של המתנ&quot;ס ולגשת לכל כלי הניהול.</p>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '3rem' }}>
-                    <StatCard icon={<BookOpen color="#0284c7" />} label="חוגים פעילים" value={String(stats.classes)} bg="#e0f2fe" />
-                    <StatCard icon={<Calendar color="#f59e0b" />} label="אירועים" value={String(stats.events)} bg="#fef3c7" />
-                    <StatCard icon={<Users color="#16a34a" />} label="משתתפים רשומים" value={String(stats.members)} bg="#dcfce7" />
-                    <StatCard icon={<Activity color="#6366f1" />} label="פוסטים בפיד" value={String(stats.posts)} bg="#e0e7ff" />
+                <div className="admin-stats-grid">
+                    <StatCard icon={<BookOpen color="var(--primary-600)" />} label="חוגים פעילים" value={String(stats.classes)} bg="var(--primary-50)" />
+                    <StatCard icon={<Calendar color="var(--warning-500)" />} label="אירועים" value={String(stats.events)} bg="var(--warning-100)" />
+                    <StatCard icon={<Users color="var(--success-600)" />} label="משתתפים רשומים" value={String(stats.members)} bg="var(--success-50)" />
+                    <StatCard icon={<Activity color="var(--primary-600)" />} label="פוסטים בפיד" value={String(stats.posts)} bg="var(--primary-50)" />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '2rem' }}>
-                    <div className="card" style={{ padding: '1.5rem' }}>
+                    <div className="card admin-section-card">
                         <h3 style={{ marginBottom: '1.5rem' }}>פעולות מהירות</h3>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
                             <QuickAction href="/admin/classes" title="ניהול חוגים" desc="הוספה, עריכה וסגירת חוגים" />
@@ -53,16 +53,16 @@ export default function AdminPage() {
                         </div>
                     </div>
 
-                    <div className="card" style={{ padding: '1.5rem' }}>
+                    <div className="card admin-section-card">
                         <h3 style={{ marginBottom: '1.5rem' }}>סטטוס מערכת</h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
                                 <span>מסד נתונים (Supabase)</span>
-                                <span style={{ color: '#16a34a', fontWeight: 'bold' }}>מחובר ✅</span>
+                                <span style={{ color: 'var(--success-600)', fontWeight: 'bold' }}>מחובר ✅</span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
                                 <span>מנוע AI (Gemini)</span>
-                                <span style={{ color: '#16a34a', fontWeight: 'bold' }}>פעיל ✅</span>
+                                <span style={{ color: 'var(--success-600)', fontWeight: 'bold' }}>פעיל ✅</span>
                             </div>
                         </div>
                     </div>
@@ -74,7 +74,7 @@ export default function AdminPage() {
 
 function StatCard({ icon, label, value, bg }: { icon: React.ReactNode, label: string, value: string, bg: string }) {
     return (
-        <div className="card" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div className="card admin-section-card" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <div style={{ width: '48px', height: '48px', borderRadius: 'var(--radius-md)', backgroundColor: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {icon}
             </div>

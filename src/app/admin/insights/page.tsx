@@ -1,7 +1,7 @@
 "use client";
 
 import AdminNavbar from '@/components/admin/AdminNavbar';
-import { BarChart3, AlertTriangle, TrendingUp, Search, MessageCircle, Zap } from 'lucide-react';
+import { ChartBar as BarChart3, TriangleAlert as AlertTriangle, TrendingUp, Search, MessageCircle, Zap } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 interface IntentItem { intent: string; count: number }
@@ -47,9 +47,9 @@ export default function InsightsPage() {
 
     if (loading) {
         return (
-            <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
+            <div className="admin-root">
                 <AdminNavbar />
-                <main className="container" style={{ padding: '2rem 0', textAlign: 'center' }}>
+                <main className="admin-container" id="main-content" style={{ textAlign: 'center' }}>
                     <p>טוען נתונים...</p>
                 </main>
             </div>
@@ -58,11 +58,11 @@ export default function InsightsPage() {
 
     if (!data) {
         return (
-            <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
+            <div className="admin-root">
                 <AdminNavbar />
-                <main className="container" style={{ padding: '2rem 0' }}>
-                    <div className="card" style={{ padding: '2rem', textAlign: 'center' }}>
-                        <AlertTriangle size={40} style={{ color: '#f59e0b', marginBottom: '1rem' }} />
+                <main className="admin-container" id="main-content">
+                    <div className="card admin-section-card" style={{ padding: '2rem', textAlign: 'center' }}>
+                        <AlertTriangle size={40} style={{ color: 'var(--warning-500)', marginBottom: '1rem' }} />
                         <h3>טבלת תובנות עדיין לא קיימת</h3>
                         <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
                             יש להריץ את המיגרציה <code>0007_ai_upgrade.sql</code> כדי ליצור את הטבלה.
@@ -78,25 +78,25 @@ export default function InsightsPage() {
         : 1;
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
+        <div className="admin-root">
             <AdminNavbar />
-            <main className="container" style={{ padding: '2rem 0' }}>
-                <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>תובנות AI 🧠</h1>
+            <main className="admin-container" id="main-content">
+                <h1 style={{ fontSize: 'var(--text-4xl)', marginBottom: '0.5rem' }}>תובנות AI 🧠</h1>
                 <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
                     מה התושבים שואלים? איפה הצ&apos;אט לא עזר? מה הנושאים הפופולריים?
                 </p>
 
                 {/* Stats Cards */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1.5rem', marginBottom: '2rem' }}>
-                    <StatCard icon={<MessageCircle color="#0284c7" />} label="סה&quot;כ שאלות" value={String(data.totalQueries)} bg="#e0f2fe" />
-                    <StatCard icon={<Search color="#6366f1" />} label="שאלות ייחודיות" value={String(data.totalUniqueQueries)} bg="#e0e7ff" />
-                    <StatCard icon={<Zap color="#16a34a" />} label="אחוז מענה" value={`${data.answeredRate}%`} bg="#dcfce7" />
-                    <StatCard icon={<TrendingUp color="#f59e0b" />} label="שאלות השבוע" value={String(data.recentCount)} bg="#fef3c7" />
+                <div className="admin-stats-grid">
+                    <StatCard icon={<MessageCircle color="var(--primary-600)" />} label="סה&quot;כ שאלות" value={String(data.totalQueries)} bg="var(--primary-50)" />
+                    <StatCard icon={<Search color="var(--primary-600)" />} label="שאלות ייחודיות" value={String(data.totalUniqueQueries)} bg="var(--primary-50)" />
+                    <StatCard icon={<Zap color="var(--success-600)" />} label="אחוז מענה" value={`${data.answeredRate}%`} bg="var(--success-50)" />
+                    <StatCard icon={<TrendingUp color="var(--warning-500)" />} label="שאלות השבוע" value={String(data.recentCount)} bg="var(--warning-100)" />
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2rem' }}>
                     {/* Intent Distribution */}
-                    <div className="card" style={{ padding: '1.5rem' }}>
+                    <div className="card admin-section-card">
                         <h3 style={{ marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <BarChart3 size={20} /> התפלגות כוונות
                         </h3>
@@ -107,11 +107,11 @@ export default function InsightsPage() {
                                         <span>{INTENT_LABELS[item.intent] || item.intent}</span>
                                         <span style={{ fontWeight: 700 }}>{item.count}</span>
                                     </div>
-                                    <div style={{ height: '8px', borderRadius: '999px', backgroundColor: '#e2e8f0', overflow: 'hidden' }}>
+                                    <div style={{ height: '8px', borderRadius: '999px', backgroundColor: 'var(--neutral-200)', overflow: 'hidden' }}>
                                         <div style={{
                                             width: `${(item.count / maxIntentCount) * 100}%`,
                                             height: '100%',
-                                            backgroundColor: '#6366f1',
+                                            backgroundColor: 'var(--primary-600)',
                                             borderRadius: '999px',
                                             transition: 'width 0.5s ease',
                                         }} />
@@ -125,7 +125,7 @@ export default function InsightsPage() {
                     </div>
 
                     {/* Queries Table */}
-                    <div className="card" style={{ padding: '1.5rem' }}>
+                    <div className="card admin-section-card">
                         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
                             <button
                                 onClick={() => setActiveTab('unanswered')}
@@ -181,7 +181,7 @@ export default function InsightsPage() {
 
 function StatCard({ icon, label, value, bg }: { icon: React.ReactNode; label: string; value: string; bg: string }) {
     return (
-        <div className="card" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div className="card admin-section-card" style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <div style={{
                 width: '48px', height: '48px', borderRadius: 'var(--radius-md)',
                 backgroundColor: bg, display: 'flex', alignItems: 'center', justifyContent: 'center',

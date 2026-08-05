@@ -70,9 +70,9 @@ export default function EventsPage() {
         <>
             <div className="container">
                 <Navbar />
-                <main style={{ padding: '3rem 0', minHeight: 'calc(100vh - 100px)' }}>
+                <main id="main-content" style={{ padding: '3rem 0', minHeight: 'calc(100vh - 100px)' }}>
                     <header style={{ marginBottom: '2rem' }}>
-                        <h1 style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>אירועים 📅</h1>
+                        <h1 style={{ fontSize: 'var(--text-4xl)', marginBottom: '0.5rem' }}>אירועים 📅</h1>
                         <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>גלו אירועים קרובים לפי סוג, מועד וזמינות.</p>
 
                         <div className="discovery-toolbar">
@@ -106,7 +106,16 @@ export default function EventsPage() {
                     </header>
 
                     {loading ? (
-                        <div style={{ textAlign: 'center', padding: '4rem' }}>טוען אירועים...</div>
+                        <div className="skeleton-grid">
+                            {[0, 1, 2, 3].map((i) => (
+                                <div key={i} className="skeleton-card">
+                                    <div className="skeleton-line short" />
+                                    <div className="skeleton-line medium" />
+                                    <div className="skeleton-line long" />
+                                    <div className="skeleton-block" />
+                                </div>
+                            ))}
+                        </div>
                     ) : filteredEvents.length === 0 ? (
                         <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
                             לא נמצאו אירועים לפי הסינון שבחרת.
@@ -120,7 +129,7 @@ export default function EventsPage() {
 
                                 return (
                                     <div key={evt.id} className="card animate-fade-up" style={{ padding: '2rem', display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
-                                        <div style={{ minWidth: '110px', textAlign: 'center', borderLeft: '2px solid var(--border-color)', paddingLeft: '1.5rem' }}>
+                                        <div style={{ minWidth: '110px', textAlign: 'center', borderInlineStart: '2px solid var(--border-color)', paddingInlineStart: '1.5rem' }}>
                                             <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{new Date(evt.event_date).getDate()}</div>
                                             <div style={{ color: 'var(--text-secondary)' }}>{new Date(evt.event_date).toLocaleString('he-IL', { month: 'short' })}</div>
                                             {evt.start_time && (
@@ -132,10 +141,10 @@ export default function EventsPage() {
                                                 <div>
                                                     <h3 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>{evt.title}</h3>
                                                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-                                                        {evt.type && <span className="hero-badge" style={{ backgroundColor: evt.type === 'זום' ? '#e0e7ff' : '#e0f2fe', color: evt.type === 'זום' ? '#4338ca' : 'var(--accent-primary)' }}>{evt.type}</span>}
-                                                        {evt.category && <span className="hero-badge" style={{ backgroundColor: '#fef3c7', color: '#b45309' }}>{evt.category}</span>}
+                                                        {evt.type && <span className="hero-badge" style={{ backgroundColor: evt.type === 'זום' ? 'var(--primary-50)' : 'var(--accent-50)', color: evt.type === 'זום' ? 'var(--accent-primary)' : 'var(--accent-600)' }}>{evt.type}</span>}
+                                                        {evt.category && <span className="hero-badge" style={{ backgroundColor: 'var(--warning-50)', color: 'var(--warning-700)' }}>{evt.category}</span>}
                                                         {seatsLeft != null && (
-                                                            <span className="hero-badge" style={{ backgroundColor: seatsLeft === 0 ? '#fee2e2' : seatsLeft < 10 ? '#fef3c7' : '#dcfce7', color: seatsLeft === 0 ? '#dc2626' : seatsLeft < 10 ? '#b45309' : '#15803d' }}>
+                                                            <span className="hero-badge" style={{ backgroundColor: seatsLeft === 0 ? 'var(--status-full-bg)' : seatsLeft < 10 ? 'var(--status-low-bg)' : 'var(--status-open-bg)', color: seatsLeft === 0 ? 'var(--status-full-text)' : seatsLeft < 10 ? 'var(--status-low-text)' : 'var(--status-open-text)' }}>
                                                                 {seatsLeft === 0 ? 'אין מקומות' : `${seatsLeft} מקומות פנויים`}
                                                             </span>
                                                         )}

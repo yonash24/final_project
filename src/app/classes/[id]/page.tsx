@@ -3,10 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import {
-    ArrowRight, Clock, MapPin, Users, BadgeDollarSign,
-    UserCheck, CalendarDays, Loader2, AlertCircle,
-} from 'lucide-react';
+import { ArrowRight, Clock, MapPin, Users, BadgeDollarSign, UserCheck, CalendarDays, Loader as Loader2, CircleAlert as AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase/client';
 import Navbar from '@/components/layout/Navbar';
 import RegistrationModal from '@/components/ui/RegistrationModal';
@@ -68,7 +65,7 @@ export default function ActivityDetailPage() {
             <div className="container" style={{ minHeight: '100vh' }}>
                 <Navbar />
                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-                    <Loader2 size={36} className="activity-spinner" />
+                    <Loader2 size={36} className="activity-spinner" style={{ color: 'var(--accent-primary)' }} />
                 </div>
             </div>
         );
@@ -106,7 +103,7 @@ export default function ActivityDetailPage() {
             <div className="container">
                 <Navbar />
 
-                <main style={{ padding: '2rem 0 5rem' }}>
+                <main id="main-content" style={{ padding: '2rem 0 5rem' }}>
                     {/* Back breadcrumb */}
                     <Link
                         href="/classes"
@@ -205,7 +202,7 @@ export default function ActivityDetailPage() {
                                             <div
                                                 className="activity-info-value"
                                                 style={{
-                                                    color: isFull ? '#dc2626' : isLowSpots ? '#b45309' : '#16a34a',
+                                                    color: isFull ? 'var(--error-600)' : isLowSpots ? 'var(--warning-600)' : 'var(--success-600)',
                                                     fontWeight: 700,
                                                 }}
                                             >
@@ -244,8 +241,8 @@ export default function ActivityDetailPage() {
                                                 textAlign: 'center',
                                                 fontSize: '0.85rem',
                                                 fontWeight: 700,
-                                                background: isFull ? '#fee2e2' : isLowSpots ? '#fef3c7' : '#dcfce7',
-                                                color: isFull ? '#dc2626' : isLowSpots ? '#b45309' : '#16a34a',
+                                                background: isFull ? 'var(--status-full-bg)' : isLowSpots ? 'var(--status-low-bg)' : 'var(--status-open-bg)',
+                                                color: isFull ? 'var(--status-full-text)' : isLowSpots ? 'var(--status-low-text)' : 'var(--status-open-text)',
                                             }}
                                         >
                                             {isFull ? '⛔ מלא — אין מקומות' : isLowSpots ? `⚡ נותרו רק ${spotsLeft} מקומות` : `✅ ${spotsLeft} מקומות פנויים`}
@@ -256,12 +253,12 @@ export default function ActivityDetailPage() {
                                                     <span>תפוסה</span>
                                                     <span>{activity.current_participants ?? 0}/{activity.max_participants}</span>
                                                 </div>
-                                                <div style={{ height: '8px', borderRadius: '999px', backgroundColor: '#e2e8f0', overflow: 'hidden' }}>
+                                                <div style={{ height: '8px', borderRadius: '999px', backgroundColor: 'var(--neutral-200)', overflow: 'hidden' }}>
                                                     <div
                                                         style={{
                                                             width: `${Math.min(((activity.current_participants ?? 0) / activity.max_participants) * 100, 100)}%`,
                                                             height: '100%',
-                                                            backgroundColor: isFull ? '#dc2626' : isLowSpots ? '#f59e0b' : '#16a34a',
+                                                            backgroundColor: isFull ? 'var(--error-600)' : isLowSpots ? 'var(--warning-500)' : 'var(--success-500)',
                                                         }}
                                                     />
                                                 </div>

@@ -101,9 +101,9 @@ export default function ClassesPage() {
             <div className="container">
                 <Navbar />
 
-                <main style={{ padding: '3rem 0', minHeight: 'calc(100vh - 100px)' }}>
+                <main id="main-content" style={{ padding: '3rem 0', minHeight: 'calc(100vh - 100px)' }}>
                     <header style={{ marginBottom: '2rem' }}>
-                        <h1 style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>חוגים ופעילויות 🎨</h1>
+                        <h1 style={{ fontSize: 'var(--text-4xl)', marginBottom: '0.5rem' }}>חוגים ופעילויות 🎨</h1>
                         <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>אפשר לחפש לפי נושא, גיל, זמינות או פשוט לפי צורך יומיומי.</p>
 
                         <div className="friendly-helper-card">
@@ -170,7 +170,16 @@ export default function ClassesPage() {
                     </header>
 
                     {loading ? (
-                        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-secondary)' }}>טוען חוגים...</div>
+                        <div className="skeleton-grid">
+                            {[0, 1, 2, 3, 4, 5].map((i) => (
+                                <div key={i} className="skeleton-card">
+                                    <div className="skeleton-line short" />
+                                    <div className="skeleton-line medium" />
+                                    <div className="skeleton-line long" />
+                                    <div className="skeleton-block" />
+                                </div>
+                            ))}
+                        </div>
                     ) : filteredClasses.length === 0 ? (
                         <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
                             לא מצאנו כרגע משהו שמתאים בדיוק למה שבחרת. נסו לחפש מילה פשוטה אחרת, להרחיב את הסינון או לעבור ל&quot;דברו איתי פשוט&quot;.
@@ -200,7 +209,7 @@ export default function ClassesPage() {
                                         onClick={() => router.push(`/classes/${item.id}`)}
                                     >
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', width: '100%', gap: '0.5rem' }}>
-                                            <span style={{ fontSize: '0.72rem', fontWeight: 700, background: '#e0f2fe', color: 'var(--accent-primary)', padding: '0.15rem 0.6rem', borderRadius: '999px' }}>
+                                            <span style={{ fontSize: '0.72rem', fontWeight: 700, background: 'var(--primary-50)', color: 'var(--accent-primary)', padding: '0.15rem 0.6rem', borderRadius: '999px' }}>
                                                 {item.categories?.name_he ?? 'חוג'}
                                             </span>
                                             {spotsLeft !== null && (
@@ -209,8 +218,8 @@ export default function ClassesPage() {
                                                     fontWeight: 700,
                                                     padding: '0.15rem 0.5rem',
                                                     borderRadius: '999px',
-                                                    background: isFull ? '#fee2e2' : isLow ? '#fef3c7' : '#dcfce7',
-                                                    color: isFull ? '#dc2626' : isLow ? '#b45309' : '#16a34a',
+                                                    background: isFull ? 'var(--status-full-bg)' : isLow ? 'var(--status-low-bg)' : 'var(--status-open-bg)',
+                                                    color: isFull ? 'var(--status-full-text)' : isLow ? 'var(--status-low-text)' : 'var(--status-open-text)',
                                                 }}>
                                                     {isFull ? 'מלא' : isLow ? 'מקומות אחרונים' : `${spotsLeft} מקומות`}
                                                 </span>
@@ -228,12 +237,12 @@ export default function ClassesPage() {
                                                     <span style={{ color: 'var(--text-secondary)' }}>תפוסה</span>
                                                     <span style={{ fontWeight: 700 }}>{item.current_participants ?? 0}/{item.max_participants}</span>
                                                 </div>
-                                                <div style={{ height: '8px', borderRadius: '999px', backgroundColor: '#e2e8f0', overflow: 'hidden' }}>
+                                                <div style={{ height: '8px', borderRadius: '999px', backgroundColor: 'var(--neutral-200)', overflow: 'hidden' }}>
                                                     <div
                                                         style={{
                                                             width: `${fillPercent}%`,
                                                             height: '100%',
-                                                            backgroundColor: isFull ? '#dc2626' : isLow ? '#f59e0b' : '#16a34a',
+                                                            backgroundColor: isFull ? 'var(--error-600)' : isLow ? 'var(--warning-500)' : 'var(--success-500)',
                                                         }}
                                                     />
                                                 </div>

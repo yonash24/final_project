@@ -1,6 +1,6 @@
 "use client";
 import Navbar from '@/components/layout/Navbar';
-import { Heart, MessageCircle, MoreHorizontal } from 'lucide-react';
+import { Heart, MessageCircle, MoveHorizontal as MoreHorizontal } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase/client';
 
@@ -32,16 +32,24 @@ export default function FeedPage() {
             <div className="container">
                 <Navbar />
 
-                <main style={{ padding: '2rem 0', display: 'flex', justifyContent: 'center' }}>
+                <main id="main-content" style={{ padding: '2rem 0', display: 'flex', justifyContent: 'center' }}>
                     <div style={{ width: '100%', maxWidth: '600px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
-                        <h1 style={{ textAlign: 'center', marginBottom: '1rem' }}>פיד קהילתי 🏠</h1>
+                        <h1 style={{ textAlign: 'center', marginBottom: '1rem', fontSize: 'var(--text-4xl)' }}>פיד קהילתי 🏠</h1>
                         <p style={{ textAlign: 'center', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
                             עדכונים, הודעות וחדשות מהקהילה ומהמתנ&quot;ס במקום אחד.
                         </p>
 
                         {loading ? (
-                            <div style={{ textAlign: 'center', padding: '2rem' }}>טוען עדכונים קהילתיים...</div>
+                            <div className="skeleton-grid" style={{ gridTemplateColumns: '1fr' }}>
+                                {[0, 1, 2].map((i) => (
+                                    <div key={i} className="skeleton-card">
+                                        <div className="skeleton-line short" />
+                                        <div className="skeleton-line long" />
+                                        <div className="skeleton-line medium" />
+                                    </div>
+                                ))}
+                            </div>
                         ) : posts.length === 0 ? (
                             <div className="card" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>עוד לא פורסמו הודעות בפיד הקהילתי.</div>
                         ) : posts.map((post, idx) => (

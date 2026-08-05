@@ -126,12 +126,12 @@ export default function AdminFeedPage() {
     }
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
+        <div className="admin-root">
             <AdminNavbar />
-            <main className="container" style={{ padding: '2rem 0' }}>
-                <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', gap: '1rem', flexWrap: 'wrap' }}>
+            <main className="admin-container" id="main-content">
+                <header className="admin-page-header">
                     <div>
-                        <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>ניהול פיד קהילתי 📢</h1>
+                        <h1 style={{ fontSize: 'var(--text-3xl)', marginBottom: '0.5rem' }}>ניהול פיד קהילתי 📢</h1>
                         <p style={{ color: 'var(--text-secondary)' }}>עריכת פוסטים קיימים ופרסום עדכונים חדשים בצורה עקבית.</p>
                     </div>
                     <button onClick={openCreateModal} className="btn btn-primary btn-md">
@@ -145,7 +145,7 @@ export default function AdminFeedPage() {
                     ) : posts.length === 0 ? (
                         <div className="card" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-secondary)' }}>אין הודעות בפיד. צור הודעה חדשה!</div>
                     ) : posts.map((post) => (
-                        <div key={post.id} className="card" style={{ padding: '1.5rem' }}>
+                        <div key={post.id} className="card admin-section-card">
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', gap: '1rem' }}>
                                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                                     <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--accent-primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
@@ -159,11 +159,11 @@ export default function AdminFeedPage() {
                                     </div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                    <button className="btn btn-ghost btn-icon" onClick={() => openEditModal(post)} style={{ backgroundColor: '#e0f2fe' }} title="ערוך פוסט">
-                                        <Pencil size={16} color="#0284c7" />
+                                    <button className="btn btn-ghost btn-icon" onClick={() => openEditModal(post)} style={{ backgroundColor: 'var(--primary-50)' }} title="ערוך פוסט">
+                                        <Pencil size={16} color="var(--primary-600)" />
                                     </button>
-                                    <button className="btn btn-ghost btn-icon" onClick={() => deletePost(post.id)} style={{ color: 'var(--accent-rose)', backgroundColor: '#fee2e2' }} title="מחק פוסט">
-                                        <Trash2 size={18} color="#dc2626" />
+                                    <button className="btn btn-ghost btn-icon" onClick={() => deletePost(post.id)} style={{ color: 'var(--accent-rose)', backgroundColor: 'var(--error-100)' }} title="מחק פוסט">
+                                        <Trash2 size={18} color="var(--error-600)" />
                                     </button>
                                 </div>
                             </div>
@@ -175,7 +175,7 @@ export default function AdminFeedPage() {
             </main>
 
             {showModal && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(13,27,42,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
                     <div className="card animate-fade-up" style={{ width: '100%', maxWidth: '560px', padding: '2rem', backgroundColor: 'white' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', alignItems: 'center' }}>
                             <div>

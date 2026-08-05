@@ -190,10 +190,10 @@ export default function AdminSettingsPage() {
 
     if (loading || !form) {
         return (
-            <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
+            <div className="admin-root">
                 <AdminNavbar />
-                <main className="container" style={{ padding: '2rem 0' }}>
-                    <div className="card" style={{ padding: '2rem', textAlign: 'center' }}>טוען הגדרות...</div>
+                <main className="admin-container" id="main-content">
+                    <div className="card admin-section-card" style={{ padding: '2rem', textAlign: 'center' }}>טוען הגדרות...</div>
                 </main>
             </div>
         );
@@ -202,19 +202,19 @@ export default function AdminSettingsPage() {
     const activeProviderStatus = providerStatus.find((item) => item.provider === form.provider);
 
     return (
-        <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
+        <div className="admin-root">
             <AdminNavbar />
-            <main className="container" style={{ padding: '2rem 0' }}>
-                <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>הגדרות מערכת ⚙️</h1>
+            <main className="admin-container" id="main-content">
+                <h1 style={{ fontSize: 'var(--text-3xl)', marginBottom: '0.5rem' }}>הגדרות מערכת ⚙️</h1>
                 <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem' }}>
                     ניהול תשתית התראות WhatsApp, חיבור ספק אמיתי, תבניות, בדיקות שליחה וסטטוס webhook.
                 </p>
 
                 <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1.08fr 0.92fr', gap: '2rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        <div className="card" style={{ padding: '1.75rem' }}>
+                        <div className="card admin-section-card" style={{ padding: '1.75rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                                <Bell size={20} color="#0284c7" />
+                                <Bell size={20} color="var(--primary-600)" />
                                 <h2 style={{ fontSize: '1.35rem' }}>התראות WhatsApp</h2>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
@@ -245,9 +245,9 @@ export default function AdminSettingsPage() {
                             </div>
                         </div>
 
-                        <div className="card" style={{ padding: '1.75rem' }}>
+                        <div className="card admin-section-card" style={{ padding: '1.75rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                                <Activity size={20} color="#0284c7" />
+                                <Activity size={20} color="var(--primary-600)" />
                                 <h2 style={{ fontSize: '1.35rem' }}>הגדרות ספק</h2>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
@@ -266,9 +266,9 @@ export default function AdminSettingsPage() {
                             </div>
                         </div>
 
-                        <div className="card" style={{ padding: '1.75rem' }}>
+                        <div className="card admin-section-card" style={{ padding: '1.75rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                                <MessageSquareText size={20} color="#0284c7" />
+                                <MessageSquareText size={20} color="var(--primary-600)" />
                                 <h2 style={{ fontSize: '1.35rem' }}>תבניות הודעה</h2>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -310,9 +310,9 @@ export default function AdminSettingsPage() {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        <div className="card" style={{ padding: '1.75rem' }}>
+                        <div className="card admin-section-card" style={{ padding: '1.75rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                                <Smartphone size={20} color="#0284c7" />
+                                <Smartphone size={20} color="var(--primary-600)" />
                                 <h2 style={{ fontSize: '1.35rem' }}>מצב הספק הפעיל</h2>
                             </div>
                             {activeProviderStatus ? (
@@ -324,7 +324,7 @@ export default function AdminSettingsPage() {
                                         <div key={entry.name} style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '0.85rem' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.25rem' }}>
                                                 <strong>{entry.name}</strong>
-                                                <span style={{ color: entry.present ? '#15803d' : '#b45309', fontWeight: 700 }}>
+                                                <span style={{ color: entry.present ? 'var(--success-600)' : 'var(--warning-600)', fontWeight: 700 }}>
                                                     {entry.present ? 'Configured' : 'Missing'}
                                                 </span>
                                             </div>
@@ -332,7 +332,7 @@ export default function AdminSettingsPage() {
                                         </div>
                                     ))}
                                     {activeProviderStatus.warnings.map((warning) => (
-                                        <div key={warning} style={{ backgroundColor: '#fff7ed', border: '1px solid #fdba74', color: '#9a3412', borderRadius: 'var(--radius-md)', padding: '0.85rem', fontSize: '0.85rem' }}>
+                                        <div key={warning} style={{ backgroundColor: 'var(--warning-50)', border: '1px solid var(--warning-200)', color: 'var(--warning-700)', borderRadius: 'var(--radius-md)', padding: '0.85rem', fontSize: '0.85rem' }}>
                                             {warning}
                                         </div>
                                     ))}
@@ -340,9 +340,9 @@ export default function AdminSettingsPage() {
                             ) : null}
                         </div>
 
-                        <div className="card" style={{ padding: '1.75rem' }}>
+                        <div className="card admin-section-card" style={{ padding: '1.75rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                                <SendHorizontal size={20} color="#0284c7" />
+                                <SendHorizontal size={20} color="var(--primary-600)" />
                                 <h2 style={{ fontSize: '1.35rem' }}>שליחת בדיקה</h2>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
@@ -358,9 +358,9 @@ export default function AdminSettingsPage() {
                             </div>
                         </div>
 
-                        <div className="card" style={{ padding: '1.75rem' }}>
+                        <div className="card admin-section-card" style={{ padding: '1.75rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                                <ToggleLeft size={20} color="#0284c7" />
+                                <ToggleLeft size={20} color="var(--primary-600)" />
                                 <h2 style={{ fontSize: '1.35rem' }}>הודעות אחרונות</h2>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
@@ -379,7 +379,7 @@ export default function AdminSettingsPage() {
                                             ניסיונות: {delivery.attempts_count} • {new Date(delivery.created_at).toLocaleString('he-IL')}
                                         </div>
                                         {delivery.error_message ? (
-                                            <div style={{ color: '#b91c1c', fontSize: '0.8rem', marginTop: '0.45rem' }}>{delivery.error_message}</div>
+                                            <div style={{ color: 'var(--error-700)', fontSize: '0.8rem', marginTop: '0.45rem' }}>{delivery.error_message}</div>
                                         ) : null}
                                     </div>
                                 ))}
@@ -429,7 +429,7 @@ function ToggleRow({
     onChange: (checked: boolean) => void;
 }) {
     return (
-        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', backgroundColor: '#f8fafc', border: '1px solid var(--border-color)' }}>
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
             <span style={{ fontWeight: 700 }}>{label}</span>
             <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
         </label>
@@ -442,8 +442,8 @@ function StatusBadge({ status, children }: { status: boolean; children: ReactNod
             alignSelf: 'flex-start',
             borderRadius: 999,
             padding: '0.35rem 0.8rem',
-            backgroundColor: status ? '#dcfce7' : '#fef3c7',
-            color: status ? '#166534' : '#92400e',
+            backgroundColor: status ? 'var(--success-50)' : 'var(--warning-100)',
+            color: status ? 'var(--success-700)' : 'var(--warning-700)',
             fontWeight: 800,
             fontSize: '0.85rem',
         }}>
@@ -455,14 +455,14 @@ function StatusBadge({ status, children }: { status: boolean; children: ReactNod
 function getStatusColor(status: AdminNotificationDelivery['status']) {
     switch (status) {
         case 'failed':
-            return '#dc2626';
+            return 'var(--error-600)';
         case 'pending':
         case 'retrying':
         case 'processing':
-            return '#b45309';
+            return 'var(--warning-600)';
         case 'suppressed':
-            return '#6b7280';
+            return 'var(--neutral-600)';
         default:
-            return '#15803d';
+            return 'var(--success-600)';
     }
 }
