@@ -10,7 +10,7 @@ import type { NotificationProviderName } from '@/lib/notifications/types';
 export const dynamic = 'force-dynamic';
 
 function isSupportedProvider(value: string): value is NotificationProviderName {
-    return value === 'mock-whatsapp' || value === 'twilio-whatsapp' || value === 'meta-cloud-api';
+    return value === 'mock-whatsapp' || value === 'twilio-whatsapp';
 }
 
 export async function GET(request: NextRequest, context: { params: Promise<{ provider: string }> }) {

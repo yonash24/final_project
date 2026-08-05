@@ -4,7 +4,7 @@ import type {
     NotificationProviderName,
     NotificationTemplateKey,
     WhatsAppOptInStatus,
-} from '@/lib/notifications/types';
+} from './types';
 
 const OPT_OUT_KEYWORDS = new Set(['stop', 'unsubscribe', 'cancel', 'quit', 'end', 'הסר', 'בטל', 'עצור']);
 const OPT_IN_KEYWORDS = new Set(['start', 'subscribe', 'unstop', 'yes', 'התחל', 'אשר', 'כן']);

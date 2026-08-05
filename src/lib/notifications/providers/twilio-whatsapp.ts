@@ -9,16 +9,22 @@ import type {
     NotificationWebhookParseResult,
     NotificationWebhookVerificationResult,
 } from '@/lib/notifications/types';
-import { buildEffectiveWebhookUrl } from '@/lib/notifications/provider-webhook-utils';
-import { buildProviderEnvStatus, toWhatsAppAddress } from '@/lib/notifications/utils';
+import { buildEffectiveWebhookUrl } from '../provider-webhook-utils.ts';
+import { buildProviderEnvStatus, toWhatsAppAddress } from '../utils.ts';
 
 function buildTwilioStatusCallback(config: NotificationProviderConfig) {
     if (config.status_callback_url) {
-        return config.status_callback_url.replace(/\/$/, '') + '/twilio-whatsapp';
+        const callbackBase = config.status_callback_url.replace(/\/$/, '');
+        if (callbackBase.endsWith('/twilio-whatsapp')) {
+            return callbackBase;
+        }
+
+        return `${callbackBase}/twilio-whatsapp`;
     }
 
     if (process.env.APP_BASE_URL) {
-        return `${process.env.APP_BASE_URL.replace(/\/$/, '')}/api/webhooks/whatsapp/twilio-whatsapp`;
+        const appBase = process.env.APP_BASE_URL.replace(/\/$/, '');
+        return `${appBase}/api/webhooks/whatsapp/twilio-whatsapp`;
     }
 
     return null;

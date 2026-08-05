@@ -29,8 +29,6 @@ interface SettingsFormState {
     admin_contact_phone: string;
     provider_config: {
         twilio_from_number: string;
-        meta_phone_number_id: string;
-        meta_business_account_id: string;
         status_callback_url: string;
         test_recipient_phone: string;
     };
@@ -45,8 +43,11 @@ interface SettingsFormState {
 }
 
 function buildFormState(data: SettingsResponse): SettingsFormState {
+    const provider = data.settings?.provider;
     return {
-        provider: data.settings?.provider ?? 'mock-whatsapp',
+        provider: provider === 'mock-whatsapp' || provider === 'twilio-whatsapp'
+            ? provider
+            : 'twilio-whatsapp',
         is_enabled: data.settings?.is_enabled ?? true,
         send_registration_confirmations: data.settings?.send_registration_confirmations ?? true,
         send_class_reminders: data.settings?.send_class_reminders ?? true,
@@ -56,8 +57,6 @@ function buildFormState(data: SettingsResponse): SettingsFormState {
         admin_contact_phone: data.settings?.admin_contact_phone ?? '',
         provider_config: {
             twilio_from_number: data.settings?.provider_config?.twilio_from_number ?? '',
-            meta_phone_number_id: data.settings?.provider_config?.meta_phone_number_id ?? '',
-            meta_business_account_id: data.settings?.provider_config?.meta_business_account_id ?? '',
             status_callback_url: data.settings?.provider_config?.status_callback_url ?? '',
             test_recipient_phone: data.settings?.provider_config?.test_recipient_phone ?? '',
         },
@@ -76,10 +75,12 @@ export default function AdminSettingsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [sendingTest, setSendingTest] = useState(false);
+    const [processingOutbox, setProcessingOutbox] = useState(false);
     const [recentDeliveries, setRecentDeliveries] = useState<AdminNotificationDelivery[]>([]);
     const [providerStatus, setProviderStatus] = useState<AdminNotificationProviderStatus[]>([]);
     const [form, setForm] = useState<SettingsFormState | null>(null);
     const [testMessage, setTestMessage] = useState('');
+    const [processMessage, setProcessMessage] = useState<string | null>(null);
 
     useEffect(() => {
         let ignore = false;
@@ -188,6 +189,35 @@ export default function AdminSettingsPage() {
         }
     }
 
+    async function handleProcessOutbox() {
+        setProcessingOutbox(true);
+        setProcessMessage(null);
+
+        try {
+            const response = await fetch('/api/notifications/process?limit=20', {
+                method: 'POST',
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'Failed to process outbox');
+
+            setProcessMessage(`Processed ${data.processed ?? 0} deliveries from ${data.scanned ?? 0} queued items.`);
+
+            const settingsResponse = await fetch('/api/admin/notifications/settings');
+            const settingsData = await settingsResponse.json();
+            if (settingsResponse.ok) {
+                const typedData = settingsData as SettingsResponse;
+                setRecentDeliveries(typedData.recentDeliveries);
+                setProviderStatus(typedData.providerStatus);
+                setForm(buildFormState(typedData));
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to process outbox';
+            setProcessMessage(message);
+        } finally {
+            setProcessingOutbox(false);
+        }
+    }
+
     if (loading || !form) {
         return (
             <div className="admin-root">
@@ -222,7 +252,6 @@ export default function AdminSettingsPage() {
                                     <select className="input-field" value={form.provider} onChange={(event) => setForm((prev) => prev ? { ...prev, provider: event.target.value as SettingsFormState['provider'] } : prev)}>
                                         <option value="mock-whatsapp">Mock WhatsApp</option>
                                         <option value="twilio-whatsapp">Twilio WhatsApp</option>
-                                        <option value="meta-cloud-api">Meta Cloud API</option>
                                     </select>
                                 </Field>
                                 <Field label="שעות לפני תזכורת">
@@ -254,15 +283,12 @@ export default function AdminSettingsPage() {
                                 <Field label="Twilio sender">
                                     <input className="input-field" placeholder="whatsapp:+14155238886" value={form.provider_config.twilio_from_number} onChange={(event) => updateProviderConfig(setForm, 'twilio_from_number', event.target.value)} />
                                 </Field>
-                                <Field label="Meta phone number ID">
-                                    <input className="input-field" placeholder="123456789012345" value={form.provider_config.meta_phone_number_id} onChange={(event) => updateProviderConfig(setForm, 'meta_phone_number_id', event.target.value)} />
-                                </Field>
-                                <Field label="Meta business account ID">
-                                    <input className="input-field" placeholder="987654321098765" value={form.provider_config.meta_business_account_id} onChange={(event) => updateProviderConfig(setForm, 'meta_business_account_id', event.target.value)} />
-                                </Field>
                                 <Field label="Status callback base URL">
                                     <input className="input-field" placeholder="https://example.com/api/webhooks/whatsapp" value={form.provider_config.status_callback_url} onChange={(event) => updateProviderConfig(setForm, 'status_callback_url', event.target.value)} />
                                 </Field>
+                            </div>
+                            <div style={{ marginTop: '0.75rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+                                Twilio יקבל את הוובהוק המלא בנתיב <code>/twilio-whatsapp</code> על בסיס הכתובת הזו.
                             </div>
                         </div>
 
@@ -355,6 +381,24 @@ export default function AdminSettingsPage() {
                                 <button type="button" onClick={handleSendTest} disabled={sendingTest} className="btn btn-secondary btn-md" style={{ justifyContent: 'center' }}>
                                     <SendHorizontal size={18} /> {sendingTest ? 'שולח...' : 'שלח הודעת בדיקה'}
                                 </button>
+                            </div>
+                        </div>
+
+                        <div className="card admin-section-card" style={{ padding: '1.75rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                                <Activity size={20} color="var(--primary-600)" />
+                                <h2 style={{ fontSize: '1.35rem' }}>עיבוד Outbox</h2>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                                <p style={{ color: 'var(--text-secondary)', margin: 0 }}>
+                                    מריץ את שליחת ההודעות המתוזמנות/ממתינות דרך `/api/notifications/process`.
+                                </p>
+                                <button type="button" onClick={handleProcessOutbox} disabled={processingOutbox} className="btn btn-secondary btn-md" style={{ justifyContent: 'center' }}>
+                                    <Activity size={18} /> {processingOutbox ? 'מעבד...' : 'הרץ עכשיו'}
+                                </button>
+                                {processMessage ? (
+                                    <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>{processMessage}</div>
+                                ) : null}
                             </div>
                         </div>
 
