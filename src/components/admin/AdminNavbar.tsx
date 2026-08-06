@@ -1,9 +1,7 @@
 "use client";
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, Calendar, Users, Settings, LogOut, Megaphone, Palette, Upload, LogIn } from 'lucide-react';
-import { logoutAdmin } from '@/app/admin/login/actions';
-import { useState, useEffect } from 'react';
+import { BookOpen, Calendar, Users, Settings, LogOut, Megaphone, Palette, Upload } from 'lucide-react';
 
 const navItems = [
     { href: '/admin/classes', icon: BookOpen, label: 'חוגים וקורסים' },
@@ -17,21 +15,6 @@ const navItems = [
 
 export default function AdminNavbar() {
     const pathname = usePathname();
-    const [userEmail, setUserEmail] = useState<string | null>(null);
-
-    useEffect(() => {
-        async function getUser() {
-            try {
-                const response = await fetch('/api/admin/me');
-                if (!response.ok) return;
-                const data = await response.json();
-                setUserEmail(data.email ?? null);
-            } catch (error) {
-                console.error('Failed to fetch admin profile', error);
-            }
-        }
-        getUser();
-    }, []);
 
     return (
         <nav className="admin-navbar" aria-label="ניווט ניהול">
@@ -67,14 +50,12 @@ export default function AdminNavbar() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
                 <div style={{ textAlign: 'end', fontSize: 'var(--text-xs)' }}>
                     <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>מנהל מערכת</div>
-                    <div style={{ color: 'var(--text-secondary)' }}>{userEmail || 'מתחבר...'}</div>
+                    <div style={{ color: 'var(--text-secondary)' }}>אזור ניהול פתוח</div>
                 </div>
 
-                <form action={logoutAdmin}>
-                    <button type="submit" className="admin-icon-btn" aria-label="התנתק" title="התנתק">
-                        <LogOut size={18} />
-                    </button>
-                </form>
+                <Link href="/admin" className="admin-icon-btn" aria-label="חזרה ללוח הבקרה" title="חזרה ללוח הבקרה">
+                    <LogOut size={18} />
+                </Link>
             </div>
         </nav>
     );

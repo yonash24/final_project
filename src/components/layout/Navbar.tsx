@@ -71,7 +71,7 @@ export default function Navbar() {
 
                 <div className="nav-actions">
                     <AccessibilityControls />
-                    <Link href="/admin/login" className="btn btn-secondary btn-md">
+                    <Link href="/admin" className="btn btn-secondary btn-md">
                         לצוות המתנ&quot;ס
                     </Link>
                     <button
@@ -126,7 +126,7 @@ export default function Navbar() {
                         ))}
                     </nav>
                     <div className="nav-drawer-footer">
-                        <Link href="/admin/login" className="btn btn-secondary btn-md" onClick={closeDrawer} style={{ width: '100%' }}>
+                        <Link href="/admin" className="btn btn-secondary btn-md" onClick={closeDrawer} style={{ width: '100%' }}>
                             לצוות המתנ&quot;ס
                         </Link>
                     </div>

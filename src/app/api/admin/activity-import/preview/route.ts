@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { requireAdminRequest } from '@/lib/admin/auth';
 import { parseSpreadsheet, buildImportPreview, type ImportMapping } from '@/lib/admin/activity-import';
 import { supabaseServer } from '@/lib/supabase/server';
 import type { AdminActivity } from '@/lib/admin/types';
 
 export async function POST(request: NextRequest) {
-    const auth = await requireAdminRequest(request);
-    if (auth.response) return auth.response;
-
     const formData = await request.formData();
     const file = formData.get('file');
     const mappingRaw = formData.get('mapping');
@@ -48,7 +44,6 @@ export async function POST(request: NextRequest) {
                 valid_rows: previewRows.filter((row) => row.status !== 'invalid').length,
                 invalid_rows: previewRows.filter((row) => row.status === 'invalid').length,
                 status: 'preview',
-                created_by: auth.profile.id,
             },
         ])
         .select('*')

@@ -4,10 +4,11 @@ import { classifyIntent, type ChatMessage } from '@/lib/ai/intent-classifier';
 import {
     getActivityByName,
     getCategories,
-    getUpcomingEvents,
+    searchKnowledgeBase,
     searchActivities,
     searchEvents,
     type ActivityRow,
+    type KnowledgeBaseRow,
     type EventRow,
 } from '@/lib/db/chat-queries';
 import {
@@ -23,8 +24,6 @@ import {
     formatEventsForContext,
 } from '@/lib/ai/prompts';
 
-const CLARIFICATION_THRESHOLD = 0.58;
-
 // ─── Session Preferences (extracted from conversation) ──
 
 interface SessionPreferences {
@@ -33,6 +32,21 @@ interface SessionPreferences {
     preferredCategories: string[];
     budgetMax: number | null;
     ageGroup: string | null;
+}
+
+function logRetrievalTrace(stage: string, details: Record<string, unknown>) {
+    console.info('[ChatRetrieval]', stage, JSON.stringify(details));
+}
+
+function toKnowledgeResults(rows: KnowledgeBaseRow[]) {
+    return rows.map((row, index) => ({
+        id: row.id,
+        category: row.category,
+        title_he: row.title_he,
+        content_he: row.content_he,
+        tags: row.tags ?? [],
+        similarity: Math.max(0.95 - index * 0.08, 0.55),
+    }));
 }
 
 function extractSessionPreferences(history: ChatMessage[]): SessionPreferences {
@@ -230,7 +244,13 @@ async function buildNoResultsWithRAG(
     message: string,
     sessionPrefs: SessionPreferences,
 ): Promise<ChatApiResponse> {
-    // Try semantic search as fallback
+    const structuredKnowledgeRows = await searchKnowledgeBase(message, 3);
+    const structuredKnowledge = toKnowledgeResults(structuredKnowledgeRows);
+    if (structuredKnowledge.length > 0) {
+        const ragResponse = await generateRAGResponse(message, structuredKnowledge, [], [], sessionPrefs);
+        return createResponse('answer', ragResponse, intent, [], [], undefined, formatKnowledgeForContext(structuredKnowledge));
+    }
+
     const [semanticActivities, semanticEvents, knowledge] = await Promise.all([
         semanticSearchActivities(message, 0.35, 4),
         semanticSearchEvents(message, 0.35, 3),
@@ -332,58 +352,58 @@ async function handleGeneralInfoWithRAG(
     classified: { filters: Parameters<typeof searchActivities>[0]; search_terms: string[] | null; confidence: number },
     sessionPrefs: SessionPreferences,
 ): Promise<ChatApiResponse> {
-    if (classified.confidence < 0.72) {
-        // Try knowledge base first for low-confidence general queries
-        const knowledge = await semanticSearchKnowledge(message, 0.4, 3);
-        if (knowledge.length > 0) {
-            const ragResponse = await generateRAGResponse(message, knowledge, [], [], sessionPrefs);
-            return createResponse('answer', ragResponse, 'general_info');
-        }
+    const [activities, events, knowledgeRows, categories] = await Promise.all([
+        searchActivities(classified.filters, classified.search_terms, message),
+        searchEvents(classified.filters, classified.search_terms, message),
+        searchKnowledgeBase(message, 4),
+        getCategories(),
+    ]);
 
-        return buildClarification(
+    const knowledge = toKnowledgeResults(knowledgeRows);
+    const hasStructuredHit = activities.length > 0 || events.length > 0 || knowledge.length > 0;
+
+    logRetrievalTrace('general_info', {
+        confidence: classified.confidence,
+        activities: activities.length,
+        events: events.length,
+        knowledge: knowledge.length,
+        categories: categories.length,
+        structuredHit: hasStructuredHit,
+    });
+
+    if (hasStructuredHit) {
+        const ragResponse = await generateRAGResponse(message, knowledge, activities, events, sessionPrefs);
+
+        return createResponse(
+            activities.length > 0 || events.length > 0 ? 'results' : 'answer',
+            ragResponse,
             'general_info',
-            'אשמח לדייק. אתה מחפש חוגים, אירועים, מחירים, או מידע כללי על המתנ"ס?',
-            [
-                { label: 'חוגים לילדים', value: 'יש חוגים לילדים?' },
-                { label: 'אירועים קרובים', value: 'אילו אירועים קרובים יש?' },
-                { label: 'מחירי חוגים', value: 'מה המחירים של החוגים?' },
-                { label: 'שעות פתיחה', value: 'מה שעות הפתיחה של המתנ"ס?' },
-            ],
+            activities.slice(0, 6),
+            events.slice(0, 4),
+            undefined,
+            knowledge.length > 0 ? formatKnowledgeForContext(knowledge) : undefined,
         );
     }
 
-    // Fetch from all sources in parallel
-    const [activities, events, categories, knowledge] = await Promise.all([
-        searchActivities(classified.filters, classified.search_terms),
-        getUpcomingEvents(14),
-        getCategories(),
-        semanticSearchKnowledge(message, 0.4, 2),
-    ]);
-
-    // If knowledge is highly relevant, generate RAG response
-    if (knowledge.length > 0 && activities.length === 0 && events.length === 0) {
-        const ragResponse = await generateRAGResponse(message, knowledge, [], [], sessionPrefs);
-        return createResponse('answer', ragResponse, 'general_info');
+    const semanticKnowledge = await semanticSearchKnowledge(message, 0.4, 3);
+    if (semanticKnowledge.length > 0) {
+        const ragResponse = await generateRAGResponse(message, semanticKnowledge, [], [], sessionPrefs);
+        return createResponse('answer', ragResponse, 'general_info', [], [], undefined, formatKnowledgeForContext(semanticKnowledge));
     }
 
-    const summaryParts = [
-        activities.length > 0
-            ? `יש כרגע ${activities.length} חוגים שעשויים להתאים.`
-            : 'לא מצאתי חוגים מדויקים לפי הניסוח הזה.',
-        events.length > 0
-            ? `בנוסף יש ${events.length} אירועים קרובים.`
-            : '',
-        categories.length > 0
-            ? `אפשר לחפש לפי תחום: ${categories.slice(0, 4).map((c) => c.name_he).join(', ')}.`
-            : null,
-    ].filter(Boolean);
+    const categoryHint = categories.length > 0
+        ? `אפשר גם לנסות תחומים כמו: ${categories.slice(0, 4).map((c) => c.name_he).join(', ')}.`
+        : '';
 
-    return createResponse(
-        'answer',
-        summaryParts.join(' '),
+    return buildClarification(
         'general_info',
-        activities.slice(0, 6),
-        events.slice(0, 4),
+        `אשמח לדייק. אתה מחפש חוגים, אירועים, מחירים, או מידע כללי על המתנ״ס? ${categoryHint}`.trim(),
+        [
+            { label: 'חוגים לילדים', value: 'יש חוגים לילדים?' },
+            { label: 'אירועים קרובים', value: 'אילו אירועים קרובים יש?' },
+            { label: 'מחירי חוגים', value: 'מה המחירים של החוגים?' },
+            { label: 'שעות פתיחה', value: 'מה שעות הפתיחה של המתנ"ס?' },
+        ],
     );
 }
 
@@ -404,9 +424,15 @@ export async function getChatResponse(
     // Off-topic
     if (classified.intent === 'off_topic') {
         // Check knowledge base — might be a valid question about the center
-        const knowledge = await semanticSearchKnowledge(message, 0.5, 2);
+        const knowledgeRows = await searchKnowledgeBase(message, 2);
+        const knowledge = toKnowledgeResults(knowledgeRows);
         if (knowledge.length > 0) {
             const ragResponse = await generateRAGResponse(message, knowledge, [], [], sessionPrefs);
+            return createResponse('answer', ragResponse, 'general_info');
+        }
+        const semanticKnowledge = await semanticSearchKnowledge(message, 0.5, 2);
+        if (semanticKnowledge.length > 0) {
+            const ragResponse = await generateRAGResponse(message, semanticKnowledge, [], [], sessionPrefs);
             return createResponse('answer', ragResponse, 'general_info');
         }
         return createResponse(
@@ -421,21 +447,6 @@ export async function getChatResponse(
         return handleRecommendation(message, sessionPrefs);
     }
 
-    // Low confidence — ask for clarification
-    if (classified.confidence < CLARIFICATION_THRESHOLD) {
-        // Try RAG before giving up
-        const knowledge = await semanticSearchKnowledge(message, 0.4, 2);
-        if (knowledge.length > 0) {
-            const ragResponse = await generateRAGResponse(message, knowledge, [], [], sessionPrefs);
-            return createResponse('answer', ragResponse, classified.intent);
-        }
-
-        return buildClarification(
-            classified.intent,
-            'כדי לדייק ולא לשלוח פרטים לא רלוונטיים, אשמח אם תחדד למה התכוונת: שם חוג, גיל, יום או אירוע מסוים.',
-        );
-    }
-
     let activityCards: ActivityRow[] = [];
     let eventCards: EventRow[] = [];
 
@@ -443,13 +454,18 @@ export async function getChatResponse(
         case 'search_activities':
         case 'age_inquiry':
         case 'availability_inquiry': {
-            activityCards = await searchActivities(classified.filters, classified.search_terms);
+            activityCards = await searchActivities(classified.filters, classified.search_terms, message);
 
-            // If keyword search finds nothing, try semantic search
-            if (activityCards.length === 0) {
-                return buildNoResultsWithRAG(classified.intent, message, sessionPrefs);
+            if (activityCards.length > 0) {
+                logRetrievalTrace('activities', {
+                    intent: classified.intent,
+                    confidence: classified.confidence,
+                    structuredHits: activityCards.length,
+                });
+                return createResponse('results', buildActivitiesResultsResponse(activityCards), classified.intent, activityCards.slice(0, 8));
             }
-            return createResponse('results', buildActivitiesResultsResponse(activityCards), classified.intent, activityCards.slice(0, 8));
+
+            return buildNoResultsWithRAG(classified.intent, message, sessionPrefs);
         }
 
         case 'price_inquiry':
@@ -461,10 +477,9 @@ export async function getChatResponse(
             }
 
             if (activityCards.length === 0) {
-                activityCards = await searchActivities(classified.filters, classified.search_terms);
+                activityCards = await searchActivities(classified.filters, classified.search_terms, message);
             }
 
-            // Semantic fallback
             if (activityCards.length === 0) {
                 return buildNoResultsWithRAG(classified.intent, message, sessionPrefs);
             }
@@ -487,10 +502,15 @@ export async function getChatResponse(
         }
 
         case 'search_events': {
-            eventCards = await searchEvents(classified.filters, classified.search_terms);
+            eventCards = await searchEvents(classified.filters, classified.search_terms, message);
             if (eventCards.length === 0) {
                 return buildNoResultsWithRAG(classified.intent, message, sessionPrefs);
             }
+            logRetrievalTrace('events', {
+                intent: classified.intent,
+                confidence: classified.confidence,
+                structuredHits: eventCards.length,
+            });
             return createResponse('results', buildEventsResultsResponse(eventCards), classified.intent, [], eventCards.slice(0, 8));
         }
 

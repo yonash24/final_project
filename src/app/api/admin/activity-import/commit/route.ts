@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { requireAdminRequest } from '@/lib/admin/auth';
 import { supabaseServer } from '@/lib/supabase/server';
 import type { ActivityImportDraft } from '@/lib/admin/types';
 
@@ -26,9 +25,6 @@ async function ensureCategory(name: string | null) {
 }
 
 export async function POST(request: NextRequest) {
-    const auth = await requireAdminRequest(request);
-    if (auth.response) return auth.response;
-
     const body = await request.json();
     const jobId = body?.jobId as string | undefined;
 
@@ -118,7 +114,6 @@ export async function POST(request: NextRequest) {
             imported_count: imported,
             updated_count: updated,
             skipped_count: skipped,
-            completed_by: auth.profile.id,
             completed_at: new Date().toISOString(),
         })
         .eq('id', jobId);

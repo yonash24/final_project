@@ -27,7 +27,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="he" dir="rtl" className={`${heebo.variable} ${rubik.variable}`}>
+    <html
+      lang="he"
+      dir="rtl"
+      className={`${heebo.variable} ${rubik.variable}`}
+      suppressHydrationWarning
+    >
       <body>
         <a href="#main-content" className="skip-link">דלג לתוכן</a>
         {children}

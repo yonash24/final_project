@@ -832,7 +832,6 @@ export async function getNotificationSettings(): Promise<NotificationSettingsRes
 
 export async function updateNotificationSettings(
     input: NotificationSettingsPayload,
-    adminUserId: string,
 ) {
     const parsed = notificationSettingsSchema.parse(input);
     const providerConfig = sanitizeProviderConfig(parsed.provider_config);
@@ -850,7 +849,6 @@ export async function updateNotificationSettings(
             admin_contact_name: parsed.admin_contact_name || null,
             admin_contact_phone: parsed.admin_contact_phone || null,
             provider_config: providerConfig,
-            updated_by: adminUserId,
             updated_at: new Date().toISOString(),
         }, { onConflict: 'channel' });
 
@@ -862,7 +860,6 @@ export async function updateNotificationSettings(
             .update({
                 body: template.body,
                 is_enabled: template.is_enabled,
-                updated_by: adminUserId,
                 updated_at: new Date().toISOString(),
             })
             .eq('template_key', template.template_key);

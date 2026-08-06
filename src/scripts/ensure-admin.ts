@@ -26,41 +26,45 @@ async function main() {
     }
 
     console.log(`Ensuring admin user: ${email}...`);
+    const { data: existingAdmin, error: adminLookupError } = await supabase
+        .from('admin_users')
+        .select('id, email, role')
+        .eq('email', email)
+        .maybeSingle();
 
-    // 1. Check if user exists
-    const { data: { users }, error: listError } = await supabase.auth.admin.listUsers();
-    if (listError) {
-        console.error('Error listing users:', listError.message);
+    if (adminLookupError) {
+        console.error('Error looking up admin profile:', adminLookupError.message);
         return;
     }
 
-    const existingUser = users.find(u => u.email === email);
+    let userId: string | null = existingAdmin?.id ?? null;
 
-    let userId: string;
+    if (userId) {
+        console.log('Admin profile already exists. Updating password in Auth...');
+        const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
+            password,
+            email_confirm: true,
+        });
 
-    if (existingUser) {
-        console.log('User already exists in Auth. Updating password...');
-        const { data: updatedUser, error: updateError } = await supabase.auth.admin.updateUserById(
-            existingUser.id,
-            { password, email_confirm: true }
-        );
         if (updateError) {
-            console.error('Error updating user:', updateError.message);
+            console.error('Error updating user password:', updateError.message);
             return;
         }
-        userId = updatedUser.user.id;
+
         console.log('Password updated successfully.');
     } else {
-        console.log('Creating new user in Auth...');
+        console.log('Creating user in Auth...');
         const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
             email,
             password,
             email_confirm: true,
         });
+
         if (createError) {
             console.error('Error creating user:', createError.message);
             return;
         }
+
         userId = newUser.user.id;
         console.log('User created successfully.');
     }

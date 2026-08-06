@@ -4,8 +4,15 @@
  * to fetch activities, events, and categories.
  */
 
-import { supabaseServer } from '@/lib/supabase/server';
-import type { IntentFilters } from '@/lib/ai/intent-classifier';
+import { supabaseServer } from '../supabase/server.ts';
+import type { IntentFilters } from '../ai/intent-classifier.ts';
+export type { IntentFilters } from '../ai/intent-classifier.ts';
+import {
+    buildSearchTokens,
+    rankActivities,
+    rankEvents,
+    scoreTextMatch,
+} from './chat-search-utils.ts';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -45,6 +52,27 @@ export interface EventRow {
     is_published: boolean;
 }
 
+export interface KnowledgeBaseRow {
+    id: string;
+    category: string;
+    title_he: string;
+    content_he: string;
+    tags: string[] | null;
+}
+
+function mergeUniqueById<T extends { id: string }>(primary: T[], secondary: T[]) {
+    const seen = new Set(primary.map((row) => row.id));
+    const merged = [...primary];
+
+    for (const row of secondary) {
+        if (seen.has(row.id)) continue;
+        seen.add(row.id);
+        merged.push(row);
+    }
+
+    return merged;
+}
+
 // ─── Activity Queries ───────────────────────────────────
 
 /**
@@ -53,69 +81,72 @@ export interface EventRow {
 export async function searchActivities(
     filters: IntentFilters,
     searchTerms?: string[] | null,
+    rawQuery?: string | null,
 ): Promise<ActivityRow[]> {
-    let query = supabaseServer
+    const tokens = buildSearchTokens(rawQuery, searchTerms);
+
+    const buildBaseQuery = () => supabaseServer
         .from('activities')
         .select('*, categories(name_he)')
         .eq('is_active', true);
 
-    // Age filters
-    if (filters.min_age_lte !== null) {
-        query = query.lte('min_age', filters.min_age_lte);
-    }
-    if (filters.max_age_gte !== null) {
-        query = query.gte('max_age', filters.max_age_gte);
-    }
-    if (filters.target_age_group) {
-        query = query.eq('target_age_group', filters.target_age_group);
-    }
+    const applyFilters = (query: ReturnType<typeof buildBaseQuery>) => {
+        let next = query;
 
-    // Day-of-week filter (uses ilike on comma-separated field)
-    if (filters.days && filters.days.length > 0) {
-        // Build OR condition for each day
-        const dayConditions = filters.days
-            .map((d) => `days_of_week.ilike.%${d}%`)
-            .join(',');
-        query = query.or(dayConditions);
-    }
+        if (filters.min_age_lte !== null) next = next.lte('min_age', filters.min_age_lte);
+        if (filters.max_age_gte !== null) next = next.gte('max_age', filters.max_age_gte);
+        if (filters.target_age_group) next = next.eq('target_age_group', filters.target_age_group);
+        if (filters.days && filters.days.length > 0) {
+            const dayConditions = filters.days
+                .map((d) => `days_of_week.ilike.%${d}%`)
+                .join(',');
+            next = next.or(dayConditions);
+        }
+        if (filters.max_price !== null) next = next.lte('price', filters.max_price);
+        if (filters.free_only) next = next.eq('price', 0);
+        if (filters.category_keyword) {
+            next = next.or(
+                `title_he.ilike.%${filters.category_keyword}%,description_he.ilike.%${filters.category_keyword}%`,
+            );
+        }
 
-    // Price filters
-    if (filters.max_price !== null) {
-        query = query.lte('price', filters.max_price);
-    }
-    if (filters.free_only) {
-        query = query.eq('price', 0);
-    }
+        return next.order('title_he', { ascending: true }).limit(50);
+    };
 
-    // Availability — col < col comparison not supported by Supabase REST client.
-    // We filter in memory after the query (see post-filter below).
+    const buildTextQuery = () => {
+        let query = applyFilters(buildBaseQuery());
 
-    // Category keyword (search in joined category name)
-    if (filters.category_keyword) {
-        query = query.or(
-            `title_he.ilike.%${filters.category_keyword}%,description_he.ilike.%${filters.category_keyword}%`,
-        );
-    }
+        if (tokens.length > 0) {
+            const clauses = tokens
+                .map((token) => [
+                    `title_he.ilike.%${token}%`,
+                    `description_he.ilike.%${token}%`,
+                    `location.ilike.%${token}%`,
+                    `instructor_name.ilike.%${token}%`,
+                ].join(','))
+                .join(',');
+            query = query.or(clauses);
+        }
 
-    // Generic text search terms
-    if (searchTerms && searchTerms.length > 0) {
-        const termConditions = searchTerms
-            .map((t) => `title_he.ilike.%${t}%,description_he.ilike.%${t}%`)
-            .join(',');
-        query = query.or(termConditions);
-    }
+        return query;
+    };
 
-    query = query.order('title_he', { ascending: true }).limit(15);
-
-    const { data, error } = await query;
-
+    const { data, error } = await buildTextQuery();
     if (error) {
         console.error('[DB] ❌ searchActivities error:', error.message);
         return [];
     }
 
-    // Post-filter: spots availability (can't do col < col in Supabase REST)
     let results = (data ?? []) as ActivityRow[];
+    if (results.length === 0 || (tokens.length > 0 && results.length < 3)) {
+        const { data: fallbackData, error: fallbackError } = await applyFilters(buildBaseQuery());
+        if (fallbackError) {
+            console.error('[DB] ❌ searchActivities fallback error:', fallbackError.message);
+        } else {
+            results = mergeUniqueById(results, (fallbackData ?? []) as ActivityRow[]);
+        }
+    }
+
     if (filters.has_spots) {
         results = results.filter(
             (a) =>
@@ -124,7 +155,7 @@ export async function searchActivities(
         );
     }
 
-    return results;
+    return rankActivities(results, tokens, filters).slice(0, 15);
 }
 
 /**
@@ -155,71 +186,143 @@ export async function getActivityByName(name: string): Promise<ActivityRow | nul
 export async function searchEvents(
     filters: IntentFilters,
     searchTerms?: string[] | null,
+    rawQuery?: string | null,
 ): Promise<EventRow[]> {
-    let query = supabaseServer
+    const tokens = buildSearchTokens(rawQuery, searchTerms);
+
+    const buildBaseQuery = () => supabaseServer
         .from('events')
         .select('*')
         .eq('is_published', true);
 
-    // Date-range filters
     const today = new Date().toISOString().split('T')[0];
 
-    if (filters.specific_date) {
-        query = query.eq('event_date', filters.specific_date);
-    } else if (filters.time_period) {
-        const start = new Date();
-        const end = new Date();
+    const applyFilters = (query: ReturnType<typeof buildBaseQuery>) => {
+        let next = query;
 
-        switch (filters.time_period) {
-            case 'today':
-                query = query.eq('event_date', today);
-                break;
-            case 'this_week':
-                end.setDate(end.getDate() + 7);
-                query = query.gte('event_date', today).lte('event_date', end.toISOString().split('T')[0]);
-                break;
-            case 'next_week':
-                start.setDate(start.getDate() + 7);
-                end.setDate(end.getDate() + 14);
-                query = query
-                    .gte('event_date', start.toISOString().split('T')[0])
-                    .lte('event_date', end.toISOString().split('T')[0]);
-                break;
-            case 'this_month':
-                end.setMonth(end.getMonth() + 1);
-                query = query.gte('event_date', today).lte('event_date', end.toISOString().split('T')[0]);
-                break;
+        if (filters.specific_date) {
+            next = next.eq('event_date', filters.specific_date);
+        } else if (filters.time_period) {
+            const start = new Date();
+            const end = new Date();
+
+            switch (filters.time_period) {
+                case 'today':
+                    next = next.eq('event_date', today);
+                    break;
+                case 'this_week':
+                    end.setDate(end.getDate() + 7);
+                    next = next.gte('event_date', today).lte('event_date', end.toISOString().split('T')[0]);
+                    break;
+                case 'next_week':
+                    start.setDate(start.getDate() + 7);
+                    end.setDate(end.getDate() + 14);
+                    next = next
+                        .gte('event_date', start.toISOString().split('T')[0])
+                        .lte('event_date', end.toISOString().split('T')[0]);
+                    break;
+                case 'this_month':
+                    end.setMonth(end.getMonth() + 1);
+                    next = next.gte('event_date', today).lte('event_date', end.toISOString().split('T')[0]);
+                    break;
+            }
+        } else {
+            next = next.gte('event_date', today);
         }
-    } else {
-        // Default to upcoming events (today + forward)
-        query = query.gte('event_date', today);
-    }
 
-    // Category filter
-    if (filters.category_keyword) {
-        query = query.or(
-            `title.ilike.%${filters.category_keyword}%,description.ilike.%${filters.category_keyword}%,category.ilike.%${filters.category_keyword}%`,
-        );
-    }
+        if (filters.category_keyword) {
+            next = next.or(
+                `title.ilike.%${filters.category_keyword}%,description.ilike.%${filters.category_keyword}%,category.ilike.%${filters.category_keyword}%`,
+            );
+        }
 
-    // Text search
-    if (searchTerms && searchTerms.length > 0) {
-        const termConditions = searchTerms
-            .map((t) => `title.ilike.%${t}%,description.ilike.%${t}%`)
-            .join(',');
-        query = query.or(termConditions);
-    }
+        return next.order('event_date', { ascending: true }).limit(50);
+    };
 
-    query = query.order('event_date', { ascending: true }).limit(15);
+    const buildTextQuery = () => {
+        let query = applyFilters(buildBaseQuery());
+        if (tokens.length > 0) {
+            const clauses = tokens
+                .map((token) => [
+                    `title.ilike.%${token}%`,
+                    `description.ilike.%${token}%`,
+                    `category.ilike.%${token}%`,
+                    `location.ilike.%${token}%`,
+                ].join(','))
+                .join(',');
+            query = query.or(clauses);
+        }
 
-    const { data, error } = await query;
+        return query;
+    };
 
+    const { data, error } = await buildTextQuery();
     if (error) {
         console.error('[DB] ❌ searchEvents error:', error.message);
         return [];
     }
 
-    return (data ?? []) as EventRow[];
+    let results = (data ?? []) as EventRow[];
+    if (results.length === 0 || (tokens.length > 0 && results.length < 3)) {
+        const { data: fallbackData, error: fallbackError } = await applyFilters(buildBaseQuery());
+        if (fallbackError) {
+            console.error('[DB] ❌ searchEvents fallback error:', fallbackError.message);
+        } else {
+            results = mergeUniqueById(results, (fallbackData ?? []) as EventRow[]);
+        }
+    }
+
+    return rankEvents(results, tokens, filters).slice(0, 15);
+}
+
+export async function searchKnowledgeBase(
+    searchText: string,
+    limit: number = 5,
+): Promise<KnowledgeBaseRow[]> {
+    const tokens = buildSearchTokens(searchText, null);
+
+    const buildBaseQuery = () => supabaseServer
+        .from('knowledge_base')
+        .select('id, category, title_he, content_he, tags')
+        .eq('is_active', true)
+        .order('title_he', { ascending: true })
+        .limit(limit * 2);
+
+    const buildTextQuery = () => {
+        let query = buildBaseQuery();
+        if (tokens.length > 0) {
+            const clauses = tokens
+                .map((token) => [
+                    `title_he.ilike.%${token}%`,
+                    `content_he.ilike.%${token}%`,
+                ].join(','))
+                .join(',');
+            query = query.or(clauses);
+        }
+        return query;
+    };
+
+    const { data, error } = await buildTextQuery();
+
+    if (error) {
+        console.error('[DB] ❌ searchKnowledgeBase error:', error.message);
+        return [];
+    }
+
+    const rows = (data ?? []) as KnowledgeBaseRow[];
+    type KnowledgeBaseScoredRow = KnowledgeBaseRow & { score: number };
+
+    return rows
+        .map((row) => ({
+            ...row,
+            score:
+                scoreTextMatch(row.title_he, tokens) * 1.4 +
+                scoreTextMatch(row.content_he, tokens) +
+                scoreTextMatch(row.tags?.join(' ') ?? null, tokens) * 0.75,
+        }) as KnowledgeBaseScoredRow)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit)
+        .map(({ score: _score, ...row }) => row);
 }
 
 /**
@@ -351,4 +454,3 @@ export async function createRegistration(reg: RegistrationInput) {
     console.log(`[DB] ✅ Registration created for ${reg.full_name} (ID: ${data.id})`);
     return data;
 }
-

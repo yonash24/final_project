@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { requireAdminRequest } from '@/lib/admin/auth';
 import { sendTestNotification } from '@/lib/notifications/service';
 
 export async function POST(request: NextRequest) {
-    const auth = await requireAdminRequest(request);
-    if (auth.response) return auth.response;
-
     try {
         const body = await request.json();
         const data = await sendTestNotification(body);
