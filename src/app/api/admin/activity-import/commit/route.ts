@@ -32,6 +32,40 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Missing jobId' }, { status: 400 });
     }
 
+    const { data: job, error: jobError } = await supabaseServer
+        .from('import_jobs')
+        .select('id, status')
+        .eq('id', jobId)
+        .maybeSingle();
+
+    if (jobError) {
+        return NextResponse.json({ error: jobError.message }, { status: 500 });
+    }
+
+    if (!job) {
+        return NextResponse.json({ error: 'Import job not found.' }, { status: 404 });
+    }
+
+    if (job.status !== 'preview') {
+        return NextResponse.json({ error: 'This import job has already been processed.' }, { status: 409 });
+    }
+
+    const { data: claimedJob, error: claimingError } = await supabaseServer
+        .from('import_jobs')
+        .update({ status: 'processing' })
+        .eq('id', jobId)
+        .eq('status', 'preview')
+        .select('id')
+        .maybeSingle();
+
+    if (claimingError) {
+        return NextResponse.json({ error: claimingError.message }, { status: 500 });
+    }
+
+    if (!claimedJob) {
+        return NextResponse.json({ error: 'This import job is already being processed.' }, { status: 409 });
+    }
+
     const { data: rows, error: rowsError } = await supabaseServer
         .from('import_rows')
         .select('*')
@@ -39,6 +73,10 @@ export async function POST(request: NextRequest) {
         .order('row_index', { ascending: true });
 
     if (rowsError) {
+        await supabaseServer
+            .from('import_jobs')
+            .update({ status: 'failed', completed_at: new Date().toISOString() })
+            .eq('id', jobId);
         return NextResponse.json({ error: rowsError.message }, { status: 500 });
     }
 
@@ -46,7 +84,8 @@ export async function POST(request: NextRequest) {
     let updated = 0;
     let skipped = 0;
 
-    for (const row of rows ?? []) {
+    try {
+        for (const row of rows ?? []) {
         if (row.status === 'invalid') {
             skipped += 1;
             continue;
@@ -105,6 +144,14 @@ export async function POST(request: NextRequest) {
 
         imported += 1;
         await supabaseServer.from('import_rows').update({ status: 'imported' }).eq('id', row.id);
+        }
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Import failed.';
+        await supabaseServer
+            .from('import_jobs')
+            .update({ status: 'failed', completed_at: new Date().toISOString() })
+            .eq('id', jobId);
+        return NextResponse.json({ error: message, imported, updated, skipped }, { status: 500 });
     }
 
     await supabaseServer

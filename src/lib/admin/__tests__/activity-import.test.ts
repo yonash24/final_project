@@ -1,0 +1,52 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import { buildImportPreview } from '../activity-import.ts';
+
+const mapping = {
+    title_he: 'שם החוג',
+    target_age_group: 'קהל יעד',
+    min_age: 'גיל מינימלי',
+    max_age: 'גיל מקסימלי',
+    start_time: 'שעת התחלה',
+    price: 'מחיר',
+    is_active: 'פעיל',
+};
+
+test('buildImportPreview normalizes formatted numbers, Excel times, and booleans', () => {
+    const [row] = buildImportPreview([{
+        'שם החוג': 'יוגה',
+        'קהל יעד': 'ילדים',
+        'גיל מינימלי': '6',
+        'גיל מקסימלי': '12',
+        'שעת התחלה': '0.75',
+        'מחיר': '₪1,200',
+        'פעיל': 'לא',
+    }], mapping, []);
+
+    assert.equal(row?.status, 'new');
+    assert.equal(row?.payload.start_time, '18:00');
+    assert.equal(row?.payload.price, 1200);
+    assert.equal(row?.payload.is_active, false);
+    assert.deepEqual(row?.errors, []);
+});
+
+test('buildImportPreview marks duplicate rows inside a file as invalid', () => {
+    const rows = buildImportPreview([
+        { 'שם החוג': 'יוגה', 'פעיל': 'כן' },
+        { 'שם החוג': 'יוגה', 'פעיל': 'כן' },
+    ], { title_he: 'שם החוג', is_active: 'פעיל' }, []);
+
+    assert.equal(rows[0]?.status, 'new');
+    assert.equal(rows[1]?.status, 'invalid');
+    assert.ok(rows[1]?.errors.includes('כפילות בתוך הקובץ'));
+});
+
+test('buildImportPreview rejects unknown boolean values', () => {
+    const [row] = buildImportPreview([
+        { 'שם החוג': 'יוגה', 'פעיל': 'maybe' },
+    ], { title_he: 'שם החוג', is_active: 'פעיל' }, []);
+
+    assert.equal(row?.status, 'invalid');
+    assert.ok(row?.errors.includes('ערך פעיל לא תקין'));
+});

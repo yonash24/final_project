@@ -12,7 +12,7 @@ import type {
 } from '@/lib/notifications/types';
 import { buildProviderEnvStatus, normalizePhoneNumber } from '@/lib/notifications/utils';
 
-function validateMetaSignature(rawBody: string, request: NextRequest) {
+function validateMetaSignature(rawBody: string, request: Request) {
     const appSecret = process.env.META_WHATSAPP_APP_SECRET;
     const signature = request.headers.get('x-hub-signature-256');
 

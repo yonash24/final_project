@@ -9,6 +9,13 @@ import type { NotificationProviderName } from '@/lib/notifications/types';
 
 export const dynamic = 'force-dynamic';
 
+function twimlEmptyResponse() {
+    return new NextResponse('<Response></Response>', {
+        status: 200,
+        headers: { 'Content-Type': 'application/xml; charset=utf-8' },
+    });
+}
+
 function isSupportedProvider(value: string): value is NotificationProviderName {
     return value === 'mock-whatsapp' || value === 'twilio-whatsapp';
 }
@@ -74,11 +81,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ pr
             await handleIncomingWhatsAppMessage(inboundMessage);
         }
 
-        return NextResponse.json({
-            ok: true,
-            inboundMessages: parsed.inboundMessages.length,
-            statusEvents: parsed.statusEvents.length,
-        });
+        return twimlEmptyResponse();
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Webhook processing failed';
         console.error('[WhatsAppWebhook] POST failed.', {

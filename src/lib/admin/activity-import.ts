@@ -1,8 +1,8 @@
 import * as XLSX from 'xlsx';
 
-import type { ActivityImportDraft, ImportRowResult } from '@/lib/admin/types';
-import type { AdminActivity } from '@/lib/admin/types';
-import type { ImportableField } from '@/lib/admin/import-constants';
+import type { ActivityImportDraft, ImportRowResult } from './types';
+import type { AdminActivity } from './types';
+import type { ImportableField } from './import-constants';
 export type ImportMapping = Partial<Record<ImportableField, string>>;
 
 export interface ParsedSheetResult {
@@ -12,7 +12,7 @@ export interface ParsedSheetResult {
 }
 
 function normalizeHeader(value: string) {
-    return value.trim().toLowerCase().replace(/\s+/g, '_');
+    return value.replace(/^\uFEFF/, '').trim().toLowerCase().replace(/\s+/g, '_');
 }
 
 const HEADER_ALIASES: Record<string, ImportableField> = {
@@ -84,14 +84,17 @@ export async function parseSpreadsheet(file: File): Promise<ParsedSheetResult> {
 
 function parseNumber(value: string | undefined) {
     if (!value) return null;
-    const parsed = Number(value);
+    const normalized = value.trim().replace(/[₪$€£\s]/g, '').replace(/,(?=\d{3}(?:\D|$))/g, '');
+    const parsed = Number(normalized);
     return Number.isFinite(parsed) ? parsed : null;
 }
 
-function parseBoolean(value: string | undefined) {
-    if (!value) return true;
+function parseBoolean(value: string | undefined): boolean | null {
+    if (!value?.trim()) return true;
     const normalized = value.trim().toLowerCase();
-    return ['true', '1', 'כן', 'yes', 'active'].includes(normalized);
+    if (['true', '1', 'כן', 'yes', 'active'].includes(normalized)) return true;
+    if (['false', '0', 'לא', 'no', 'inactive'].includes(normalized)) return false;
+    return null;
 }
 
 function parseAgeGroup(value: string | undefined): ActivityImportDraft['target_age_group'] {
@@ -107,7 +110,20 @@ function parseAgeGroup(value: string | undefined): ActivityImportDraft['target_a
 function parseTime(value: string | undefined) {
     if (!value) return null;
     const normalized = value.trim();
-    return /^\d{1,2}:\d{2}$/.test(normalized) ? normalized : null;
+    if (/^\d{1,2}:\d{2}$/.test(normalized)) {
+        const [hours, minutes] = normalized.split(':').map(Number);
+        return hours <= 23 && minutes <= 59 ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}` : null;
+    }
+
+    const excelSerial = Number(normalized);
+    if (Number.isFinite(excelSerial) && excelSerial >= 0 && excelSerial < 1) {
+        const totalMinutes = Math.round(excelSerial * 24 * 60);
+        const hours = Math.floor(totalMinutes / 60) % 24;
+        const minutes = totalMinutes % 60;
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    }
+
+    return null;
 }
 
 function getDraftValue(row: Record<string, string>, mapping: ImportMapping, field: ImportableField) {
@@ -120,6 +136,8 @@ export function buildImportPreview(
     mapping: ImportMapping,
     existingActivities: AdminActivity[],
 ): ImportRowResult[] {
+    const seenKeys = new Set<string>();
+
     return rows.map((row, index) => {
         const payload: ActivityImportDraft = {
             title_he: getDraftValue(row, mapping, 'title_he').trim(),
@@ -135,7 +153,7 @@ export function buildImportPreview(
             instructor_name: getDraftValue(row, mapping, 'instructor_name').trim() || null,
             location: getDraftValue(row, mapping, 'location').trim() || null,
             max_participants: parseNumber(getDraftValue(row, mapping, 'max_participants')),
-            is_active: parseBoolean(getDraftValue(row, mapping, 'is_active')),
+            is_active: parseBoolean(getDraftValue(row, mapping, 'is_active')) ?? false,
         };
 
         const errors: string[] = [];
@@ -147,6 +165,12 @@ export function buildImportPreview(
         if (getDraftValue(row, mapping, 'end_time') && !payload.end_time) errors.push('שעת סיום לא תקינה');
         if (getDraftValue(row, mapping, 'price') && payload.price == null) errors.push('מחיר לא תקין');
         if (getDraftValue(row, mapping, 'max_participants') && payload.max_participants == null) errors.push('מכסה לא תקינה');
+        if (getDraftValue(row, mapping, 'is_active') && parseBoolean(getDraftValue(row, mapping, 'is_active')) == null) errors.push('ערך פעיל לא תקין');
+
+        const duplicateKey = [payload.title_he, payload.instructor_name ?? '', payload.days_of_week ?? '', payload.start_time ?? '']
+            .map((value) => value.trim().toLowerCase()).join('|');
+        const duplicateInFile = seenKeys.has(duplicateKey);
+        seenKeys.add(duplicateKey);
 
         const duplicate = existingActivities.find((activity) =>
             activity.title_he.trim().toLowerCase() === payload.title_he.trim().toLowerCase() &&
@@ -157,9 +181,9 @@ export function buildImportPreview(
 
         return {
             rowIndex: index + 2,
-            status: errors.length > 0 ? 'invalid' : duplicate ? 'update_candidate' : 'new',
+            status: errors.length > 0 || duplicateInFile ? 'invalid' : duplicate ? 'update_candidate' : 'new',
             duplicateActivityId: duplicate?.id ?? null,
-            errors,
+            errors: duplicateInFile ? [...errors, 'כפילות בתוך הקובץ'] : errors,
             payload,
         };
     });

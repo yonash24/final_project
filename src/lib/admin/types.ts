@@ -164,6 +164,6 @@ export interface ImportJob {
     total_rows: number;
     valid_rows: number;
     invalid_rows: number;
-    status: 'preview' | 'completed';
+    status: 'preview' | 'processing' | 'completed' | 'failed';
     created_at: string;
 }

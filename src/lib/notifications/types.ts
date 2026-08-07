@@ -1,5 +1,4 @@
 import type { NextRequest } from 'next/server';
-
 import type { ChatApiResponse } from '@/lib/ai/chat-types';
 
 export type NotificationChannel = 'whatsapp';
@@ -211,7 +210,7 @@ export interface NotificationWebhookVerificationResult {
 }
 
 export interface NotificationWebhookContext {
-    request: NextRequest;
+    request: Request;
     rawBody: string;
     url: string;
 }

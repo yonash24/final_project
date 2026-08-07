@@ -10,7 +10,11 @@ This document records the current verification status for the in-app chat and Wh
 - The configured Supabase host is currently invalid or unavailable: public DNS returned `Status: 3` (`NXDOMAIN`) for `psyfvzbkghfnrhiybpuz.supabase.co`.
 - With the current broken Supabase URL:
   - `POST /api/chat` still returns `200` with a safe clarification response
-  - `POST /api/webhooks/whatsapp/mock-whatsapp` returns `500` with JSON `{ "error": "Webhook processing failed" }`
+- `POST /api/webhooks/whatsapp/mock-whatsapp` returns `500` with JSON `{ "error": "Webhook processing failed" }`
+
+The Twilio webhook now returns an empty TwiML response after processing so Twilio receives a valid Messaging Webhook response. Configure the Twilio inbound and status callback URL as:
+
+`{APP_BASE_URL}/api/webhooks/whatsapp/twilio-whatsapp`
 
 ## Chat-Related Code Paths
 
@@ -139,6 +143,31 @@ curl -X POST http://localhost:3000/api/webhooks/whatsapp/mock-whatsapp \
    - delivery status events are recorded
 6. Re-deliver the same inbound webhook from Twilio’s console if available.
 7. Confirm the duplicate does not create a second outbound reply.
+
+8. Confirm the webhook response has HTTP 200 and `Content-Type: application/xml`, with an empty `<Response></Response>` TwiML body.
+
+9. Confirm Twilio status callbacks update the delivery and message event records for `sent`, `delivered`, `read`, and `failed` states.
+
+## Activity CSV/XLSX Import
+
+The activity importer supports CSV and XLSX files with Hebrew or English headers. It now:
+
+- accepts UTF-8 BOM headers;
+- normalizes formatted numeric values such as `₪1,200`;
+- normalizes Excel time serials and `HH:mm` values;
+- validates Hebrew and English boolean values;
+- reports duplicate rows inside one file;
+- rejects empty/oversized files and invalid mappings;
+- prevents a completed or concurrently processing import job from being committed again.
+
+Run the automated verification with:
+
+```bash
+npm test
+npx tsc --noEmit
+npm run lint
+npm run build
+```
 
 ## Manual Test: Meta Cloud API
 
