@@ -13,8 +13,8 @@ import {
 } from '@/lib/db/chat-queries';
 import {
     semanticSearchActivities,
-    semanticSearchEvents,
     semanticSearchKnowledge,
+    semanticSearchAll,
     type KnowledgeResult,
 } from '@/lib/ai/semantic-search';
 import { getChatModel } from '@/lib/ai/gemini';
@@ -36,6 +36,18 @@ interface SessionPreferences {
 
 function logRetrievalTrace(stage: string, details: Record<string, unknown>) {
     console.info('[ChatRetrieval]', stage, JSON.stringify(details));
+}
+
+async function measureStage<T>(stage: string, operation: () => Promise<T>): Promise<T> {
+    const startedAt = performance.now();
+    try {
+        return await operation();
+    } finally {
+        logRetrievalTrace('timing', {
+            stage,
+            durationMs: Math.round(performance.now() - startedAt),
+        });
+    }
 }
 
 function toKnowledgeResults(rows: KnowledgeBaseRow[]) {
@@ -229,11 +241,17 @@ ${prefsContext ? `## העדפות שהמשתמש ציין בשיחה:\n${prefsCo
 
 ענה בעברית. אם יש מידע רלוונטי מבסיס הידע — השתמש בו. אם אין — תן תשובה כללית מועילה.`;
 
+    const startedAt = performance.now();
     try {
         const result = await chatModel.generateContent(prompt);
         return result.response.text();
     } catch {
         return 'מצטער, נתקלתי בבעיה טכנית. אפשר לנסות שוב בעוד רגע.';
+    } finally {
+        logRetrievalTrace('timing', {
+            stage: 'response-generation',
+            durationMs: Math.round(performance.now() - startedAt),
+        });
     }
 }
 
@@ -244,18 +262,30 @@ async function buildNoResultsWithRAG(
     message: string,
     sessionPrefs: SessionPreferences,
 ): Promise<ChatApiResponse> {
-    const structuredKnowledgeRows = await searchKnowledgeBase(message, 3);
+    const structuredKnowledgeRows = await measureStage(
+        'knowledge-search',
+        () => searchKnowledgeBase(message, 3),
+    );
     const structuredKnowledge = toKnowledgeResults(structuredKnowledgeRows);
     if (structuredKnowledge.length > 0) {
         const ragResponse = await generateRAGResponse(message, structuredKnowledge, [], [], sessionPrefs);
         return createResponse('answer', ragResponse, intent, [], [], undefined, formatKnowledgeForContext(structuredKnowledge));
     }
 
-    const [semanticActivities, semanticEvents, knowledge] = await Promise.all([
-        semanticSearchActivities(message, 0.35, 4),
-        semanticSearchEvents(message, 0.35, 3),
-        semanticSearchKnowledge(message, 0.3, 3),
-    ]);
+    const semanticSearchStartedAt = performance.now();
+    const { activities: semanticActivities, events: semanticEvents, knowledge } = await semanticSearchAll(message, {
+        activityThreshold: 0.35,
+        activityLimit: 4,
+        eventThreshold: 0.35,
+        eventLimit: 3,
+        knowledgeThreshold: 0.3,
+        knowledgeLimit: 3,
+    });
+    logRetrievalTrace('timing', {
+        stage: 'semantic-search',
+        durationMs: Math.round(performance.now() - semanticSearchStartedAt),
+        embeddingCalls: 1,
+    });
 
     const hasSemanticResults = semanticActivities.length > 0 || semanticEvents.length > 0;
     const hasKnowledge = knowledge.length > 0;
@@ -352,12 +382,17 @@ async function handleGeneralInfoWithRAG(
     classified: { filters: Parameters<typeof searchActivities>[0]; search_terms: string[] | null; confidence: number },
     sessionPrefs: SessionPreferences,
 ): Promise<ChatApiResponse> {
+    const retrievalStartedAt = performance.now();
     const [activities, events, knowledgeRows, categories] = await Promise.all([
         searchActivities(classified.filters, classified.search_terms, message),
         searchEvents(classified.filters, classified.search_terms, message),
         searchKnowledgeBase(message, 4),
         getCategories(),
     ]);
+    logRetrievalTrace('timing', {
+        stage: 'structured-search',
+        durationMs: Math.round(performance.now() - retrievalStartedAt),
+    });
 
     const knowledge = toKnowledgeResults(knowledgeRows);
     const hasStructuredHit = activities.length > 0 || events.length > 0 || knowledge.length > 0;
@@ -413,7 +448,12 @@ export async function getChatResponse(
     message: string,
     history: ChatMessage[] = [],
 ): Promise<ChatApiResponse> {
+    const classifyStartedAt = performance.now();
     const classified = await classifyIntent(message, history);
+    logRetrievalTrace('timing', {
+        stage: 'intent-classification',
+        durationMs: Math.round(performance.now() - classifyStartedAt),
+    });
     const sessionPrefs = extractSessionPreferences(history);
 
     // Greeting
@@ -424,7 +464,10 @@ export async function getChatResponse(
     // Off-topic
     if (classified.intent === 'off_topic') {
         // Check knowledge base — might be a valid question about the center
-        const knowledgeRows = await searchKnowledgeBase(message, 2);
+        const knowledgeRows = await measureStage(
+            'knowledge-search',
+            () => searchKnowledgeBase(message, 2),
+        );
         const knowledge = toKnowledgeResults(knowledgeRows);
         if (knowledge.length > 0) {
             const ragResponse = await generateRAGResponse(message, knowledge, [], [], sessionPrefs);
@@ -454,7 +497,10 @@ export async function getChatResponse(
         case 'search_activities':
         case 'age_inquiry':
         case 'availability_inquiry': {
-            activityCards = await searchActivities(classified.filters, classified.search_terms, message);
+            activityCards = await measureStage(
+                'structured-activity-search',
+                () => searchActivities(classified.filters, classified.search_terms, message),
+            );
 
             if (activityCards.length > 0) {
                 logRetrievalTrace('activities', {
@@ -472,12 +518,18 @@ export async function getChatResponse(
         case 'schedule_inquiry':
         case 'activity_details': {
             if (classified.activity_name) {
-                const exact = await getActivityByName(classified.activity_name);
+                const exact = await measureStage(
+                    'structured-activity-name-search',
+                    () => getActivityByName(classified.activity_name!),
+                );
                 if (exact) activityCards = [exact];
             }
 
             if (activityCards.length === 0) {
-                activityCards = await searchActivities(classified.filters, classified.search_terms, message);
+                activityCards = await measureStage(
+                    'structured-activity-search',
+                    () => searchActivities(classified.filters, classified.search_terms, message),
+                );
             }
 
             if (activityCards.length === 0) {
@@ -502,7 +554,10 @@ export async function getChatResponse(
         }
 
         case 'search_events': {
-            eventCards = await searchEvents(classified.filters, classified.search_terms, message);
+            eventCards = await measureStage(
+                'structured-event-search',
+                () => searchEvents(classified.filters, classified.search_terms, message),
+            );
             if (eventCards.length === 0) {
                 return buildNoResultsWithRAG(classified.intent, message, sessionPrefs);
             }

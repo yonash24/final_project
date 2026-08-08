@@ -22,6 +22,7 @@ function checkRateLimit(ip: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
+    const requestStartedAt = performance.now();
     try {
         const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
         if (!checkRateLimit(ip)) {
@@ -42,6 +43,13 @@ export async function POST(request: NextRequest) {
 
         const response = await getChatResponse(message, history);
 
+        console.info('[ChatTiming]', JSON.stringify({
+            stage: 'chat-total',
+            durationMs: Math.round(performance.now() - requestStartedAt),
+            intent: response.intent,
+            resultCount: response.resultCount ?? 0,
+        }));
+
         // Fire-and-forget: log ALL queries for admin insights
         fetch(`${request.nextUrl.origin}/api/chat/insights`, {
             method: 'POST',
@@ -57,6 +65,11 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         const errMsg = error instanceof Error ? error.message : 'Unknown error';
         console.error('[ChatAPI] Failed to handle message:', error);
+        console.info('[ChatTiming]', JSON.stringify({
+            stage: 'chat-total',
+            durationMs: Math.round(performance.now() - requestStartedAt),
+            outcome: 'error',
+        }));
         return Response.json({ error: errMsg }, { status: 500 });
     }
 }

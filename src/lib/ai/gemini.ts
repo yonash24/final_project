@@ -1,4 +1,4 @@
-/**
+    /**
  * gemini.ts
  * Lazy-initialized Gemini AI client.
  * Using lazy init (inside functions) prevents module-level errors
@@ -7,21 +7,30 @@
 
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai';
 
+let cachedGenAI: GoogleGenerativeAI | null = null;
+let cachedChatModel: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null;
+let cachedClassifierModel: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null;
+
 function getGenAI(): GoogleGenerativeAI {
+    if (cachedGenAI) return cachedGenAI;
+
     const apiKey = process.env.GOOGLE_API_KEY;
     if (!apiKey || apiKey === 'your-gemini-api-key') {
         throw new Error(
             'Missing GOOGLE_API_KEY — add a valid Gemini key to .env.local:\nGOOGLE_API_KEY="your-key-here"',
         );
     }
-    return new GoogleGenerativeAI(apiKey);
+    cachedGenAI = new GoogleGenerativeAI(apiKey);
+    return cachedGenAI;
 }
 
 /**
  * Gemini 3 Flash Preview — state-of-the-art reasoning for chat.
  */
 export function getChatModel() {
-    return getGenAI().getGenerativeModel({
+    if (cachedChatModel) return cachedChatModel;
+
+    cachedChatModel = getGenAI().getGenerativeModel({
         model: 'gemini-3-flash-preview',
         generationConfig: {
             temperature: 0.3,
@@ -40,13 +49,16 @@ export function getChatModel() {
             },
         ],
     });
+    return cachedChatModel;
 }
 
 /**
  * Gemini 3 Flash Preview — fast and reliable model for general tasks.
  */
 export function getClassifierModel() {
-    return getGenAI().getGenerativeModel({
+    if (cachedClassifierModel) return cachedClassifierModel;
+
+    cachedClassifierModel = getGenAI().getGenerativeModel({
         model: 'gemini-3-flash-preview',
         generationConfig: {
             temperature: 0.1,
@@ -55,6 +67,7 @@ export function getClassifierModel() {
             responseMimeType: 'application/json',
         },
     });
+    return cachedClassifierModel;
 }
 
 /**

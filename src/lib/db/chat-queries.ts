@@ -73,6 +73,18 @@ function mergeUniqueById<T extends { id: string }>(primary: T[], secondary: T[])
     return merged;
 }
 
+const ACTIVITY_SELECT = [
+    'id', 'title', 'title_he', 'description', 'description_he', 'target_age_group',
+    'min_age', 'max_age', 'days_of_week', 'start_time', 'end_time', 'price',
+    'instructor_name', 'location', 'max_participants', 'current_participants', 'is_active',
+    'categories(name_he)',
+].join(', ');
+
+const EVENT_SELECT = [
+    'id', 'title', 'description', 'event_date', 'start_time', 'end_time', 'location',
+    'type', 'category', 'max_attendees', 'current_attendees', 'is_published',
+].join(', ');
+
 // ─── Activity Queries ───────────────────────────────────
 
 /**
@@ -87,7 +99,7 @@ export async function searchActivities(
 
     const buildBaseQuery = () => supabaseServer
         .from('activities')
-        .select('*, categories(name_he)')
+        .select(ACTIVITY_SELECT)
         .eq('is_active', true);
 
     const applyFilters = (query: ReturnType<typeof buildBaseQuery>) => {
@@ -137,13 +149,13 @@ export async function searchActivities(
         return [];
     }
 
-    let results = (data ?? []) as ActivityRow[];
+    let results = (data ?? []) as unknown as ActivityRow[];
     if (results.length === 0 || (tokens.length > 0 && results.length < 3)) {
         const { data: fallbackData, error: fallbackError } = await applyFilters(buildBaseQuery());
         if (fallbackError) {
             console.error('[DB] ❌ searchActivities fallback error:', fallbackError.message);
         } else {
-            results = mergeUniqueById(results, (fallbackData ?? []) as ActivityRow[]);
+            results = mergeUniqueById(results, (fallbackData ?? []) as unknown as ActivityRow[]);
         }
     }
 
@@ -164,7 +176,7 @@ export async function searchActivities(
 export async function getActivityByName(name: string): Promise<ActivityRow | null> {
     const { data, error } = await supabaseServer
         .from('activities')
-        .select('*, categories(name_he)')
+        .select(ACTIVITY_SELECT)
         .ilike('title_he', `%${name}%`)
         .eq('is_active', true)
         .limit(1)
@@ -192,7 +204,7 @@ export async function searchEvents(
 
     const buildBaseQuery = () => supabaseServer
         .from('events')
-        .select('*')
+        .select(EVENT_SELECT)
         .eq('is_published', true);
 
     const today = new Date().toISOString().split('T')[0];
@@ -262,13 +274,13 @@ export async function searchEvents(
         return [];
     }
 
-    let results = (data ?? []) as EventRow[];
+    let results = (data ?? []) as unknown as EventRow[];
     if (results.length === 0 || (tokens.length > 0 && results.length < 3)) {
         const { data: fallbackData, error: fallbackError } = await applyFilters(buildBaseQuery());
         if (fallbackError) {
             console.error('[DB] ❌ searchEvents fallback error:', fallbackError.message);
         } else {
-            results = mergeUniqueById(results, (fallbackData ?? []) as EventRow[]);
+            results = mergeUniqueById(results, (fallbackData ?? []) as unknown as EventRow[]);
         }
     }
 
@@ -335,7 +347,7 @@ export async function getUpcomingEvents(days: number = 7): Promise<EventRow[]> {
 
     const { data, error } = await supabaseServer
         .from('events')
-        .select('*')
+        .select(EVENT_SELECT)
         .eq('is_published', true)
         .gte('event_date', today.toISOString().split('T')[0])
         .lte('event_date', end.toISOString().split('T')[0])
@@ -347,7 +359,7 @@ export async function getUpcomingEvents(days: number = 7): Promise<EventRow[]> {
         return [];
     }
 
-    return (data ?? []) as EventRow[];
+    return (data ?? []) as unknown as EventRow[];
 }
 
 // ─── Category Queries ───────────────────────────────────
