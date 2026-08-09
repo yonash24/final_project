@@ -45,12 +45,29 @@ const notificationSettingsSchema = z.object({
     admin_contact_phone: z.string().default(''),
     provider_config: z.object({
         twilio_from_number: z.string().default(''),
+        twilio_content_sids: z.object({
+            registration_confirmation: z.string().default(''),
+            class_reminder: z.string().default(''),
+            event_reminder: z.string().default(''),
+            change_notification: z.string().default(''),
+        }).default(() => ({
+            registration_confirmation: '',
+            class_reminder: '',
+            event_reminder: '',
+            change_notification: '',
+        })),
         meta_phone_number_id: z.string().default(''),
         meta_business_account_id: z.string().default(''),
         status_callback_url: z.string().default(''),
         test_recipient_phone: z.string().default(''),
     }).default(() => ({
         twilio_from_number: '',
+        twilio_content_sids: {
+            registration_confirmation: '',
+            class_reminder: '',
+            event_reminder: '',
+            change_notification: '',
+        },
         meta_phone_number_id: '',
         meta_business_account_id: '',
         status_callback_url: '',
@@ -84,6 +101,11 @@ const testSendSchema = z.object({
 function sanitizeProviderConfig(input?: NotificationProviderConfig | null): NotificationProviderConfig {
     return {
         twilio_from_number: input?.twilio_from_number?.trim() || undefined,
+        twilio_content_sids: Object.fromEntries(
+            Object.entries(input?.twilio_content_sids ?? {})
+                .map(([key, value]) => [key, typeof value === 'string' ? value.trim() : ''])
+                .filter(([, value]) => Boolean(value)),
+        ),
         meta_phone_number_id: input?.meta_phone_number_id?.trim() || undefined,
         meta_business_account_id: input?.meta_business_account_id?.trim() || undefined,
         status_callback_url: input?.status_callback_url?.trim() || undefined,
@@ -708,6 +730,10 @@ async function dispatchDelivery(delivery: NotificationDeliveryRecord, options?: 
         body: claimed.rendered_body ?? '',
         templateKey: claimed.template_key,
         providerConfig: sanitizeProviderConfig(snapshot.settings.provider_config),
+        payload: claimed.payload,
+        templateVariables: claimed.template_key
+            ? snapshot.templates.find((template) => template.template_key === claimed.template_key)?.variables
+            : undefined,
         metadata: options?.metadata,
     });
 

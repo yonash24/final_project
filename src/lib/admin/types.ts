@@ -60,6 +60,7 @@ export interface AdminNotificationSettings {
     admin_contact_phone: string | null;
     provider_config: {
         twilio_from_number?: string;
+        twilio_content_sids?: Partial<Record<AdminNotificationTemplate['template_key'], string>>;
         meta_phone_number_id?: string;
         meta_business_account_id?: string;
         status_callback_url?: string;

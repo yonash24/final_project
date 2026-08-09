@@ -30,6 +30,18 @@ function buildTwilioStatusCallback(config: NotificationProviderConfig) {
     return null;
 }
 
+function buildContentVariables(request: NotificationSendRequest) {
+    if (!request.templateVariables?.length || !request.payload) {
+        return null;
+    }
+
+    const variables = Object.fromEntries(
+        request.templateVariables.map((variable, index) => [String(index + 1), String(request.payload?.[variable] ?? '')]),
+    );
+
+    return JSON.stringify(variables);
+}
+
 function validateTwilioSignature(context: NotificationWebhookContext) {
     const authToken = process.env.TWILIO_AUTH_TOKEN;
     const signature = context.request.headers.get('x-twilio-signature');
@@ -88,8 +100,19 @@ export class TwilioWhatsAppProvider implements NotificationProvider {
         const form = new URLSearchParams({
             To: toWhatsAppAddress(request.recipientPhone),
             From: toWhatsAppAddress(fromNumber),
-            Body: request.body,
         });
+
+        const contentSid = request.templateKey
+            ? request.providerConfig.twilio_content_sids?.[request.templateKey]
+            : undefined;
+
+        if (contentSid) {
+            form.set('ContentSid', contentSid);
+            const contentVariables = buildContentVariables(request);
+            if (contentVariables) form.set('ContentVariables', contentVariables);
+        } else {
+            form.set('Body', request.body);
+        }
 
         if (statusCallback) {
             form.set('StatusCallback', statusCallback);

@@ -45,6 +45,7 @@ export type WhatsAppOptInStatus = 'unknown' | 'opted_in' | 'opted_out';
 
 export interface NotificationProviderConfig {
     twilio_from_number?: string;
+    twilio_content_sids?: Partial<Record<NotificationTemplateKey, string>>;
     meta_phone_number_id?: string;
     meta_business_account_id?: string;
     status_callback_url?: string;
@@ -156,6 +157,8 @@ export interface NotificationSendRequest {
     deliveryId: string;
     providerConfig: NotificationProviderConfig;
     templateKey?: NotificationTemplateKey | null;
+    payload?: Record<string, unknown>;
+    templateVariables?: string[];
     metadata?: Record<string, unknown>;
 }
 

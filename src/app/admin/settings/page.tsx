@@ -31,6 +31,12 @@ interface SettingsFormState {
         twilio_from_number: string;
         status_callback_url: string;
         test_recipient_phone: string;
+        twilio_content_sids: {
+            registration_confirmation: string;
+            class_reminder: string;
+            event_reminder: string;
+            change_notification: string;
+        };
     };
     templates: Array<{
         template_key: AdminNotificationTemplate['template_key'];
@@ -59,6 +65,12 @@ function buildFormState(data: SettingsResponse): SettingsFormState {
             twilio_from_number: data.settings?.provider_config?.twilio_from_number ?? '',
             status_callback_url: data.settings?.provider_config?.status_callback_url ?? '',
             test_recipient_phone: data.settings?.provider_config?.test_recipient_phone ?? '',
+            twilio_content_sids: {
+                registration_confirmation: data.settings?.provider_config?.twilio_content_sids?.registration_confirmation ?? '',
+                class_reminder: data.settings?.provider_config?.twilio_content_sids?.class_reminder ?? '',
+                event_reminder: data.settings?.provider_config?.twilio_content_sids?.event_reminder ?? '',
+                change_notification: data.settings?.provider_config?.twilio_content_sids?.change_notification ?? '',
+            },
         },
         templates: data.templates.map((template) => ({
             template_key: template.template_key,
@@ -289,6 +301,33 @@ export default function AdminSettingsPage() {
                             </div>
                             <div style={{ marginTop: '0.75rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                                 Twilio יקבל את הוובהוק המלא בנתיב <code>/twilio-whatsapp</code> על בסיס הכתובת הזו.
+                            </div>
+                            <div style={{ display: 'grid', gap: '0.75rem', marginTop: '1rem' }}>
+                                <strong>Twilio Content SIDs (approved WhatsApp templates)</strong>
+                                {([
+                                    ['registration_confirmation', 'Registration confirmation'],
+                                    ['class_reminder', 'Class reminder'],
+                                    ['event_reminder', 'Event reminder'],
+                                    ['change_notification', 'Change notification'],
+                                ] as const).map(([key, label]) => (
+                                    <Field key={key} label={label}>
+                                        <input
+                                            className="input-field"
+                                            placeholder="HX..."
+                                            value={form.provider_config.twilio_content_sids[key]}
+                                            onChange={(event) => setForm((prev) => prev ? {
+                                                ...prev,
+                                                provider_config: {
+                                                    ...prev.provider_config,
+                                                    twilio_content_sids: {
+                                                        ...prev.provider_config.twilio_content_sids,
+                                                        [key]: event.target.value,
+                                                    },
+                                                },
+                                            } : prev)}
+                                        />
+                                    </Field>
+                                ))}
                             </div>
                         </div>
 

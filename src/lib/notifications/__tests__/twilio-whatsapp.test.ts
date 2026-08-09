@@ -37,10 +37,13 @@ test('TwilioWhatsAppProvider.send submits the WhatsApp payload and callback', as
             deliveryId: 'delivery-1',
             recipientPhone: '+972501234567',
             body: 'Hello world',
-            providerConfig: {
-                twilio_from_number: 'whatsapp:+14155238886',
-                status_callback_url: 'https://public.example.com/api/webhooks/whatsapp',
+        providerConfig: {
+            twilio_from_number: 'whatsapp:+14155238886',
+            status_callback_url: 'https://public.example.com/api/webhooks/whatsapp',
+            twilio_content_sids: {
+                registration_confirmation: 'HXregistration123',
             },
+        },
         });
 
         assert.equal(result.status, 'sent');
@@ -57,6 +60,53 @@ test('TwilioWhatsAppProvider.send submits the WhatsApp payload and callback', as
         process.env.TWILIO_ACCOUNT_SID = originalEnv.TWILIO_ACCOUNT_SID;
         process.env.TWILIO_AUTH_TOKEN = originalEnv.TWILIO_AUTH_TOKEN;
         process.env.APP_BASE_URL = originalEnv.APP_BASE_URL;
+    }
+});
+
+test('TwilioWhatsAppProvider.send uses a configured Content SID for template messages', async () => {
+    const provider = new TwilioWhatsAppProvider();
+    const originalFetch = globalThis.fetch;
+    const originalEnv = {
+        TWILIO_ACCOUNT_SID: process.env.TWILIO_ACCOUNT_SID,
+        TWILIO_AUTH_TOKEN: process.env.TWILIO_AUTH_TOKEN,
+    };
+
+    let capturedBody = '';
+    process.env.TWILIO_ACCOUNT_SID = 'AC123';
+    process.env.TWILIO_AUTH_TOKEN = 'secret-token';
+    globalThis.fetch = async (_input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+        capturedBody = String(init?.body ?? '');
+        return new Response(JSON.stringify({ sid: 'SM456' }), { status: 201 });
+    };
+
+    try {
+        const result = await provider.send({
+            channel: 'whatsapp',
+            deliveryId: 'delivery-template-1',
+            recipientPhone: '+972501234567',
+            body: 'Fallback body',
+            templateKey: 'registration_confirmation',
+            payload: {
+                name: 'Dana',
+                activity_title: 'Yoga',
+            },
+            templateVariables: ['name', 'activity_title'],
+            providerConfig: {
+                twilio_from_number: 'whatsapp:+14155238886',
+                twilio_content_sids: {
+                    registration_confirmation: 'HXregistration123',
+                },
+            },
+        });
+
+        assert.equal(result.status, 'sent');
+        assert.ok(capturedBody.includes('ContentSid=HXregistration123'));
+        assert.ok(capturedBody.includes('ContentVariables=%7B%221%22%3A%22Dana%22%2C%222%22%3A%22Yoga%22%7D'));
+        assert.equal(capturedBody.includes('Body='), false);
+    } finally {
+        globalThis.fetch = originalFetch;
+        process.env.TWILIO_ACCOUNT_SID = originalEnv.TWILIO_ACCOUNT_SID;
+        process.env.TWILIO_AUTH_TOKEN = originalEnv.TWILIO_AUTH_TOKEN;
     }
 });
 

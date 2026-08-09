@@ -61,6 +61,7 @@ The Twilio webhook now returns an empty TwiML response after processing so Twili
 - `TWILIO_ACCOUNT_SID`
 - `TWILIO_AUTH_TOKEN`
 - `provider_config.twilio_from_number` from admin settings
+- `provider_config.twilio_content_sids.*` from admin settings for approved Twilio WhatsApp templates
 
 ### Meta
 
