@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { isAuthorizedCronRequest } from '@/lib/notifications/cron-auth';
+import { requireAdminRequest } from '@/lib/admin/auth';
 import { processDueDeliveries } from '@/lib/notifications/service';
 
 export async function POST(request: NextRequest) {
-    if (!isAuthorizedCronRequest(request)) {
-        return NextResponse.json(
-            { error: 'Unauthorized notification processor request.' },
-            { status: process.env.NOTIFICATIONS_CRON_SECRET || process.env.CRON_SECRET ? 401 : 503 },
-        );
-    }
+    const auth = await requireAdminRequest(request);
+    if (auth.response) return auth.response;
 
     const limit = Number(request.nextUrl.searchParams.get('limit') ?? '20');
 

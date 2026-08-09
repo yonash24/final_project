@@ -307,6 +307,11 @@ export default function ClassesPage() {
                 <RegistrationModal
                     activity={registerActivity}
                     onClose={() => setRegisterActivity(null)}
+                    onRegistered={({ currentParticipants }) => {
+                        setClasses((previous) => previous.map((item) => item.id === registerActivity.id
+                            ? { ...item, current_participants: currentParticipants ?? item.current_participants }
+                            : item));
+                    }}
                 />
             )}
         </>

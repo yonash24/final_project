@@ -54,6 +54,8 @@ The Twilio webhook now returns an empty TwiML response after processing so Twili
 - `APP_BASE_URL`
 - `NOTIFICATIONS_CRON_SECRET`
 
+`NOTIFICATIONS_CRON_SECRET` is an application-generated random secret, not a Twilio or Supabase credential. Generate it with a password manager or a command such as `openssl rand -hex 32`, then add the value only to the deployment environment. The scheduled processor accepts it as either `Authorization: Bearer <secret>` or `x-cron-secret: <secret>`. For Vercel Cron, set the same value as `CRON_SECRET` as well, because Vercel sends it as a bearer token.
+
 ### Twilio
 
 - `TWILIO_ACCOUNT_SID`
@@ -147,6 +149,8 @@ curl -X POST http://localhost:3000/api/webhooks/whatsapp/mock-whatsapp \
 8. Confirm the webhook response has HTTP 200 and `Content-Type: application/xml`, with an empty `<Response></Response>` TwiML body.
 
 9. Confirm Twilio status callbacks update the delivery and message event records for `sent`, `delivered`, `read`, and `failed` states.
+
+10. Deploy with the repository `vercel.json` cron configuration, or configure an external scheduler to POST to `/api/notifications/process?limit=20` every five minutes with the cron secret. Use `/api/admin/notifications/process` for the authenticated admin "run now" action.
 
 ## Activity CSV/XLSX Import
 

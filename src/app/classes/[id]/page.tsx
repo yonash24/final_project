@@ -308,6 +308,11 @@ export default function ActivityDetailPage() {
                 <RegistrationModal
                     activity={activity}
                     onClose={() => setShowModal(false)}
+                    onRegistered={({ currentParticipants }) => {
+                        setActivity((previous) => previous
+                            ? { ...previous, current_participants: currentParticipants ?? previous.current_participants }
+                            : previous);
+                    }}
                 />
             )}
         </>

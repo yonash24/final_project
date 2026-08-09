@@ -194,7 +194,7 @@ export default function AdminSettingsPage() {
         setProcessMessage(null);
 
         try {
-            const response = await fetch('/api/notifications/process?limit=20', {
+            const response = await fetch('/api/admin/notifications/process?limit=20', {
                 method: 'POST',
             });
             const data = await response.json();

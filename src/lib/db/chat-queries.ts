@@ -416,53 +416,62 @@ export interface RegistrationInput {
     notes?: string;
 }
 
+export class RegistrationError extends Error {
+    constructor(
+        message: string,
+        public readonly code: string,
+    ) {
+        super(message);
+        this.name = 'RegistrationError';
+    }
+}
+
+interface RegistrationRpcResult {
+    registration_id: string;
+    activity_id: string;
+    member_id: string;
+    status: string;
+    current_participants: number;
+    max_participants: number | null;
+}
+
 /**
  * Save a new registration to the database.
  */
 export async function createRegistration(reg: RegistrationInput) {
-    // 1. First, try to ensure the person exists in the 'members' table
-    // This allows us to track "people" separately from "registrations"
-    const { data: member, error: memberError } = await supabaseServer
-        .from('members')
-        .upsert({
-            full_name: reg.full_name,
-            phone: reg.phone,
-            email: reg.email || null,
-            updated_at: new Date().toISOString(),
-        }, { onConflict: 'phone' }) // Assuming phone is unique for members
-        .select()
-        .single();
-
-    if (memberError) {
-        console.warn('[DB] ⚠️ Could not upsert member, proceeding with direct registration:', memberError.message);
-    }
-
-    // 2. Create the registration entry
-    const registrationData = {
-        activity_id: reg.activity_id,
-        member_id: member?.id || null,
-        user_name: reg.full_name,
-        user_phone: reg.phone,
-        user_email: reg.email || null,
-        notes: reg.notes || null,
-        status: 'pending',
-        created_at: new Date().toISOString(),
-    };
-
-    console.log('[DB] 📝 Attempting to insert registration:', registrationData);
-
-    const { data, error } = await supabaseServer
-        .from('registrations')
-        .insert([registrationData])
-        .select()
-        .single();
+    const { data, error } = await supabaseServer.rpc('register_for_activity', {
+        p_activity_id: reg.activity_id,
+        p_full_name: reg.full_name,
+        p_phone: reg.phone,
+        p_email: reg.email || null,
+        p_notes: reg.notes || null,
+    }).single();
 
     if (error) {
         console.error('[DB] ❌ createRegistration error:', error);
-        throw new Error(`Failed to save registration: ${error.message} (${error.code || 'no-code'})`);
+        const knownCodes = [
+            'activity_full',
+            'activity_not_found',
+            'activity_inactive',
+            'already_registered',
+            'invalid_registration_input',
+        ];
+        const code = knownCodes.find((candidate) => error.message.includes(candidate)) ?? error.code ?? 'registration_failed';
+        throw new RegistrationError(error.message, code);
     }
 
+    if (!data) {
+        throw new RegistrationError('registration_failed', 'registration_failed');
+    }
 
-    console.log(`[DB] ✅ Registration created for ${reg.full_name} (ID: ${data.id})`);
-    return data;
+    const registration = data as unknown as RegistrationRpcResult;
+    console.log(`[DB] ✅ Registration created for ${reg.full_name} (ID: ${registration.registration_id})`);
+    return {
+        id: registration.registration_id,
+        activity_id: registration.activity_id,
+        member_id: registration.member_id,
+        status: registration.status,
+        current_participants: registration.current_participants,
+        max_participants: registration.max_participants,
+    };
 }

@@ -210,8 +210,9 @@ function ActivityResultCard({ activity, index, onRegister }: ActivityCardProps) 
                     className="btn-card-action primary"
                     onClick={() => onRegister(activity)}
                     id={`chat-register-${activity.id}`}
+                    disabled={isFull}
                 >
-                    הרשמה
+                    {isFull ? 'מלא כרגע' : 'הרשמה'}
                 </button>
             </div>
         </div>
@@ -630,6 +631,17 @@ export default function ChatPage() {
                 <RegistrationModal
                     activity={registerActivity}
                     onClose={() => setRegisterActivity(null)}
+                    onRegistered={({ currentParticipants }) => {
+                        setRegisterActivity((previous) => previous
+                            ? { ...previous, current_participants: currentParticipants ?? previous.current_participants }
+                            : previous);
+                        setMessages((previous) => previous.map((message) => ({
+                            ...message,
+                            activityCards: message.activityCards?.map((activity) => activity.id === registerActivity.id
+                                ? { ...activity, current_participants: currentParticipants ?? activity.current_participants }
+                                : activity),
+                        })));
+                    }}
                 />
             )}
         </>

@@ -17,21 +17,18 @@ interface Activity {
 interface RegistrationModalProps {
     activity: Activity;
     onClose: () => void;
+    onRegistered?: (result: { currentParticipants?: number | null; spotsLeft?: number | null }) => void;
 }
 
-type Step = 'form' | 'submitting' | 'success' | 'waitlist_success' | 'feedback';
+type Step = 'form' | 'submitting' | 'success' | 'feedback';
 
-export default function RegistrationModal({ activity, onClose }: RegistrationModalProps) {
+export default function RegistrationModal({ activity, onClose, onRegistered }: RegistrationModalProps) {
     const [step, setStep] = useState<Step>('form');
     const [form, setForm] = useState({ name: '', phone: '', email: '', notes: '' });
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [formStep, setFormStep] = useState<1 | 2>(1);
     const [feedbackRating, setFeedbackRating] = useState(0);
     const [feedbackSent, setFeedbackSent] = useState(false);
-
-    const isFull = activity.max_participants != null && activity.current_participants != null
-        && activity.current_participants >= activity.max_participants;
-    const isWaitlist = isFull;
 
     function validate() {
         const newErrors: Record<string, string> = {};
@@ -68,7 +65,9 @@ export default function RegistrationModal({ activity, onClose }: RegistrationMod
                 throw new Error(data.error || 'Failed to register');
             }
 
-            setStep(isWaitlist ? 'waitlist_success' : 'success');
+            const result = await res.json();
+            onRegistered?.(result);
+            setStep('success');
         } catch (err: unknown) {
             const message = err instanceof Error ? err.message : 'אירעה שגיאה בשליחת הטופס. אנא נסה שוב.';
             console.error('[Registration] Failed:', message);
@@ -154,11 +153,8 @@ export default function RegistrationModal({ activity, onClose }: RegistrationMod
                 {/* ── Header ── */}
                 <div className="modal-header">
                     <div>
-                        <h2 className="modal-title">{isWaitlist ? 'הרשמה לרשימת המתנה' : 'הרשמה לחוג'}</h2>
+                        <h2 className="modal-title">הרשמה לחוג</h2>
                         <div className="modal-subtitle">{activity.title_he}</div>
-                        {isWaitlist && (
-                            <div style={{ fontSize: '0.8rem', color: 'var(--warning-600)', marginTop: '0.25rem', fontWeight: 600 }}>⚠️ החוג מלא — תירשמו לרשימת המתנה</div>
-                        )}
                     </div>
                     <button className="modal-close-btn" onClick={onClose} aria-label="סגור">
                         <X size={20} />
@@ -180,17 +176,14 @@ export default function RegistrationModal({ activity, onClose }: RegistrationMod
 
                 {/* ── Body ── */}
                 <div className="modal-body">
-                    {(step === 'success' || step === 'waitlist_success') ? (
+                    {step === 'success' ? (
                         <div className="modal-success">
                             <div className="modal-success-icon">
                                 <CheckCircle size={48} />
                             </div>
-                            <h3>{step === 'waitlist_success' ? 'נרשמת לרשימת ההמתנה! 📋' : 'הרשמה התקבלה! 🎉'}</h3>
+                            <h3>הרשמה התקבלה! 🎉</h3>
                             <p>
-                                {step === 'waitlist_success'
-                                    ? <>נרשמת בהצלחה לרשימת ההמתנה של {activity.title_he}. כשיתפנה מקום — ניצור קשר מיד.</>
-                                    : <>ההרשמה שלך נקלטה עבור {activity.title_he}.<br />אישור יישלח למספר {form.phone} לאחר הפעלת ערוץ ההתראות, ובינתיים נציגנו יצור קשר לאישור סופי תוך 24 שעות.</>
-                                }
+                                ההרשמה שלך נקלטה עבור {activity.title_he}.<br />אישור יישלח למספר {form.phone} לאחר הפעלת ערוץ ההתראות, ובינתיים נציגנו יצור קשר לאישור סופי תוך 24 שעות.
                             </p>
 
                             {/* Feedback prompt */}
