@@ -48,6 +48,8 @@ export interface NotificationProviderConfig {
     twilio_content_sids?: Partial<Record<NotificationTemplateKey, string>>;
     meta_phone_number_id?: string;
     meta_business_account_id?: string;
+    meta_template_names?: Partial<Record<NotificationTemplateKey, string>>;
+    meta_template_language?: string;
     status_callback_url?: string;
     test_recipient_phone?: string;
 }

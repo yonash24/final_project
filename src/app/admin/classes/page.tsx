@@ -95,7 +95,15 @@ export default function AdminClassesPage() {
             .order('name_he', { ascending: true });
 
         if (error) throw error;
-        return (data ?? []) as CategoryOption[];
+        // Older imports could create the same category more than once. Keep the
+        // dropdown usable even before the database cleanup migration is applied.
+        const seenNames = new Set<string>();
+        return (data ?? []).filter((category) => {
+            const key = category.name_he.trim().toLocaleLowerCase();
+            if (!key || seenNames.has(key)) return false;
+            seenNames.add(key);
+            return true;
+        }) as CategoryOption[];
     }
 
     async function refreshData() {

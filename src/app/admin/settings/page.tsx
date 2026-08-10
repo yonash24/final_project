@@ -29,6 +29,15 @@ interface SettingsFormState {
     admin_contact_phone: string;
     provider_config: {
         twilio_from_number: string;
+        meta_phone_number_id: string;
+        meta_business_account_id: string;
+        meta_template_language: string;
+        meta_template_names: {
+            registration_confirmation: string;
+            class_reminder: string;
+            event_reminder: string;
+            change_notification: string;
+        };
         status_callback_url: string;
         test_recipient_phone: string;
         twilio_content_sids: {
@@ -51,7 +60,7 @@ interface SettingsFormState {
 function buildFormState(data: SettingsResponse): SettingsFormState {
     const provider = data.settings?.provider;
     return {
-        provider: provider === 'mock-whatsapp' || provider === 'twilio-whatsapp'
+        provider: provider === 'mock-whatsapp' || provider === 'twilio-whatsapp' || provider === 'meta-cloud-api'
             ? provider
             : 'twilio-whatsapp',
         is_enabled: data.settings?.is_enabled ?? true,
@@ -63,6 +72,15 @@ function buildFormState(data: SettingsResponse): SettingsFormState {
         admin_contact_phone: data.settings?.admin_contact_phone ?? '',
         provider_config: {
             twilio_from_number: data.settings?.provider_config?.twilio_from_number ?? '',
+            meta_phone_number_id: data.settings?.provider_config?.meta_phone_number_id ?? '',
+            meta_business_account_id: data.settings?.provider_config?.meta_business_account_id ?? '',
+            meta_template_language: data.settings?.provider_config?.meta_template_language ?? 'he',
+            meta_template_names: {
+                registration_confirmation: data.settings?.provider_config?.meta_template_names?.registration_confirmation ?? '',
+                class_reminder: data.settings?.provider_config?.meta_template_names?.class_reminder ?? '',
+                event_reminder: data.settings?.provider_config?.meta_template_names?.event_reminder ?? '',
+                change_notification: data.settings?.provider_config?.meta_template_names?.change_notification ?? '',
+            },
             status_callback_url: data.settings?.provider_config?.status_callback_url ?? '',
             test_recipient_phone: data.settings?.provider_config?.test_recipient_phone ?? '',
             twilio_content_sids: {
@@ -264,6 +282,7 @@ export default function AdminSettingsPage() {
                                     <select className="input-field" value={form.provider} onChange={(event) => setForm((prev) => prev ? { ...prev, provider: event.target.value as SettingsFormState['provider'] } : prev)}>
                                         <option value="mock-whatsapp">Mock WhatsApp</option>
                                         <option value="twilio-whatsapp">Twilio WhatsApp</option>
+                                        <option value="meta-cloud-api">Meta Cloud API</option>
                                     </select>
                                 </Field>
                                 <Field label="שעות לפני תזכורת">
@@ -295,12 +314,49 @@ export default function AdminSettingsPage() {
                                 <Field label="Twilio sender">
                                     <input className="input-field" placeholder="whatsapp:+14155238886" value={form.provider_config.twilio_from_number} onChange={(event) => updateProviderConfig(setForm, 'twilio_from_number', event.target.value)} />
                                 </Field>
+                                <Field label="Meta phone number ID">
+                                    <input className="input-field" placeholder="123456789012345" value={form.provider_config.meta_phone_number_id} onChange={(event) => updateProviderConfig(setForm, 'meta_phone_number_id', event.target.value)} />
+                                </Field>
+                                <Field label="Meta business account ID">
+                                    <input className="input-field" placeholder="123456789012345" value={form.provider_config.meta_business_account_id} onChange={(event) => updateProviderConfig(setForm, 'meta_business_account_id', event.target.value)} />
+                                </Field>
                                 <Field label="Status callback base URL">
                                     <input className="input-field" placeholder="https://example.com/api/webhooks/whatsapp" value={form.provider_config.status_callback_url} onChange={(event) => updateProviderConfig(setForm, 'status_callback_url', event.target.value)} />
                                 </Field>
                             </div>
                             <div style={{ marginTop: '0.75rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
                                 Twilio יקבל את הוובהוק המלא בנתיב <code>/twilio-whatsapp</code> על בסיס הכתובת הזו.
+                            </div>
+                            <div style={{ display: 'grid', gap: '0.75rem', marginTop: '1rem' }}>
+                                <strong>Meta approved templates</strong>
+                                <Field label="Meta template language code">
+                                    <input className="input-field" placeholder="he" value={form.provider_config.meta_template_language} onChange={(event) => updateProviderConfig(setForm, 'meta_template_language', event.target.value)} />
+                                </Field>
+                                {([
+                                    ['registration_confirmation', 'Registration confirmation'],
+                                    ['class_reminder', 'Class reminder'],
+                                    ['event_reminder', 'Event reminder'],
+                                    ['change_notification', 'Change notification'],
+                                ] as const).map(([key, label]) => (
+                                    <Field key={key} label={`${label} - Meta template name`}>
+                                        <input
+                                            className="input-field"
+                                            placeholder="approved_template_name"
+                                            value={form.provider_config.meta_template_names[key]}
+                                            onChange={(event) => setForm((prev) => prev ? {
+                                                ...prev,
+                                                provider_config: {
+                                                    ...prev.provider_config,
+                                                    meta_template_names: {
+                                                        ...prev.provider_config.meta_template_names,
+                                                        [key]: event.target.value,
+                                                    },
+                                                },
+                                            } : prev)}
+                                        />
+                                    </Field>
+                                ))}
+                                <small style={{ color: 'var(--text-secondary)' }}>Required for scheduled or business-initiated messages outside the customer-service window. Chat replies use free-form text.</small>
                             </div>
                             <div style={{ display: 'grid', gap: '0.75rem', marginTop: '1rem' }}>
                                 <strong>Twilio Content SIDs (approved WhatsApp templates)</strong>

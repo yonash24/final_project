@@ -15,6 +15,28 @@ function normalizeHeader(value: string) {
     return value.replace(/^\uFEFF/, '').trim().toLowerCase().replace(/\s+/g, '_');
 }
 
+function decodeCsv(buffer: ArrayBuffer) {
+    const bytes = new Uint8Array(buffer);
+    const hasBom = (prefix: number[]) => prefix.every((byte, index) => bytes[index] === byte);
+
+    if (hasBom([0xff, 0xfe])) {
+        return new TextDecoder('utf-16le').decode(bytes);
+    }
+
+    if (hasBom([0xfe, 0xff])) {
+        return new TextDecoder('utf-16be').decode(bytes);
+    }
+
+    try {
+        // Excel and most modern CSV exporters use UTF-8. Fatal mode prevents
+        // legacy Hebrew encodings from being silently replaced with �.
+        return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch {
+        // Older Hebrew Excel exports commonly use Windows-1255.
+        return new TextDecoder('windows-1255').decode(bytes);
+    }
+}
+
 const HEADER_ALIASES: Record<string, ImportableField> = {
     title_he: 'title_he',
     title: 'title_he',
@@ -56,7 +78,10 @@ const HEADER_ALIASES: Record<string, ImportableField> = {
 
 export async function parseSpreadsheet(file: File): Promise<ParsedSheetResult> {
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array' });
+    const isCsv = file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv';
+    const workbook = isCsv
+        ? XLSX.read(decodeCsv(buffer), { type: 'string' })
+        : XLSX.read(buffer, { type: 'array' });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
 

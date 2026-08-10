@@ -17,7 +17,7 @@ function twimlEmptyResponse() {
 }
 
 function isSupportedProvider(value: string): value is NotificationProviderName {
-    return value === 'mock-whatsapp' || value === 'twilio-whatsapp';
+    return value === 'mock-whatsapp' || value === 'twilio-whatsapp' || value === 'meta-cloud-api';
 }
 
 export async function GET(request: NextRequest, context: { params: Promise<{ provider: string }> }) {

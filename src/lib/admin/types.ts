@@ -63,6 +63,8 @@ export interface AdminNotificationSettings {
         twilio_content_sids?: Partial<Record<AdminNotificationTemplate['template_key'], string>>;
         meta_phone_number_id?: string;
         meta_business_account_id?: string;
+        meta_template_names?: Partial<Record<AdminNotificationTemplate['template_key'], string>>;
+        meta_template_language?: string;
         status_callback_url?: string;
         test_recipient_phone?: string;
     } | null;

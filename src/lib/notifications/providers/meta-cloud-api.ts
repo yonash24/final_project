@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 
 import type {
     NotificationProvider,
@@ -9,8 +9,13 @@ import type {
     NotificationWebhookContext,
     NotificationWebhookParseResult,
     NotificationWebhookVerificationResult,
-} from '@/lib/notifications/types';
-import { buildProviderEnvStatus, normalizePhoneNumber } from '@/lib/notifications/utils';
+} from '../types.ts';
+import { buildProviderEnvStatus, normalizePhoneNumber } from '../utils.ts';
+
+function getGraphApiVersion() {
+    const configured = process.env.META_GRAPH_API_VERSION?.trim();
+    return configured && /^v\d+\.\d+$/.test(configured) ? configured : 'v23.0';
+}
 
 function validateMetaSignature(rawBody: string, request: Request) {
     const appSecret = process.env.META_WHATSAPP_APP_SECRET;
@@ -70,23 +75,58 @@ export class MetaCloudApiProvider implements NotificationProvider {
             };
         }
 
+        const templateName = request.templateKey
+            ? request.providerConfig.meta_template_names?.[request.templateKey]
+            : undefined;
+
+        if (request.templateKey && !templateName) {
+            return {
+                status: 'failed',
+                errorCode: 'meta_template_not_configured',
+                errorMessage: `No approved Meta template is configured for ${request.templateKey}.`,
+                shouldRetry: false,
+            };
+        }
+
+        const message = request.templateKey
+            ? {
+                messaging_product: 'whatsapp',
+                recipient_type: 'individual',
+                to: normalizePhoneNumber(request.recipientPhone).replace(/^\+/, ''),
+                type: 'template',
+                template: {
+                    name: templateName,
+                    language: { code: request.providerConfig.meta_template_language ?? 'he' },
+                    components: request.templateVariables?.length && request.payload
+                        ? [{
+                            type: 'body',
+                            parameters: request.templateVariables.map((variable) => ({
+                                type: 'text',
+                                text: String(request.payload?.[variable] ?? ''),
+                            })),
+                        }]
+                        : undefined,
+                },
+            }
+            : {
+                messaging_product: 'whatsapp',
+                recipient_type: 'individual',
+                to: normalizePhoneNumber(request.recipientPhone).replace(/^\+/, ''),
+                type: 'text',
+                text: {
+                    preview_url: false,
+                    body: request.body,
+                },
+            };
+
         try {
-            const response = await fetch(`https://graph.facebook.com/v23.0/${phoneNumberId}/messages`, {
+            const response = await fetch(`https://graph.facebook.com/${getGraphApiVersion()}/${phoneNumberId}/messages`, {
                 method: 'POST',
                 headers: {
                     Authorization: `Bearer ${accessToken}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    messaging_product: 'whatsapp',
-                    recipient_type: 'individual',
-                    to: normalizePhoneNumber(request.recipientPhone).replace(/^\+/, ''),
-                    type: 'text',
-                    text: {
-                        preview_url: false,
-                        body: request.body,
-                    },
-                }),
+                body: JSON.stringify(message),
             });
             const payload = await response.json() as Record<string, unknown>;
 

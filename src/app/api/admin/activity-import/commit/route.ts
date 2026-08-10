@@ -4,19 +4,21 @@ import { supabaseServer } from '@/lib/supabase/server';
 import type { ActivityImportDraft } from '@/lib/admin/types';
 
 async function ensureCategory(name: string | null) {
-    if (!name) return null;
+    const normalizedName = name?.trim().replace(/\s+/g, ' ');
+    if (!normalizedName) return null;
 
     const { data: existing } = await supabaseServer
         .from('categories')
-        .select('id')
-        .eq('name_he', name)
+        .select('id, name_he')
+        .ilike('name_he', normalizedName)
+        .limit(1)
         .maybeSingle();
 
     if (existing) return existing.id;
 
     const { data, error } = await supabaseServer
         .from('categories')
-        .insert([{ name: name, name_he: name }])
+        .insert([{ name: normalizedName, name_he: normalizedName }])
         .select('id')
         .single();
 

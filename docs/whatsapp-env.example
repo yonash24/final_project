@@ -1,0 +1,19 @@
+# Required for the Smart Hub AI chat
+GOOGLE_API_KEY=
+
+# Required for Supabase server access
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+
+# Required for a public deployment and scheduled notifications
+APP_BASE_URL=https://your-domain.example
+NOTIFICATIONS_CRON_SECRET=
+
+# Required for Meta WhatsApp Cloud API
+META_WHATSAPP_ACCESS_TOKEN=
+META_WHATSAPP_VERIFY_TOKEN=
+META_WHATSAPP_APP_SECRET=
+
+# Optional Graph API version; defaults to v23.0
+META_GRAPH_API_VERSION=v23.0

@@ -58,6 +58,18 @@ const notificationSettingsSchema = z.object({
         })),
         meta_phone_number_id: z.string().default(''),
         meta_business_account_id: z.string().default(''),
+        meta_template_names: z.object({
+            registration_confirmation: z.string().default(''),
+            class_reminder: z.string().default(''),
+            event_reminder: z.string().default(''),
+            change_notification: z.string().default(''),
+        }).default(() => ({
+            registration_confirmation: '',
+            class_reminder: '',
+            event_reminder: '',
+            change_notification: '',
+        })),
+        meta_template_language: z.string().default('he'),
         status_callback_url: z.string().default(''),
         test_recipient_phone: z.string().default(''),
     }).default(() => ({
@@ -70,6 +82,13 @@ const notificationSettingsSchema = z.object({
         },
         meta_phone_number_id: '',
         meta_business_account_id: '',
+        meta_template_names: {
+            registration_confirmation: '',
+            class_reminder: '',
+            event_reminder: '',
+            change_notification: '',
+        },
+        meta_template_language: 'he',
         status_callback_url: '',
         test_recipient_phone: '',
     })),
@@ -108,6 +127,12 @@ function sanitizeProviderConfig(input?: NotificationProviderConfig | null): Noti
         ),
         meta_phone_number_id: input?.meta_phone_number_id?.trim() || undefined,
         meta_business_account_id: input?.meta_business_account_id?.trim() || undefined,
+        meta_template_names: Object.fromEntries(
+            Object.entries(input?.meta_template_names ?? {})
+                .map(([key, value]) => [key, typeof value === 'string' ? value.trim() : ''])
+                .filter(([, value]) => Boolean(value)),
+        ),
+        meta_template_language: input?.meta_template_language?.trim() || 'he',
         status_callback_url: input?.status_callback_url?.trim() || undefined,
         test_recipient_phone: input?.test_recipient_phone?.trim() || undefined,
     };

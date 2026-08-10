@@ -139,6 +139,15 @@ export default function AdminClassesImportPage() {
                             <p style={{ color: 'var(--text-secondary)' }}>המערכת תנתח את הכותרות ותציע מיפוי אוטומטי.</p>
                             <input type="file" accept=".xlsx,.csv" onChange={handleFileChange} style={{ display: 'none' }} />
                         </label>
+                        <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', lineHeight: 1.7 }}>
+                            <strong>מבנה CSV מומלץ</strong>
+                            <div style={{ direction: 'ltr', marginTop: '0.5rem', fontFamily: 'monospace', overflowX: 'auto' }}>
+                                title_he,description_he,category,target_age_group,min_age,max_age,days_of_week,start_time,end_time,price,instructor_name,location,max_participants,is_active
+                            </div>
+                            <small style={{ color: 'var(--text-secondary)' }}>
+                                חובה: title_he. הערכים ל־target_age_group הם kids/teens/adults/seniors; שעה בפורמט HH:MM; is_active הוא true/false. אפשר להשתמש גם בכותרות בעברית.
+                            </small>
+                        </div>
                         {isLoading && <p style={{ marginTop: '1rem', textAlign: 'center' }}>מנתח את הקובץ...</p>}
                     </div>
                 )}
