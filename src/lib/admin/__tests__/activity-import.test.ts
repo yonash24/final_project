@@ -52,6 +52,20 @@ test('parseSpreadsheet keeps UTF-8 Hebrew when a CSV contains an isolated legacy
     assert.equal(parsed.rows[0]?.title_he, 'יוגה');
 });
 
+test('parseSpreadsheet repairs Hebrew that was already decoded as Latin-1 mojibake', async () => {
+    const mojibake = '×™×•×’×”';
+    const parsed = await parseSpreadsheet(fakeFile(new TextEncoder().encode(`title_he\n${mojibake}`)));
+
+    assert.equal(parsed.rows[0]?.title_he, 'יוגה');
+});
+
+test('parseSpreadsheet repairs Hebrew that was already decoded as Windows-1255 mojibake', async () => {
+    const mojibake = '׳™׳•׳’׳”';
+    const parsed = await parseSpreadsheet(fakeFile(new TextEncoder().encode(`title_he\n${mojibake}`)));
+
+    assert.equal(parsed.rows[0]?.title_he, 'יוגה');
+});
+
 test('buildImportPreview normalizes formatted numbers, Excel times, and booleans', () => {
     const [row] = buildImportPreview([{
         'שם החוג': 'יוגה',

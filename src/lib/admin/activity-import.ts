@@ -32,6 +32,14 @@ function decodeCsv(buffer: ArrayBuffer) {
     // should not cause all Hebrew cells to be decoded as Windows-1255.
     const utf8 = new TextDecoder('utf-8').decode(bytes);
 
+    // If the file contains text that was already decoded through a Western
+    // code page, the UTF-8 candidate exposes the classic mojibake markers
+    // (for example ×™ or ׳™). Do not run that candidate through the legacy
+    // decoder again; it would make the corruption worse.
+    if (/(?:Ã|Â|×|׳)[\u0080-\u2122]/.test(utf8)) {
+        return utf8;
+    }
+
     // Older Hebrew Excel exports commonly use Windows-1255. When both
     // decoders are possible, choose the candidate containing more Hebrew
     // letters and fewer replacement characters. This also handles files that
@@ -48,6 +56,70 @@ function decodeCsv(buffer: ArrayBuffer) {
     };
 
     return score(windows1255) > score(utf8) ? windows1255 : utf8;
+}
+
+function buildSingleByteReverseMap(encoding: string) {
+    const decoder = new TextDecoder(encoding);
+    const map = new Map<string, number>();
+    for (let byte = 0; byte <= 0xff; byte += 1) {
+        const character = decoder.decode(Uint8Array.of(byte));
+        if (!map.has(character)) map.set(character, byte);
+    }
+    return map;
+}
+
+// TextDecoder intentionally exposes the Windows-125x undefined/control-byte
+// area as control characters. These are the printable characters commonly
+// present in mojibake (for example ™ in "×™"), so add their code-page mapping
+// explicitly for the reverse repair pass.
+const WINDOWS_125X_EXTENDED = [
+    [0x80, '€'], [0x82, '‚'], [0x83, 'ƒ'], [0x84, '„'], [0x85, '…'],
+    [0x86, '†'], [0x87, '‡'], [0x88, 'ˆ'], [0x89, '‰'], [0x8a, 'Š'],
+    [0x8b, '‹'], [0x8c, 'Œ'], [0x8e, 'Ž'], [0x91, '‘'], [0x92, '’'],
+    [0x93, '“'], [0x94, '”'], [0x95, '•'], [0x96, '–'], [0x97, '—'],
+    [0x98, '˜'], [0x99, '™'], [0x9a, 'š'], [0x9b, '›'], [0x9c, 'œ'],
+    [0x9e, 'ž'], [0x9f, 'Ÿ'],
+] as const;
+
+const LATIN1_REVERSE_MAP = buildSingleByteReverseMap('iso-8859-1');
+const WINDOWS_1252_REVERSE_MAP = buildSingleByteReverseMap('windows-1252');
+const WINDOWS_1255_REVERSE_MAP = buildSingleByteReverseMap('windows-1255');
+for (const [byte, character] of WINDOWS_125X_EXTENDED) {
+    WINDOWS_1252_REVERSE_MAP.set(character, byte);
+    WINDOWS_1255_REVERSE_MAP.set(character, byte);
+}
+
+function tryRepairMojibake(value: string, reverseMap: Map<string, number>) {
+    const bytes = new Uint8Array(value.length);
+    for (let index = 0; index < value.length; index += 1) {
+        const byte = reverseMap.get(value[index]);
+        if (byte == null) return null;
+        bytes[index] = byte;
+    }
+
+    try {
+        return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch {
+        return null;
+    }
+}
+
+function textQuality(value: string) {
+    const hebrewLetters = (value.match(/[\u0590-\u05ff]/g) ?? []).length;
+    const mojibakeMarkers = (value.match(/(?:Ã|Â|×|Ð|Ñ|׳)/g) ?? []).length;
+    const replacementCharacters = (value.match(/�/g) ?? []).length;
+    return hebrewLetters * 4 - mojibakeMarkers * 8 - replacementCharacters * 20;
+}
+
+function repairMojibake(value: string) {
+    const candidates = [
+        tryRepairMojibake(value, LATIN1_REVERSE_MAP),
+        tryRepairMojibake(value, WINDOWS_1252_REVERSE_MAP),
+        tryRepairMojibake(value, WINDOWS_1255_REVERSE_MAP),
+    ].filter((candidate): candidate is string => Boolean(candidate));
+
+    return candidates.reduce((best, candidate) =>
+        textQuality(candidate) > textQuality(best) ? candidate : best, value);
 }
 
 const HEADER_ALIASES: Record<string, ImportableField> = {
@@ -102,10 +174,13 @@ export async function parseSpreadsheet(file: File): Promise<ParsedSheetResult> {
         defval: '',
     });
 
-    const headers = rawRows.length > 0 ? Object.keys(rawRows[0]) : [];
+    const headers = rawRows.length > 0 ? Object.keys(rawRows[0]).map(repairMojibake) : [];
     const rows = rawRows.map((row) =>
         Object.fromEntries(
-            Object.entries(row).map(([key, value]) => [key, value == null ? '' : String(value).trim()]),
+            Object.entries(row).map(([key, value]) => [
+                repairMojibake(key),
+                repairMojibake(value == null ? '' : String(value).trim()),
+            ]),
         ),
     );
 
