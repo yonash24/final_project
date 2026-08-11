@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStudioModel } from '@/lib/ai/gemini';
+import { parseJsonObjectResponse } from '@/lib/ai/json-response';
 
 interface StudioRequestBody {
     prompt?: string;
@@ -14,6 +15,64 @@ interface StudioRequestBody {
 interface ErrorWithStatus {
     status?: number;
     message?: string;
+}
+
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
+function asText(value: unknown, fallback = '') {
+    return typeof value === 'string' ? value.trim() : fallback;
+}
+
+function normalizePalette(value: unknown) {
+    const palette = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    return {
+        primary: HEX_COLOR.test(asText(palette.primary)) ? asText(palette.primary) : '#2563eb',
+        secondary: HEX_COLOR.test(asText(palette.secondary)) ? asText(palette.secondary) : '#f59e0b',
+        text: HEX_COLOR.test(asText(palette.text)) ? asText(palette.text) : '#0f172a',
+        bg: HEX_COLOR.test(asText(palette.bg)) ? asText(palette.bg) : '#eff6ff',
+    };
+}
+
+function normalizeDesigns(value: unknown) {
+    const designs = value && typeof value === 'object' && Array.isArray((value as { designs?: unknown }).designs)
+        ? (value as { designs: unknown[] }).designs
+        : [];
+
+    return {
+        designs: designs.slice(0, 4).map((design, index) => {
+            const item = design && typeof design === 'object' ? design as Record<string, unknown> : {};
+            return {
+                id: asText(item.id, String(index + 1)),
+                name: asText(item.name, `עיצוב ${index + 1}`),
+                description: asText(item.description, 'עיצוב קהילתי ומזמין'),
+                icon: asText(item.icon, 'Sparkles'),
+                palette: normalizePalette(item.palette),
+            };
+        }),
+    };
+}
+
+function normalizeFlyer(value: unknown) {
+    const flyer = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    return {
+        title: asText(flyer.title, 'פעילות חדשה במתנ״ס'),
+        subtitle: asText(flyer.subtitle, 'מחכים לכם בקהילה'),
+        body: asText(flyer.body, 'הצטרפו אלינו לפעילות מהנה ומעשירה לכל המשפחה.'),
+        highlights: Array.isArray(flyer.highlights)
+            ? flyer.highlights.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean).slice(0, 6)
+            : [],
+        contact: asText(flyer.contact, 'לפרטים נוספים – המרכז הקהילתי'),
+        cta: asText(flyer.cta, 'הירשמו עכשיו!'),
+        imagePrompt: asText(flyer.imagePrompt, 'community activity'),
+    };
+}
+
+function normalizeSocialPost(value: unknown) {
+    const post = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    return {
+        marketingText: asText(post.marketingText, 'הצטרפו אלינו לפעילות קהילתית חדשה ומרגשת!'),
+        imagePrompt: asText(post.imagePrompt, 'community center activity'),
+    };
 }
 
 export async function POST(req: NextRequest) {
@@ -116,17 +175,24 @@ export async function POST(req: NextRequest) {
 
         if (lastError) throw lastError;
         
-        const data = JSON.parse(responseText);
+        const data = parseJsonObjectResponse<Record<string, unknown>>(responseText);
 
         if (action === 'get_designs') {
-            return NextResponse.json(data);
+            const normalized = normalizeDesigns(data);
+            if (normalized.designs.length === 0) {
+                return NextResponse.json({ error: 'המודל לא החזיר אפשרויות עיצוב תקינות.' }, { status: 502 });
+            }
+            return NextResponse.json(normalized);
         }
 
-        const imageSearchTerm = data.imagePrompt?.trim().replace(/ /g, '_') || 'community_center';
+        const normalized = type === 'post' && action !== 'generate'
+            ? normalizeSocialPost(data)
+            : normalizeFlyer(data);
+        const imageSearchTerm = normalized.imagePrompt.replace(/\s+/g, '_') || 'community_center';
         const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(imageSearchTerm)}?width=1080&height=1080&nologo=true&seed=${Math.floor(Math.random() * 1000)}`;
 
         return NextResponse.json({ 
-            ...data,
+            ...normalized,
             imageUrl: imageUrl
         });
     } catch (err: unknown) {

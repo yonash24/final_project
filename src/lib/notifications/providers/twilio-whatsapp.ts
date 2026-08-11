@@ -170,7 +170,11 @@ export class TwilioWhatsAppProvider implements NotificationProvider {
         const from = form.get('From') ?? '';
         const body = form.get('Body') ?? '';
         const messageStatus = form.get('MessageStatus') ?? form.get('SmsStatus');
-        const occurredAt = new Date().toISOString();
+        const timestamp = form.get('Timestamp');
+        const parsedTimestamp = timestamp ? new Date(timestamp) : null;
+        const occurredAt = parsedTimestamp && !Number.isNaN(parsedTimestamp.valueOf())
+            ? parsedTimestamp.toISOString()
+            : new Date().toISOString();
 
         if (messageStatus && form.get('Body') === null) {
             return {

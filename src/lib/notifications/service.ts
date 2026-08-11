@@ -610,16 +610,23 @@ async function findExistingWhatsAppEvent(args: {
         .from('whatsapp_message_events')
         .select('*')
         .eq('provider', args.provider)
-        .eq('event_type', args.eventType)
-        .eq('occurred_at', args.occurredAt);
+        .eq('event_type', args.eventType);
+
+    // Provider message IDs are stable across webhook retries. Use them as the
+    // primary deduplication key; Twilio may omit a stable event timestamp.
+    if (args.providerMessageId != null) {
+        query = query.eq('provider_message_id', args.providerMessageId);
+    } else {
+        query = query.eq('occurred_at', args.occurredAt);
+    }
 
     query = args.eventStatus == null
         ? query.is('event_status', null)
         : query.eq('event_status', args.eventStatus);
 
-    query = args.providerMessageId == null
-        ? query.is('provider_message_id', null)
-        : query.eq('provider_message_id', args.providerMessageId);
+    if (args.providerMessageId == null) {
+        query = query.is('provider_message_id', null);
+    }
 
     const { data, error } = await query.maybeSingle();
 
@@ -1317,6 +1324,7 @@ export async function handleWhatsAppStatusEvent(event: WhatsAppStatusEvent) {
     const { data: message, error: messageError } = await supabaseServer
         .from('whatsapp_messages')
         .select('*')
+        .eq('provider', event.provider)
         .eq('provider_message_id', event.providerMessageId)
         .maybeSingle();
 

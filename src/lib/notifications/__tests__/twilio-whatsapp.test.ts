@@ -165,6 +165,19 @@ test('TwilioWhatsAppProvider.parseWebhook separates delivery statuses from inbou
     assert.equal(inboundResult.inboundMessages[0]?.fromPhone, 'whatsapp:+972501234567');
 });
 
+test('TwilioWhatsAppProvider.parseWebhook uses Twilio Timestamp for stable status deduplication', async () => {
+    const provider = new TwilioWhatsAppProvider();
+    const request = new Request('https://example.com/api/webhooks/whatsapp/twilio-whatsapp', { method: 'POST' });
+
+    const result = await provider.parseWebhook({
+        request,
+        rawBody: 'MessageSid=SM123&MessageStatus=delivered&Timestamp=2026-08-11T10%3A00%3A00Z',
+        url: request.url,
+    });
+
+    assert.equal(result.statusEvents[0]?.occurredAt, '2026-08-11T10:00:00.000Z');
+});
+
 function buildTwilioSignature(url: string, rawBody: string, authToken: string) {
     const params = new URLSearchParams(rawBody);
     const sorted = Array.from(params.entries()).sort(([a], [b]) => a.localeCompare(b));

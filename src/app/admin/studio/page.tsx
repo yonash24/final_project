@@ -49,6 +49,7 @@ export default function StudioPage() {
     const [copied, setCopied] = useState(false);
     const [activities, setActivities] = useState<StudioActivity[]>([]);
     const [selectedActivityId, setSelectedActivityId] = useState('');
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
     
     const flyerRef = useRef<HTMLDivElement>(null);
 
@@ -82,6 +83,7 @@ ${act.target_age_group ? `קהל יעד: ${act.target_age_group}` : ''}`;
     const handleInitialSubmit = async () => {
         if (!prompt.trim()) return;
         setIsLoading(true);
+        setErrorMessage(null);
         
         if (type === 'flyer') {
             try {
@@ -91,12 +93,13 @@ ${act.target_age_group ? `קהל יעד: ${act.target_age_group}` : ''}`;
                     body: JSON.stringify({ prompt, type, action: 'get_designs' }),
                 });
                 const data = await res.json();
-                if (data.designs) {
-                    setDesigns(data.designs);
-                    setStep('designs');
-                }
+                if (!res.ok) throw new Error(data.error || 'לא ניתן לטעון עיצובים');
+                if (!Array.isArray(data.designs) || data.designs.length === 0) throw new Error('לא התקבלו עיצובים תקינים');
+                setDesigns(data.designs);
+                setStep('designs');
             } catch (e) {
                 console.error(e);
+                setErrorMessage(e instanceof Error ? e.message : 'אירעה שגיאה ביצירת העיצובים');
             } finally {
                 setIsLoading(false);
             }
@@ -109,21 +112,14 @@ ${act.target_age_group ? `קהל יעד: ${act.target_age_group}` : ''}`;
                     body: JSON.stringify({ prompt, type }),
                 });
                 const data = await res.json();
-                if (data.marketingText) {
-                    setResultText(data.marketingText);
-                    setFlyerData({
-                        title: '',
-                        subtitle: '',
-                        body: '',
-                        highlights: [],
-                        contact: '',
-                        cta: '',
-                        imageUrl: data.imageUrl,
-                    });
-                    setStep('result');
-                }
+                if (!res.ok) throw new Error(data.error || 'לא ניתן ליצור פוסט');
+                if (typeof data.marketingText !== 'string' || !data.marketingText.trim()) throw new Error('לא התקבל תוכן תקין מהמודל');
+                setResultText(data.marketingText);
+                setFlyerData({ title: '', subtitle: '', body: '', highlights: [], contact: '', cta: '', imageUrl: data.imageUrl });
+                setStep('result');
             } catch (e) {
                 console.error(e);
+                setErrorMessage(e instanceof Error ? e.message : 'אירעה שגיאה ביצירת הפוסט');
             } finally {
                 setIsLoading(false);
             }
@@ -133,6 +129,7 @@ ${act.target_age_group ? `קהל יעד: ${act.target_age_group}` : ''}`;
     const handleGenerateFlyer = async (design: DesignOption) => {
         setSelectedDesign(design);
         setIsLoading(true);
+        setErrorMessage(null);
         try {
             const res = await fetch('/api/studio', {
                 method: 'POST',
@@ -140,10 +137,13 @@ ${act.target_age_group ? `קהל יעד: ${act.target_age_group}` : ''}`;
                 body: JSON.stringify({ prompt, type: 'flyer', action: 'generate', design }),
             });
             const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'לא ניתן ליצור פלייר');
+            if (!data.title || !data.imageUrl) throw new Error('לא התקבל פלייר תקין מהמודל');
             setFlyerData(data);
             setStep('result');
         } catch (e) {
             console.error(e);
+            setErrorMessage(e instanceof Error ? e.message : 'אירעה שגיאה ביצירת הפלייר');
         } finally {
             setIsLoading(false);
         }
@@ -246,6 +246,12 @@ ${act.target_age_group ? `קהל יעד: ${act.target_age_group}` : ''}`;
                             {isLoading ? <RefreshCw className="animate-spin" /> : <ChevronRight />}
                             {isLoading ? 'חושב על רעיונות...' : type === 'flyer' ? 'בחר עיצובים' : 'ייצר פוסט'}
                         </button>
+                    </div>
+                )}
+
+                {errorMessage && (
+                    <div role="alert" style={{ maxWidth: '700px', margin: '1rem auto', padding: '1rem', borderRadius: 'var(--radius-md)', backgroundColor: '#fef2f2', color: '#b91c1c', textAlign: 'center' }}>
+                        {errorMessage}
                     </div>
                 )}
 
