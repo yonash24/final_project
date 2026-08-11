@@ -1,7 +1,7 @@
 "use client";
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, Calendar, Users, Settings, LogOut, Megaphone, Palette, Upload } from 'lucide-react';
+import { BookOpen, Calendar, Users, Settings, LayoutDashboard, Megaphone, Palette, Upload, House } from 'lucide-react';
 
 const navItems = [
     { href: '/admin/classes', icon: BookOpen, label: 'חוגים וקורסים' },
@@ -48,13 +48,18 @@ export default function AdminNavbar() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                <Link href="/" className="admin-nav-site-link" aria-label="חזרה לאתר המתנ״ס" title="חזרה לאתר המתנ״ס">
+                    <House size={16} aria-hidden="true" />
+                    <span>לאתר המתנ״ס</span>
+                </Link>
+
                 <div style={{ textAlign: 'end', fontSize: 'var(--text-xs)' }}>
                     <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>מנהל מערכת</div>
                     <div style={{ color: 'var(--text-secondary)' }}>אזור ניהול פתוח</div>
                 </div>
 
                 <Link href="/admin" className="admin-icon-btn" aria-label="חזרה ללוח הבקרה" title="חזרה ללוח הבקרה">
-                    <LogOut size={18} />
+                    <LayoutDashboard size={18} />
                 </Link>
             </div>
         </nav>
