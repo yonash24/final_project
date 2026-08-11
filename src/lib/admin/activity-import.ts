@@ -27,14 +27,27 @@ function decodeCsv(buffer: ArrayBuffer) {
         return new TextDecoder('utf-16be').decode(bytes);
     }
 
-    try {
-        // Excel and most modern CSV exporters use UTF-8. Fatal mode prevents
-        // legacy Hebrew encodings from being silently replaced with �.
-        return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-    } catch {
-        // Older Hebrew Excel exports commonly use Windows-1255.
-        return new TextDecoder('windows-1255').decode(bytes);
-    }
+    // Excel and most modern CSV exporters use UTF-8. Keep a non-fatal result
+    // as a candidate as well: a single legacy byte in an otherwise UTF-8 file
+    // should not cause all Hebrew cells to be decoded as Windows-1255.
+    const utf8 = new TextDecoder('utf-8').decode(bytes);
+
+    // Older Hebrew Excel exports commonly use Windows-1255. When both
+    // decoders are possible, choose the candidate containing more Hebrew
+    // letters and fewer replacement characters. This also handles files that
+    // contain a mixture of UTF-8 text and a legacy byte in a numeric column.
+    const windows1255 = new TextDecoder('windows-1255').decode(bytes);
+    const score = (text: string) => {
+        const hebrewLetters = (text.match(/[\u0590-\u05ff]/g) ?? []).length;
+        const replacementCharacters = (text.match(/�/g) ?? []).length;
+        // U+05F3 (׳) is the Windows-1255 rendering of the first byte of a
+        // UTF-8 Hebrew sequence. Repeated occurrences are a strong signal of
+        // mojibake, not real Hebrew prose.
+        const mojibakeMarkers = (text.match(/׳|×|Ã/g) ?? []).length;
+        return hebrewLetters * 4 - replacementCharacters * 20 - mojibakeMarkers * 8;
+    };
+
+    return score(windows1255) > score(utf8) ? windows1255 : utf8;
 }
 
 const HEADER_ALIASES: Record<string, ImportableField> = {

@@ -42,6 +42,16 @@ test('parseSpreadsheet preserves Hebrew in legacy Windows-1255 CSV files', async
     assert.equal(parsed.rows[0]?.description_he, 'חוג');
 });
 
+test('parseSpreadsheet keeps UTF-8 Hebrew when a CSV contains an isolated legacy byte', async () => {
+    const bytes = Uint8Array.from([
+        ...new TextEncoder().encode('title_he,price\nיוגה,180'),
+        0x96,
+    ]);
+    const parsed = await parseSpreadsheet(fakeFile(bytes));
+
+    assert.equal(parsed.rows[0]?.title_he, 'יוגה');
+});
+
 test('buildImportPreview normalizes formatted numbers, Excel times, and booleans', () => {
     const [row] = buildImportPreview([{
         'שם החוג': 'יוגה',
