@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 
 import Navbar from '@/components/layout/Navbar';
+import WhatsAppButton from '@/components/public/WhatsAppButton';
 
 const familyBenefits = [
   'איתור חוגים לפי גיל, יום, תחום עניין ומחיר',
@@ -128,6 +129,7 @@ export default function Home() {
                 <MessageSquare size={20} />
                 דברו איתי פשוט
               </Link>
+              <WhatsAppButton message="שלום, הגעתי מהאתר ואשמח לקבל עזרה." />
             </div>
 
             <div className="hero-stats">
@@ -212,6 +214,7 @@ export default function Home() {
             <div className="hero-actions" style={{ marginTop: 0 }}>
               <Link href="/start" className="btn btn-secondary btn-md">הכוונה צעד אחר צעד</Link>
               <Link href="/chat" className="btn btn-primary btn-md">לדבר איתי פשוט</Link>
+              <WhatsAppButton message="שלום, אשמח לקבל עזרה במציאת פעילות מתאימה." />
             </div>
           </article>
         </div>
@@ -274,6 +277,7 @@ export default function Home() {
               לדבר איתי פשוט
               <ArrowLeft size={18} />
             </Link>
+            <WhatsAppButton message="שלום, הגעתי מהאתר ואשמח לקבל עזרה." />
           </div>
         </div>
       </section>

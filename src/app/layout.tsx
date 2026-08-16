@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Heebo, Rubik } from 'next/font/google';
 import './globals.css';
+import WhatsAppButton from '@/components/public/WhatsAppButton';
 
 const heebo = Heebo({
   subsets: ['hebrew', 'latin'],
@@ -36,6 +37,7 @@ export default function RootLayout({
       <body>
         <a href="#main-content" className="skip-link">דלג לתוכן</a>
         {children}
+        <WhatsAppButton floating message="שלום, אשמח לקבל עזרה במציאת פעילות מתאימה." />
       </body>
     </html>
   );

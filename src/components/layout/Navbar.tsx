@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Menu, X } from 'lucide-react';
 
 import AccessibilityControls from '@/components/public/AccessibilityControls';
+import WhatsAppButton from '@/components/public/WhatsAppButton';
 
 const navLinks = [
     { href: '/', label: 'ראשי' },
@@ -71,6 +72,7 @@ export default function Navbar() {
 
                 <div className="nav-actions">
                     <AccessibilityControls />
+                    <WhatsAppButton compact />
                     <Link href="/admin" className="btn btn-secondary btn-md">
                         לצוות המתנ&quot;ס
                     </Link>
