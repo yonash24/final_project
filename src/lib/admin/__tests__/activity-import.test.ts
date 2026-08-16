@@ -66,6 +66,21 @@ test('parseSpreadsheet repairs Hebrew that was already decoded as Windows-1255 m
     assert.equal(parsed.rows[0]?.title_he, 'יוגה');
 });
 
+test('parseSpreadsheet maps common Hebrew headers and values automatically', async () => {
+    const csv = [
+        'שם חוג,תיאור,תחום,קהל יעד,גיל מינימלי,גיל מקסימלי,יום,שעת התחלה,שעת סיום,מחיר,מדריך,מיקום,מכסה,פעיל',
+        'יוגה לילדים,תרגול רגוע,ספורט,ילדים,6,12,שלישי,16:30,17:30,120,נועה לוי,חדר אמנות,15,כן',
+    ].join('\n');
+    const parsed = await parseSpreadsheet(fakeFile(new TextEncoder().encode(csv)));
+
+    assert.equal(parsed.suggestedMapping.title_he, 'שם חוג');
+    assert.equal(parsed.suggestedMapping.description_he, 'תיאור');
+    assert.equal(parsed.suggestedMapping.category, 'תחום');
+    assert.equal(parsed.suggestedMapping.target_age_group, 'קהל יעד');
+    assert.equal(parsed.suggestedMapping.days_of_week, 'יום');
+    assert.equal(parsed.rows[0]?.['שם חוג'], 'יוגה לילדים');
+});
+
 test('buildImportPreview normalizes formatted numbers, Excel times, and booleans', () => {
     const [row] = buildImportPreview([{
         'שם החוג': 'יוגה',

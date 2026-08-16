@@ -18,3 +18,4 @@ export async function loginAdmin(_prevState: LoginState, _formData: FormData): P
 export async function logoutAdmin() {
     redirect('/admin');
 }
+
