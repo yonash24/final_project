@@ -37,6 +37,7 @@ export default function AdminClassesImportPage() {
     const [job, setJob] = useState<ImportJob | null>(null);
     const [summary, setSummary] = useState<{ imported: number; updated: number; skipped: number } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     async function inspectFile(selectedFile: File) {
         const formData = new FormData();
@@ -97,12 +98,13 @@ export default function AdminClassesImportPage() {
         if (!selectedFile) return;
 
         setFile(selectedFile);
+        setError(null);
         setIsLoading(true);
         try {
             await inspectFile(selectedFile);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'שגיאה בקריאת הקובץ';
-            alert(message);
+            setError(message);
         } finally {
             setIsLoading(false);
         }
@@ -112,6 +114,11 @@ export default function AdminClassesImportPage() {
         <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
             <AdminNavbar />
             <main className="container" style={{ padding: '2rem 0', maxWidth: '1100px' }}>
+                {error && (
+                    <div role="alert" style={{ marginBottom: '1rem', padding: '1rem', borderRadius: 'var(--radius-md)', color: '#991b1b', background: '#fee2e2', border: '1px solid #fecaca' }}>
+                        {error}
+                    </div>
+                )}
                 <header style={{ marginBottom: '2rem' }}>
                     <h1 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>ייבוא חוגים מאקסל</h1>
                     <p style={{ color: 'var(--text-secondary)' }}>העלאה, מיפוי, Preview ואישור לפני כתיבה למערכת.</p>
@@ -197,7 +204,16 @@ export default function AdminClassesImportPage() {
                             </div>
                         </div>
 
-                        <button className="btn btn-primary btn-lg" style={{ marginTop: '2rem' }} onClick={() => void buildPreview()}>
+                        <button
+                            className="btn btn-primary btn-lg"
+                            style={{ marginTop: '2rem' }}
+                            onClick={() => {
+                                setError(null);
+                                setIsLoading(true);
+                                void buildPreview().catch((caught) => setError(caught instanceof Error ? caught.message : 'שגיאה ביצירת התצוגה המקדימה')).finally(() => setIsLoading(false));
+                            }}
+                            disabled={isLoading}
+                        >
                             בנה Preview
                         </button>
                     </div>
@@ -242,7 +258,16 @@ export default function AdminClassesImportPage() {
                             </table>
                         </div>
 
-                        <button className="btn btn-primary btn-lg" style={{ marginTop: '2rem' }} onClick={() => void commitImport()}>
+                        <button
+                            className="btn btn-primary btn-lg"
+                            style={{ marginTop: '2rem' }}
+                            onClick={() => {
+                                setError(null);
+                                setIsLoading(true);
+                                void commitImport().catch((caught) => setError(caught instanceof Error ? caught.message : 'שגיאה באישור הייבוא')).finally(() => setIsLoading(false));
+                            }}
+                            disabled={isLoading}
+                        >
                             אשר ייבוא
                         </button>
                     </div>

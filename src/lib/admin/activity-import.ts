@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import Papa from 'papaparse';
 
 import type { ActivityImportDraft, ImportRowResult } from './types';
 import type { AdminActivity } from './types';
@@ -11,51 +12,67 @@ export interface ParsedSheetResult {
     suggestedMapping: ImportMapping;
 }
 
+/** The columns supported by the activity CSV importer. Additional columns are
+ * retained so that the mapping step can report them to the administrator. */
+export interface ActivityCsvRow {
+    title_he?: string;
+    description_he?: string;
+    category?: string;
+    target_age_group?: string;
+    min_age?: string;
+    max_age?: string;
+    days_of_week?: string;
+    start_time?: string;
+    end_time?: string;
+    price?: string;
+    instructor_name?: string;
+    location?: string;
+    max_participants?: string;
+    is_active?: string;
+    [column: string]: string | undefined;
+}
+
 function normalizeHeader(value: string) {
     return value.replace(/^\uFEFF/, '').trim().toLowerCase().replace(/\s+/g, '_');
 }
 
+type CsvEncoding = 'utf-8' | 'windows-1255' | 'utf-16le' | 'utf-16be';
+
+function hasPrefix(bytes: Uint8Array, prefix: number[]) {
+    return prefix.every((byte, index) => bytes[index] === byte);
+}
+
+/**
+ * Detect the encoding before parsing. A valid UTF-8 file wins when possible;
+ * otherwise, Hebrew content in the Windows-1255 candidate is a strong signal
+ * that the file came from an older Excel/ANSI export.
+ */
+export function detectCsvEncoding(buffer: ArrayBuffer): CsvEncoding {
+    const bytes = new Uint8Array(buffer);
+
+    if (hasPrefix(bytes, [0xff, 0xfe])) return 'utf-16le';
+    if (hasPrefix(bytes, [0xfe, 0xff])) return 'utf-16be';
+    if (hasPrefix(bytes, [0xef, 0xbb, 0xbf])) return 'utf-8';
+
+    try {
+        new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+        return 'utf-8';
+    } catch {
+        // Continue to the legacy candidate below.
+    }
+
+    const utf8 = new TextDecoder('utf-8').decode(bytes);
+    const windows1255 = new TextDecoder('windows-1255').decode(bytes);
+    const countHebrew = (text: string) => (text.match(/[\u0590-\u05ff]/g) ?? []).length;
+
+    return countHebrew(windows1255) > countHebrew(utf8) ? 'windows-1255' : 'utf-8';
+}
+
 function decodeCsv(buffer: ArrayBuffer) {
     const bytes = new Uint8Array(buffer);
-    const hasBom = (prefix: number[]) => prefix.every((byte, index) => bytes[index] === byte);
+    const encoding = detectCsvEncoding(buffer);
 
-    if (hasBom([0xff, 0xfe])) {
-        return new TextDecoder('utf-16le').decode(bytes);
-    }
-
-    if (hasBom([0xfe, 0xff])) {
-        return new TextDecoder('utf-16be').decode(bytes);
-    }
-
-    // Excel and most modern CSV exporters use UTF-8. Keep a non-fatal result
-    // as a candidate as well: a single legacy byte in an otherwise UTF-8 file
-    // should not cause all Hebrew cells to be decoded as Windows-1255.
-    const utf8 = new TextDecoder('utf-8').decode(bytes);
-
-    // If the file contains text that was already decoded through a Western
-    // code page, the UTF-8 candidate exposes the classic mojibake markers
-    // (for example ×™ or ׳™). Do not run that candidate through the legacy
-    // decoder again; it would make the corruption worse.
-    if (/(?:Ã|Â|×|׳)[\u0080-\u2122]/.test(utf8)) {
-        return utf8;
-    }
-
-    // Older Hebrew Excel exports commonly use Windows-1255. When both
-    // decoders are possible, choose the candidate containing more Hebrew
-    // letters and fewer replacement characters. This also handles files that
-    // contain a mixture of UTF-8 text and a legacy byte in a numeric column.
-    const windows1255 = new TextDecoder('windows-1255').decode(bytes);
-    const score = (text: string) => {
-        const hebrewLetters = (text.match(/[\u0590-\u05ff]/g) ?? []).length;
-        const replacementCharacters = (text.match(/�/g) ?? []).length;
-        // U+05F3 (׳) is the Windows-1255 rendering of the first byte of a
-        // UTF-8 Hebrew sequence. Repeated occurrences are a strong signal of
-        // mojibake, not real Hebrew prose.
-        const mojibakeMarkers = (text.match(/׳|×|Ã/g) ?? []).length;
-        return hebrewLetters * 4 - replacementCharacters * 20 - mojibakeMarkers * 8;
-    };
-
-    return score(windows1255) > score(utf8) ? windows1255 : utf8;
+    return new TextDecoder(encoding).decode(bytes);
 }
 
 function buildSingleByteReverseMap(encoding: string) {
@@ -169,9 +186,35 @@ const HEADER_ALIASES: Record<string, ImportableField> = {
 export async function parseSpreadsheet(file: File): Promise<ParsedSheetResult> {
     const buffer = await file.arrayBuffer();
     const isCsv = file.name.toLowerCase().endsWith('.csv') || file.type === 'text/csv';
-    const workbook = isCsv
-        ? XLSX.read(decodeCsv(buffer), { type: 'string' })
-        : XLSX.read(buffer, { type: 'array' });
+    if (isCsv) {
+        const csvText = decodeCsv(buffer);
+        const parsed = Papa.parse<ActivityCsvRow>(csvText, {
+            header: true,
+            delimiter: ',',
+            skipEmptyLines: 'greedy',
+            transformHeader: (header) => repairMojibake(header),
+            transform: (value) => repairMojibake(value.trim()),
+        });
+
+        if (parsed.errors.length > 0) {
+            const firstError = parsed.errors[0];
+            throw new Error(`CSV parsing failed${firstError?.row != null ? ` on row ${firstError.row + 2}` : ''}: ${firstError?.message ?? 'invalid CSV'}`);
+        }
+
+        const rows = parsed.data.map((row) =>
+            Object.fromEntries(Object.entries(row).map(([key, value]) => [key, value ?? ''])) as Record<string, string>,
+        );
+        const headers = parsed.meta.fields?.map(repairMojibake) ?? [];
+        const suggestedMapping: ImportMapping = {};
+        headers.forEach((header) => {
+            const alias = HEADER_ALIASES[normalizeHeader(header)];
+            if (alias) suggestedMapping[alias] = header;
+        });
+
+        return { headers, rows, suggestedMapping };
+    }
+
+    const workbook = XLSX.read(buffer, { type: 'array' });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
 
