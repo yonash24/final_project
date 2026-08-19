@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { requireAdminRequest } from '@/lib/admin/auth';
+import { requireAdminRequest, requirePermission } from '@/lib/admin/auth';
 import { memberSchema } from '@/lib/admin/schemas';
 import { supabaseServer } from '@/lib/supabase/server';
 
@@ -25,6 +25,8 @@ export async function GET(request: NextRequest) {
 export async function DELETE(req: NextRequest) {
     const auth = await requireAdminRequest(req);
     if (auth.response) return auth.response;
+    const permissionResponse = requirePermission(auth.profile, 'content:write');
+    if (permissionResponse) return permissionResponse;
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
@@ -49,6 +51,8 @@ export async function DELETE(req: NextRequest) {
 export async function POST(req: NextRequest) {
     const auth = await requireAdminRequest(req);
     if (auth.response) return auth.response;
+    const permissionResponse = requirePermission(auth.profile, 'content:write');
+    if (permissionResponse) return permissionResponse;
 
     const body = await req.json();
     const parsed = memberSchema.safeParse(body);

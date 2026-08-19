@@ -374,6 +374,7 @@ export default function ChatPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [registerActivity, setRegisterActivity] = useState<ActivityCard | null>(null);
     const showQuickActions = typeof window === 'undefined' || !messages.some((m) => m.role === 'user');
+    const activeRequestRef = useRef<AbortController | null>(null);
 
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -411,6 +412,9 @@ export default function ChatPage() {
             setMessages((prev) => [...prev, userMsg]);
             setInput('');
             setIsLoading(true);
+            activeRequestRef.current?.abort();
+            const controller = new AbortController();
+            activeRequestRef.current = controller;
 
             // History excludes the initial greeting
             const history = messages
@@ -422,6 +426,7 @@ export default function ChatPage() {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message: trimmed, history }),
+                    signal: controller.signal,
                 });
 
                 if (!res.ok) {
@@ -445,6 +450,7 @@ export default function ChatPage() {
 
                 setMessages((prev) => [...prev, assistantMsg]);
             } catch (err: unknown) {
+                if (err instanceof DOMException && err.name === 'AbortError') return;
                 const msg = err instanceof Error ? err.message : 'אירעה שגיאה, נסה שוב.';
                 setMessages((prev) => [
                     ...prev,
@@ -456,7 +462,10 @@ export default function ChatPage() {
                     },
                 ]);
             } finally {
-                setIsLoading(false);
+                if (activeRequestRef.current === controller) {
+                    activeRequestRef.current = null;
+                    setIsLoading(false);
+                }
                 setTimeout(() => inputRef.current?.focus(), 50);
             }
         },
@@ -476,6 +485,9 @@ export default function ChatPage() {
     };
 
     const handleReset = () => {
+        activeRequestRef.current?.abort();
+        activeRequestRef.current = null;
+        setIsLoading(false);
         const fresh: ChatMessage[] = [
             {
                 id: uid(),

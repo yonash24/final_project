@@ -67,6 +67,27 @@ const EMPTY_FILTERS: IntentFilters = {
     free_only: null,
 };
 
+function fastClassify(userMessage: string): ClassifiedIntent | null {
+    const text = userMessage.trim().toLocaleLowerCase('he-IL');
+    const filters = { ...EMPTY_FILTERS };
+    if (/^(שלום|היי|הי|אהלן|בוקר טוב|ערב טוב|תודה|מה נשמע)[!. ]*$/.test(text)) {
+        return { intent: 'greeting', confidence: 1, filters, search_terms: null, activity_name: null, response_hint: null };
+    }
+    if (text.includes('מחיר') || text.includes('כמה עולה') || text.includes('עלות')) {
+        return { intent: 'price_inquiry', confidence: 0.92, filters, search_terms: [userMessage], activity_name: null, response_hint: null };
+    }
+    if (text.includes('מתי') || text.includes('שעות') || text.includes('לוח זמנים')) {
+        return { intent: 'schedule_inquiry', confidence: 0.9, filters, search_terms: [userMessage], activity_name: null, response_hint: null };
+    }
+    if (text.includes('אירוע') || text.includes('אירועים')) {
+        return { intent: 'search_events', confidence: 0.9, filters, search_terms: [userMessage], activity_name: null, response_hint: null };
+    }
+    if (text.includes('חוג') || text.includes('פעילות') || text.includes('סדנה')) {
+        return { intent: 'search_activities', confidence: 0.82, filters, search_terms: [userMessage], activity_name: null, response_hint: null };
+    }
+    return null;
+}
+
 // ─── Classifier ─────────────────────────────────────────
 
 /**
@@ -77,6 +98,9 @@ export async function classifyIntent(
     userMessage: string,
     history: ChatMessage[] = [],
 ): Promise<ClassifiedIntent> {
+    const fastResult = fastClassify(userMessage);
+    if (fastResult) return fastResult;
+
     try {
         const model = getClassifierModel();
 
@@ -93,7 +117,7 @@ export async function classifyIntent(
 
         // Retry logic for transient rate limits
         let text = '';
-        for (let attempt = 0; attempt < 3; attempt++) {
+        for (let attempt = 0; attempt < 2; attempt++) {
             try {
                 const result = await model.generateContent(prompt);
                 text = result.response.text();
@@ -101,8 +125,8 @@ export async function classifyIntent(
             } catch (retryErr: unknown) {
                 const msg = retryErr instanceof Error ? retryErr.message : '';
                 const is429 = msg.includes('429') || msg.includes('quota') || msg.includes('rate');
-                if (is429 && attempt < 2) {
-                    const delay = (attempt + 1) * 3000;
+                if (is429 && attempt < 1) {
+                    const delay = 500;
                     await new Promise((r) => setTimeout(r, delay));
                     continue;
                 }

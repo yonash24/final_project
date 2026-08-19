@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { requireAdminRequest } from '@/lib/admin/auth';
+import { requireAdminRequest, requirePermission } from '@/lib/admin/auth';
 import { eventSchema } from '@/lib/admin/schemas';
 import { supabaseServer } from '@/lib/supabase/server';
+import { writeAuditLog } from '@/lib/observability/audit';
 
 export async function GET(request: NextRequest) {
     const auth = await requireAdminRequest(request);
@@ -17,12 +18,16 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    void writeAuditLog({ actor: auth.profile, action: 'event.created', resourceType: 'event', resourceId: data?.[0]?.id, request });
+
     return NextResponse.json(data);
 }
 
 export async function POST(request: NextRequest) {
     const auth = await requireAdminRequest(request);
     if (auth.response) return auth.response;
+    const permissionResponse = requirePermission(auth.profile, 'content:write');
+    if (permissionResponse) return permissionResponse;
 
     const body = await request.json();
     const parsed = eventSchema.safeParse(body);

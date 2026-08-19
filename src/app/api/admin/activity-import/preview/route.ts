@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { parseSpreadsheet, buildImportPreview, type ImportMapping } from '@/lib/admin/activity-import';
+import { requireAdminRequest, requirePermission } from '@/lib/admin/auth';
 import { supabaseServer } from '@/lib/supabase/server';
 import type { AdminActivity } from '@/lib/admin/types';
 
 export async function POST(request: NextRequest) {
+    const auth = await requireAdminRequest(request);
+    if (auth.response) return auth.response;
+    const permissionResponse = requirePermission(auth.profile, 'imports:write');
+    if (permissionResponse) return permissionResponse;
+
     try {
         const formData = await request.formData();
         const file = formData.get('file');
@@ -70,6 +76,7 @@ export async function POST(request: NextRequest) {
                 valid_rows: previewRows.filter((row) => row.status !== 'invalid').length,
                 invalid_rows: previewRows.filter((row) => row.status === 'invalid').length,
                 status: 'preview',
+                created_by: auth.profile.id,
             },
         ])
         .select('*')

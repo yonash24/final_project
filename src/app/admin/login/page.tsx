@@ -1,7 +1,14 @@
+'use client';
+
 import Link from 'next/link';
 import { ArrowRight, ShieldCheck } from 'lucide-react';
+import { useActionState } from 'react';
+
+import { loginAdmin, type LoginState } from './actions';
 
 export default function AdminLoginPage() {
+    const [state, action, pending] = useActionState<LoginState, FormData>(loginAdmin, { message: null, error: null });
+
     return (
         <div
             style={{
@@ -44,23 +51,27 @@ export default function AdminLoginPage() {
                 <h1 style={{ fontSize: '1.875rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.025em' }}>
                     כניסת מנהלים
                 </h1>
-                <p style={{ color: '#64748b', marginTop: '0.5rem', marginBottom: '2rem' }}>
-                    אזור הניהול פתוח. לחץ כדי להיכנס ישירות ללוח הבקרה.
-                </p>
+                <p style={{ color: '#64748b', marginTop: '0.5rem', marginBottom: '2rem' }}>היכנסו עם חשבון מנהל מורשה.</p>
 
-                <Link
-                    href="/admin"
-                    className="btn btn-primary btn-lg"
-                    style={{
-                        width: '100%',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.5rem',
-                        textDecoration: 'none',
-                    }}
-                >
-                    <span>כניסה ללוח הבקרה</span>
+                <form action={action} style={{ display: 'grid', gap: '1rem', textAlign: 'start' }}>
+                    <label>
+                        אימייל
+                        <input name="email" type="email" autoComplete="email" required style={{ width: '100%', marginTop: '0.35rem' }} />
+                    </label>
+                    {state.error?.email && <small style={{ color: '#b91c1c' }}>{state.error.email[0]}</small>}
+                    <label>
+                        סיסמה
+                        <input name="password" type="password" autoComplete="current-password" required style={{ width: '100%', marginTop: '0.35rem' }} />
+                    </label>
+                    {state.error?.password && <small style={{ color: '#b91c1c' }}>{state.error.password[0]}</small>}
+                    {state.message && <p role="alert" style={{ color: '#b91c1c', margin: 0 }}>{state.message}</p>}
+                    <button type="submit" disabled={pending} className="btn btn-primary btn-lg" style={{ width: '100%' }}>
+                        {pending ? 'מתחבר...' : 'כניסה ללוח הבקרה'}
+                    </button>
+                </form>
+
+                <Link href="/" className="btn btn-lg" style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', textDecoration: 'none', marginTop: '1rem' }}>
+                    <span>חזרה לאתר</span>
                     <ArrowRight style={{ width: '1.25rem', height: '1.25rem' }} />
                 </Link>
             </div>

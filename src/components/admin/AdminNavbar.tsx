@@ -2,6 +2,9 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { BookOpen, Calendar, Users, Settings, LayoutDashboard, Megaphone, Palette, Upload, House } from 'lucide-react';
+import { useEffect, useState } from 'react';
+
+import { logoutAdmin } from '@/app/admin/login/actions';
 
 const navItems = [
     { href: '/admin/classes', icon: BookOpen, label: 'חוגים וקורסים' },
@@ -15,6 +18,14 @@ const navItems = [
 
 export default function AdminNavbar() {
     const pathname = usePathname();
+    const [profile, setProfile] = useState<{ email: string; role: string } | null>(null);
+
+    useEffect(() => {
+        fetch('/api/admin/me')
+            .then((response) => response.ok ? response.json() : null)
+            .then((data) => setProfile(data))
+            .catch(() => setProfile(null));
+    }, []);
 
     return (
         <nav className="admin-navbar" aria-label="ניווט ניהול">
@@ -54,9 +65,13 @@ export default function AdminNavbar() {
                 </Link>
 
                 <div style={{ textAlign: 'end', fontSize: 'var(--text-xs)' }}>
-                    <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>מנהל מערכת</div>
-                    <div style={{ color: 'var(--text-secondary)' }}>אזור ניהול פתוח</div>
+                    <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{profile?.email ?? 'מנהל מערכת'}</div>
+                    <div style={{ color: 'var(--text-secondary)' }}>{profile?.role ?? 'אזור ניהול'}</div>
                 </div>
+
+                <form action={logoutAdmin}>
+                    <button type="submit" className="admin-icon-btn" aria-label="יציאה" title="יציאה">יציאה</button>
+                </form>
 
                 <Link href="/admin" className="admin-icon-btn" aria-label="חזרה ללוח הבקרה" title="חזרה ללוח הבקרה">
                     <LayoutDashboard size={18} />

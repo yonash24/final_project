@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { requireAdminRequest } from '@/lib/admin/auth';
+import { requireAdminRequest, requirePermission } from '@/lib/admin/auth';
 import {
     getNotificationSettings,
     updateNotificationSettings,
@@ -22,6 +22,8 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
     const auth = await requireAdminRequest(request);
     if (auth.response) return auth.response;
+    const permissionResponse = requirePermission(auth.profile, 'settings:write');
+    if (permissionResponse) return permissionResponse;
 
     try {
         const body = await request.json();

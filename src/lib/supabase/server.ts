@@ -44,6 +44,12 @@ export async function createSSRClient() {
     });
 }
 
+export async function refreshSSRSession() {
+    const client = await createSSRClient();
+    await client.auth.getUser();
+    return client;
+}
+
 /**
  * Server-side Supabase client with Service Role Key.
  * Bypasses RLS — use ONLY in API routes, never expose to client.
