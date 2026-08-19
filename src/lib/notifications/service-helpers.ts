@@ -9,8 +9,9 @@ export function isDuplicateDatabaseError(error: PostgrestError | null | undefine
 export function mapDeliveryStatus(status: string) {
     switch (status) {
         case 'delivered':
-        case 'read':
             return 'delivered';
+        case 'read':
+            return 'read';
         case 'accepted':
         case 'queued':
         case 'sent':

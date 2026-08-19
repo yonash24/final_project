@@ -9,14 +9,9 @@ export function buildEffectiveWebhookUrl(url: string, headers: Headers) {
     const parsed = new URL(url);
     const publicHost = forwardedHost.split(',')[0].trim();
 
-    if (publicHost.includes(':')) {
-        const [hostname, port] = publicHost.split(':');
-        parsed.hostname = hostname;
-        parsed.port = port;
-    } else {
-        parsed.hostname = publicHost;
-        parsed.port = '';
-    }
+    // Assigning host preserves an explicitly forwarded port and also handles
+    // bracketed IPv6 hosts without changing the public URL's query string.
+    parsed.host = publicHost;
 
     if (forwardedProto) {
         parsed.protocol = `${forwardedProto.split(',')[0].trim()}:`;

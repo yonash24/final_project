@@ -284,7 +284,19 @@ async function upsertConversation(args: {
         .select('*')
         .single();
 
-    if (error) throw error;
+    if (error) {
+        if (isDuplicateDatabaseError(error)) {
+            const { data: concurrent, error: concurrentError } = await supabaseServer
+                .from('whatsapp_conversations')
+                .select('*')
+                .eq('provider', args.provider)
+                .eq('contact_phone', normalizedPhone)
+                .single();
+            if (concurrentError) throw concurrentError;
+            return concurrent as WhatsAppConversationRecord;
+        }
+        throw error;
+    }
     return data as WhatsAppConversationRecord;
 }
 
@@ -410,7 +422,18 @@ async function appendWhatsAppEvent(args: {
         .select('*')
         .single();
 
-    if (error) throw error;
+    if (error) {
+        if (isDuplicateDatabaseError(error)) {
+            return findExistingWhatsAppEvent({
+                provider: args.provider,
+                providerMessageId: args.providerMessageId ?? null,
+                eventType: args.eventType,
+                eventStatus: args.eventStatus ?? null,
+                occurredAt,
+            });
+        }
+        throw error;
+    }
     return data as WhatsAppMessageEventRecord;
 }
 
@@ -863,7 +886,9 @@ async function sendConversationReply(args: {
         payload: args.payload ?? { source: 'whatsapp_chat' },
         renderedBody: args.body,
         relatedConversationId: args.conversation.id,
-        idempotencyKey: null,
+        idempotencyKey: args.inReplyToMessageId
+            ? `whatsapp-reply:${args.conversation.provider}:${args.inReplyToMessageId}`
+            : null,
     });
 
     return dispatchDelivery(delivery, {
@@ -1257,28 +1282,42 @@ export async function handleIncomingWhatsAppMessage(message: WhatsAppInboundMess
 
     try {
         const history = await getConversationHistoryExcludingMessage(conversation.id, inboundRecord.id);
-        const chatResponse = await getChatResponse(message.text, history);
-        const reply = await sendConversationReply({
-            conversation,
-            memberId: member.id,
-            recipientName: member.full_name,
-            recipientPhone: normalizedPhone,
-            body: chatResponse.response,
-            payload: {
-                source: 'whatsapp_chat',
-                intent: chatResponse.intent,
-                responseType: chatResponse.responseType,
-            },
-            chatResponse: chatResponse as unknown as Record<string, unknown>,
-            inReplyToMessageId: inboundRecord.id,
-        });
-
-        if (!reply) {
-            console.warn('[WhatsApp] AI reply delivery was queued but not persisted as an outbound message.', {
-                provider: message.provider,
-                providerMessageId: message.providerMessageId,
-                inboundMessageId: inboundRecord.id,
+        const configuredTimeout = Number(process.env.WHATSAPP_AI_TIMEOUT_MS ?? '20000');
+        const timeoutMs = Number.isFinite(configuredTimeout)
+            ? Math.max(1000, Math.min(configuredTimeout, 60000))
+            : 20000;
+        let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+        try {
+            const chatResponse = await Promise.race([
+                getChatResponse(message.text, history),
+                new Promise<never>((_, reject) => {
+                    timeoutHandle = setTimeout(() => reject(new Error('WhatsApp AI response timed out.')), timeoutMs);
+                }),
+            ]);
+            const reply = await sendConversationReply({
+                conversation,
+                memberId: member.id,
+                recipientName: member.full_name,
+                recipientPhone: normalizedPhone,
+                body: chatResponse.response,
+                payload: {
+                    source: 'whatsapp_chat',
+                    intent: chatResponse.intent,
+                    responseType: chatResponse.responseType,
+                },
+                chatResponse: chatResponse as unknown as Record<string, unknown>,
+                inReplyToMessageId: inboundRecord.id,
             });
+
+            if (!reply) {
+                console.warn('[WhatsApp] AI reply delivery was queued but not persisted as an outbound message.', {
+                    provider: message.provider,
+                    providerMessageId: message.providerMessageId,
+                    inboundMessageId: inboundRecord.id,
+                });
+            }
+        } finally {
+            if (timeoutHandle) clearTimeout(timeoutHandle);
         }
     } catch (error) {
         console.error('[WhatsApp] Failed to generate chat reply.', {

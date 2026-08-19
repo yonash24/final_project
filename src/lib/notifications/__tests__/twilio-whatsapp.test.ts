@@ -138,6 +138,60 @@ test('TwilioWhatsAppProvider.verifyWebhook accepts a valid signature', async () 
     }
 });
 
+test('TwilioWhatsAppProvider.verifyWebhook uses the forwarded public URL and rejects invalid signatures', async () => {
+    const provider = new TwilioWhatsAppProvider();
+    const originalToken = process.env.TWILIO_AUTH_TOKEN;
+    process.env.TWILIO_AUTH_TOKEN = 'webhook-secret';
+    const rawBody = 'MessageSid=SM123&Body=Hello';
+    const publicUrl = 'https://public.example.com/api/webhooks/whatsapp/twilio-whatsapp?tenant=one';
+
+    try {
+        const request = new Request('http://internal:3000/api/webhooks/whatsapp/twilio-whatsapp?tenant=one', {
+            method: 'POST',
+            headers: {
+                'x-forwarded-host': 'public.example.com',
+                'x-forwarded-proto': 'https',
+                'x-twilio-signature': buildTwilioSignature(publicUrl, rawBody, 'webhook-secret'),
+            },
+            body: rawBody,
+        });
+
+        const valid = await provider.verifyWebhook({ request, rawBody, url: request.url });
+        assert.equal(valid.ok, true);
+
+        const invalid = await provider.verifyWebhook({
+            request: new Request(request.url, {
+                method: 'POST',
+                headers: { ...Object.fromEntries(request.headers), 'x-twilio-signature': 'invalid' },
+                body: rawBody,
+            }),
+            rawBody,
+            url: request.url,
+        });
+        assert.equal(invalid.ok, false);
+        assert.equal(invalid.status, 403);
+    } finally {
+        if (originalToken === undefined) delete process.env.TWILIO_AUTH_TOKEN;
+        else process.env.TWILIO_AUTH_TOKEN = originalToken;
+    }
+});
+
+test('TwilioWhatsAppProvider rejects a template without a configured Content SID', async () => {
+    const provider = new TwilioWhatsAppProvider();
+    const result = await provider.send({
+        channel: 'whatsapp',
+        deliveryId: 'delivery-template-missing',
+        recipientPhone: '+972501234567',
+        body: 'Fallback text',
+        templateKey: 'registration_confirmation',
+        providerConfig: { twilio_from_number: 'whatsapp:+14155238886' },
+    });
+
+    assert.equal(result.status, 'failed');
+    assert.equal(result.errorCode, 'twilio_template_not_configured');
+    assert.equal(result.shouldRetry, false);
+});
+
 test('TwilioWhatsAppProvider.parseWebhook separates delivery statuses from inbound messages', async () => {
     const provider = new TwilioWhatsAppProvider();
     const request = new Request('https://example.com/api/webhooks/whatsapp/twilio-whatsapp', {

@@ -10,28 +10,38 @@ messages:
 3. Seed the knowledge base and embeddings with
    `npx tsx src/scripts/seed-knowledge-and-embeddings.ts`. Re-run it after
    changing FAQs, policies, opening hours, or contact information.
-4. In Admin → Settings, select `Meta Cloud API` and enter the Meta phone number
-   ID and WhatsApp Business account ID.
+4. In Admin → Settings, select `Twilio WhatsApp`, enable notifications, and
+   enter the Twilio sender as `whatsapp:+E164_NUMBER`. Leave `mock-whatsapp`
+   selected until credentials and the sandbox test are complete.
 5. Set these server environment variables:
-   `META_WHATSAPP_ACCESS_TOKEN`, `META_WHATSAPP_VERIFY_TOKEN`, and
-   `META_WHATSAPP_APP_SECRET`. Also set `APP_BASE_URL` to the public HTTPS
-   origin of the deployed app. `META_GRAPH_API_VERSION` is optional and
-   defaults to `v23.0`.
-6. In Meta, configure the callback URL
-   `https://YOUR-DOMAIN/api/webhooks/whatsapp/meta-cloud-api`, use the same
-   verify token, and subscribe the app to the `messages` webhook field.
+   `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
+   `SUPABASE_SERVICE_ROLE_KEY`, `GOOGLE_API_KEY`, `APP_BASE_URL`,
+   `NOTIFICATIONS_CRON_SECRET` (or `CRON_SECRET`), `TWILIO_ACCOUNT_SID`, and
+   `TWILIO_AUTH_TOKEN`.
+6. In Twilio Console → Sandbox, set the exact webhook URL
+   `https://YOUR-DOMAIN/api/webhooks/whatsapp/twilio-whatsapp` for incoming
+   messages and status callbacks. Test users must first send the Sandbox
+   `join <code>` message.
 7. Deploy with a public HTTPS URL. Test by sending `START`, then a normal
    Hebrew question. Check Admin → Settings → recent deliveries and server
    logs if a reply is not delivered.
 
 For scheduled confirmations, reminders, and change notifications, create an
-approved Meta template for each enabled notification type. In Admin → Settings
-enter each exact Meta template name and its language code (for example `he`).
-The importer maps the saved template variables to Meta body parameters. If a
-template name is missing, that delivery fails clearly instead of sending an
+approved Twilio Content Template and enter each exact `ContentSid` in Admin →
+Settings. The importer maps saved template variables to `ContentVariables`.
+If a Content SID is missing, that delivery fails clearly instead of sending an
 invalid free-form message outside the customer-service window.
 
-For Meta's WhatsApp rules, free-form replies are normally allowed inside the
+For WhatsApp's rules, free-form replies are normally allowed inside the
 customer-service window after an inbound message. Business-initiated messages
-outside that window require an approved WhatsApp template. The chatbot reply
-itself is free-form and is sent in response to the inbound question.
+outside the 24-hour window require an approved template. The chatbot reply
+itself is free-form and is sent in response to the inbound question. Verify one
+duplicate webhook (same provider message ID), then one `delivered` status
+callback, and confirm only one reply and one event are recorded. Apply all
+migrations and seed RAG with `npx tsx src/scripts/seed-knowledge-and-embeddings.ts`.
+
+Meta remains available at
+`https://YOUR-DOMAIN/api/webhooks/whatsapp/meta-cloud-api`; configure its
+existing access token, verify token, app secret, phone number ID, and optional
+`META_GRAPH_API_VERSION` values when selecting `Meta Cloud API` in Admin →
+Settings.

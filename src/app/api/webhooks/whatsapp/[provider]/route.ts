@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { after, NextRequest, NextResponse } from 'next/server';
 
 import { getNotificationProvider } from '@/lib/notifications/provider';
 import {
@@ -14,6 +14,12 @@ function twimlEmptyResponse() {
         status: 200,
         headers: { 'Content-Type': 'application/xml; charset=utf-8' },
     });
+}
+
+function acknowledgement(provider: NotificationProviderName) {
+    return provider === 'twilio-whatsapp'
+        ? twimlEmptyResponse()
+        : NextResponse.json({ ok: true }, { status: 200 });
 }
 
 function isSupportedProvider(value: string): value is NotificationProviderName {
@@ -73,15 +79,19 @@ export async function POST(request: NextRequest, context: { params: Promise<{ pr
             url: request.url,
         });
 
-        for (const statusEvent of parsed.statusEvents) {
-            await handleWhatsAppStatusEvent(statusEvent);
-        }
+        after(async () => {
+            try {
+                await Promise.all(parsed.statusEvents.map((statusEvent) => handleWhatsAppStatusEvent(statusEvent)));
+                await Promise.all(parsed.inboundMessages.map((inboundMessage) => handleIncomingWhatsAppMessage(inboundMessage)));
+            } catch (error) {
+                console.error('[WhatsAppWebhook] Background processing failed.', {
+                    provider: providerForLog,
+                    error: error instanceof Error ? error.message : 'unknown_error',
+                });
+            }
+        });
 
-        for (const inboundMessage of parsed.inboundMessages) {
-            await handleIncomingWhatsAppMessage(inboundMessage);
-        }
-
-        return twimlEmptyResponse();
+        return acknowledgement(provider);
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Webhook processing failed';
         console.error('[WhatsAppWebhook] POST failed.', {

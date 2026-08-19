@@ -9,6 +9,11 @@ SUPABASE_SERVICE_ROLE_KEY=
 # Required for a public deployment and scheduled notifications
 APP_BASE_URL=https://your-domain.example
 NOTIFICATIONS_CRON_SECRET=
+CRON_SECRET=
+
+# Twilio WhatsApp MVP provider
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
 
 # Required for Meta WhatsApp Cloud API
 META_WHATSAPP_ACCESS_TOKEN=

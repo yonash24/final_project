@@ -19,7 +19,8 @@ export function getNotificationProvider(providerName?: NotificationProviderName 
         case 'meta-cloud-api':
             return metaCloudApiProvider;
         default:
-            return twilioProvider;
+            // Never send live messages just because a setting is missing.
+            return mockProvider;
     }
 }
 

@@ -106,6 +106,15 @@ export class TwilioWhatsAppProvider implements NotificationProvider {
             ? request.providerConfig.twilio_content_sids?.[request.templateKey]
             : undefined;
 
+        if (request.templateKey && !contentSid) {
+            return {
+                status: 'failed',
+                errorCode: 'twilio_template_not_configured',
+                errorMessage: `No approved Twilio Content SID is configured for ${request.templateKey}.`,
+                shouldRetry: false,
+            };
+        }
+
         if (contentSid) {
             form.set('ContentSid', contentSid);
             const contentVariables = buildContentVariables(request);
