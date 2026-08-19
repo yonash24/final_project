@@ -35,7 +35,19 @@ export async function getAdminProfile() {
         .eq('id', user.id)
         .maybeSingle();
 
-    if (error || !data || data.is_active === false) return null;
+    if (error) {
+        // Keep login diagnosable during migration rollout. The active flag is
+        // enforced as soon as migration 0015 is applied.
+        const legacyResult = await supabaseServer
+            .from('admin_users')
+            .select('id, email, role')
+            .eq('id', user.id)
+            .maybeSingle();
+        if (legacyResult.error || !legacyResult.data) return null;
+        return { ...legacyResult.data, is_active: true } as AdminProfile;
+    }
+
+    if (!data || data.is_active === false) return null;
     return data as AdminProfile;
 }
 

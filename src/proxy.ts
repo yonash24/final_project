@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 
 export async function proxy(request: NextRequest) {
     const response = NextResponse.next({
@@ -31,12 +32,29 @@ export async function proxy(request: NextRequest) {
     }
 
     if (user && !isLoginRoute) {
-        const { data: admin } = await supabase
+        const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        if (!serviceRoleKey) return NextResponse.redirect(new URL('/admin/login?error=configuration', request.url));
+
+        // Use the server-only key here because admin_users is intentionally not
+        // readable through anonymous/public policies.
+        const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+            auth: { autoRefreshToken: false, persistSession: false },
+        });
+        const { data: admin, error: adminError } = await adminClient
             .from('admin_users')
             .select('id, is_active')
             .eq('id', user.id)
             .maybeSingle();
-        if (!admin || admin.is_active === false) {
+        let adminProfile = admin;
+        if (adminError) {
+            const legacyResult = await adminClient
+                .from('admin_users')
+                .select('id')
+                .eq('id', user.id)
+                .maybeSingle();
+            adminProfile = legacyResult.data ? { ...legacyResult.data, is_active: true } : null;
+        }
+        if (!adminProfile || adminProfile.is_active === false) {
             return NextResponse.redirect(new URL('/admin/login?error=unauthorized', request.url));
         }
     }

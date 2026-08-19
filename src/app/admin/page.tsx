@@ -50,6 +50,7 @@ export default function AdminPage() {
                             <QuickAction href="/admin/members" title="ניהול משתתפים" desc="ייצוא וייבוא נתוני משתתפים" />
                             <QuickAction href="/admin/insights" title="תובנות AI 🧠" desc="שאילתות פופולריות, כשלים וכוונות" />
                             <QuickAction href="/chat" title="צפייה כתושב" desc="בדיקת ה-AI מצד המשתמש" outLink />
+                            <QuickAction href="/" title="חזרה ל-Smart Hub" desc="מעבר לעמוד הראשי של המערכת" outLink />
                         </div>
                     </div>
 
