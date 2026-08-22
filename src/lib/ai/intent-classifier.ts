@@ -7,6 +7,7 @@
 import { getClassifierModel } from './gemini';
 import { parseJsonObjectResponse } from './json-response';
 import { INTENT_CLASSIFIER_SYSTEM_PROMPT } from './prompts';
+import { extractConstraints, intentSchema } from './recommendation-request';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -83,7 +84,26 @@ function fastClassify(userMessage: string): ClassifiedIntent | null {
         return { intent: 'search_events', confidence: 0.9, filters, search_terms: [userMessage], activity_name: null, response_hint: null };
     }
     if (text.includes('חוג') || text.includes('פעילות') || text.includes('סדנה')) {
-        return { intent: 'search_activities', confidence: 0.82, filters, search_terms: [userMessage], activity_name: null, response_hint: null };
+        const constraints = extractConstraints(userMessage);
+        const interests = constraints.interests ?? [];
+        const hasStructuredConstraint = constraints.exactAge != null || constraints.targetAgeGroup != null || constraints.days?.length || interests.length || constraints.maxPrice != null || constraints.freeOnly;
+        if (!hasStructuredConstraint) return null;
+        return {
+            intent: 'search_activities', confidence: 0.94,
+            filters: {
+                ...filters,
+                age: constraints.exactAge ?? null,
+                min_age_lte: constraints.exactAge ?? null,
+                max_age_gte: constraints.exactAge ?? null,
+                days: constraints.days ? [...constraints.days] : null,
+                category_keyword: interests.length > 0 ? interests.join(' ') : null,
+                max_price: constraints.maxPrice ?? null,
+                target_age_group: constraints.targetAgeGroup ?? null,
+                has_spots: constraints.requiresAvailability ?? null,
+                free_only: constraints.freeOnly ?? null,
+            },
+            search_terms: [userMessage], activity_name: null, response_hint: interests.length > 0 ? 'recommend' : null,
+        };
     }
     return null;
 }
@@ -135,7 +155,7 @@ export async function classifyIntent(
         }
 
         // Parse JSON — the classifier model forces JSON output
-        const parsed = parseJsonObjectResponse<ClassifiedIntent>(text);
+        const parsed = intentSchema.parse(parseJsonObjectResponse<unknown>(text));
 
         // Ensure all expected fields exist with defaults
         return {

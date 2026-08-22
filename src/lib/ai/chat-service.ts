@@ -18,6 +18,9 @@ import {
     type KnowledgeResult,
 } from '@/lib/ai/semantic-search';
 import { getChatModel } from '@/lib/ai/gemini';
+import { buildRecommendationRequest, type RecommendationRequest } from './recommendation-request';
+import { isActivityEligible, isEventEligible } from './eligibility';
+import { rankEligibleActivities } from './recommendation-ranker';
 import {
     CHAT_SYSTEM_PROMPT,
     formatActivitiesForContext,
@@ -119,6 +122,8 @@ function createResponse(
     eventCards: EventRow[] = [],
     clarificationOptions?: ClarificationOption[],
     knowledgeContext?: string,
+    matchReasons?: Record<string, string[]>,
+    warnings?: Record<string, string[]>,
 ): ChatApiResponse {
     return {
         responseType,
@@ -129,6 +134,8 @@ function createResponse(
         eventCards,
         clarificationOptions,
         knowledgeContext,
+        matchReasons,
+        warnings,
     };
 }
 
@@ -261,6 +268,7 @@ async function buildNoResultsWithRAG(
     intent: string,
     message: string,
     sessionPrefs: SessionPreferences,
+    recommendationRequest?: RecommendationRequest,
 ): Promise<ChatApiResponse> {
     const structuredKnowledgeRows = await measureStage(
         'knowledge-search',
@@ -273,7 +281,7 @@ async function buildNoResultsWithRAG(
     }
 
     const semanticSearchStartedAt = performance.now();
-    const { activities: semanticActivities, events: semanticEvents, knowledge } = await semanticSearchAll(message, {
+    const semanticResult = await semanticSearchAll(message, {
         activityThreshold: 0.35,
         activityLimit: 4,
         eventThreshold: 0.35,
@@ -281,6 +289,13 @@ async function buildNoResultsWithRAG(
         knowledgeThreshold: 0.3,
         knowledgeLimit: 3,
     });
+    const semanticActivities = recommendationRequest
+        ? semanticResult.activities.filter((activity) => isActivityEligible(activity, recommendationRequest))
+        : semanticResult.activities;
+    const semanticEvents = recommendationRequest
+        ? semanticResult.events.filter((event) => isEventEligible(event, recommendationRequest))
+        : semanticResult.events;
+    const { knowledge } = semanticResult;
     logRetrievalTrace('timing', {
         stage: 'semantic-search',
         durationMs: Math.round(performance.now() - semanticSearchStartedAt),
@@ -334,36 +349,29 @@ async function buildNoResultsWithRAG(
 
 async function handleRecommendation(
     message: string,
-    sessionPrefs: SessionPreferences,
+    request: RecommendationRequest,
 ): Promise<ChatApiResponse> {
-    // Use semantic search to find relevant activities
-    const activities = await semanticSearchActivities(message, 0.35, 8);
-
-    // Filter based on session preferences if available
-    let filtered = activities;
-    if (sessionPrefs.budgetMax) {
-        filtered = filtered.filter((a) => a.price == null || a.price <= sessionPrefs.budgetMax!);
-    }
-    if (sessionPrefs.ageGroup) {
-        filtered = filtered.filter((a) => !a.target_age_group || a.target_age_group === sessionPrefs.ageGroup);
-    }
-
-    if (filtered.length === 0 && activities.length > 0) {
-        filtered = activities; // Fall back to unfiltered
-    }
-
-    if (filtered.length > 0) {
+    // Semantic ranking is only applied after deterministic eligibility filtering.
+    const activities = await semanticSearchActivities(message, 0.35, 12, request);
+    const recommendations = rankEligibleActivities(activities.filter((activity) => isActivityEligible(activity, request)), request);
+    if (recommendations.length > 0) {
+        const matchReasons = Object.fromEntries(recommendations.map((item) => [item.activity.id, item.matchReasons]));
         return createResponse(
             'results',
             `על סמך מה שסיפרת לי, הנה כמה המלצות שלי 🎯`,
             'recommendation',
-            filtered.slice(0, 6),
+            recommendations.slice(0, 6).map((item) => item.activity),
+            [], undefined, undefined, matchReasons,
         );
     }
 
+    const noResultText = request.exactAge != null
+        ? `לא מצאתי כרגע פעילות שמתאימה בדיוק לגיל ${request.exactAge}. לא אציג פעילויות של מבוגרים כתחליף. אפשר לנסות יום אחר או תחום קרוב.`
+        : 'אני צריך עוד פרט אחד כדי להמליץ בבטחה: למי הפעילות ובאיזה גיל?';
+
     return createResponse(
         'answer',
-        'אני צריך קצת יותר מידע כדי להמליץ. ספרו לי: מה הגיל? באיזה ימים נוח? איזה סוג פעילות מעניין?',
+        noResultText,
         'recommendation',
         [],
         [],
@@ -454,7 +462,8 @@ export async function getChatResponse(
         stage: 'intent-classification',
         durationMs: Math.round(performance.now() - classifyStartedAt),
     });
-    const sessionPrefs = extractSessionPreferences(history);
+    const sessionPrefs = extractSessionPreferences([...history, { role: 'user', content: message }]);
+    const recommendationRequest = buildRecommendationRequest(message, classified, history);
 
     // Greeting
     if (classified.intent === 'greeting') {
@@ -487,7 +496,7 @@ export async function getChatResponse(
 
     // Recommendation intent (new)
     if (classified.intent === 'recommendation' || classified.response_hint === 'recommend') {
-        return handleRecommendation(message, sessionPrefs);
+        return handleRecommendation(message, recommendationRequest);
     }
 
     let activityCards: ActivityRow[] = [];
@@ -501,6 +510,7 @@ export async function getChatResponse(
                 'structured-activity-search',
                 () => searchActivities(classified.filters, classified.search_terms, message),
             );
+            activityCards = activityCards.filter((activity) => isActivityEligible(activity, recommendationRequest));
 
             if (activityCards.length > 0) {
                 logRetrievalTrace('activities', {
@@ -511,7 +521,7 @@ export async function getChatResponse(
                 return createResponse('results', buildActivitiesResultsResponse(activityCards), classified.intent, activityCards.slice(0, 8));
             }
 
-            return buildNoResultsWithRAG(classified.intent, message, sessionPrefs);
+            return buildNoResultsWithRAG(classified.intent, message, sessionPrefs, recommendationRequest);
         }
 
         case 'price_inquiry':
@@ -533,7 +543,7 @@ export async function getChatResponse(
             }
 
             if (activityCards.length === 0) {
-                return buildNoResultsWithRAG(classified.intent, message, sessionPrefs);
+                return buildNoResultsWithRAG(classified.intent, message, sessionPrefs, recommendationRequest);
             }
             if (activityCards.length > 1) return buildMultiMatchClarification(classified.intent, activityCards);
 
@@ -558,6 +568,7 @@ export async function getChatResponse(
                 'structured-event-search',
                 () => searchEvents(classified.filters, classified.search_terms, message),
             );
+            eventCards = eventCards.filter((event) => isEventEligible(event, recommendationRequest));
             if (eventCards.length === 0) {
                 return buildNoResultsWithRAG(classified.intent, message, sessionPrefs);
             }

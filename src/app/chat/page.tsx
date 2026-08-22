@@ -53,6 +53,7 @@ interface ChatMessage {
     activityCards?: ActivityCard[];
     eventCards?: EventCard[];
     clarificationOptions?: ClarificationOption[];
+    matchReasons?: Record<string, string[]>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -136,9 +137,10 @@ interface ActivityCardProps {
     activity: ActivityCard;
     index: number;
     onRegister: (activity: ActivityCard) => void;
+    matchReasons?: string[];
 }
 
-function ActivityResultCard({ activity, index, onRegister }: ActivityCardProps) {
+function ActivityResultCard({ activity, index, onRegister, matchReasons }: ActivityCardProps) {
     const spotsLeft =
         activity.max_participants != null
             ? activity.max_participants - (activity.current_participants ?? 0)
@@ -162,6 +164,10 @@ function ActivityResultCard({ activity, index, onRegister }: ActivityCardProps) 
             </div>
 
             <h4 className="result-card-title">{activity.title_he}</h4>
+
+            {matchReasons && matchReasons.length > 0 && (
+                <div className="result-card-reasons">למה זה מתאים: {matchReasons.join(' · ')}</div>
+            )}
 
             {activity.description_he && (
                 <p className="result-card-desc">{activity.description_he}</p>
@@ -322,7 +328,7 @@ function ResultCardsSection({ message, onRegister, onClarify }: ResultCardsSecti
                     <p className="result-cards-label">🎨 חוגים ופעילויות שנמצאו:</p>
                     <div className="result-cards-grid">
                         {message.activityCards!.map((a, i) => (
-                            <ActivityResultCard key={a.id} activity={a} index={i} onRegister={onRegister} />
+                            <ActivityResultCard key={a.id} activity={a} index={i} onRegister={onRegister} matchReasons={message.matchReasons?.[a.id]} />
                         ))}
                     </div>
                 </>
@@ -445,6 +451,7 @@ export default function ChatPage() {
                     resultCount: data.resultCount,
                     activityCards: data.activityCards ?? [],
                     eventCards: data.eventCards ?? [],
+                    matchReasons: data.matchReasons ?? {},
                     clarificationOptions: data.clarificationOptions ?? [],
                 };
 

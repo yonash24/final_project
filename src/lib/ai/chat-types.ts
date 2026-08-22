@@ -19,4 +19,6 @@ export interface ChatApiResponse {
     knowledgeContext?: string;
     /** Suggested similar activities (populated for recommendation responses) */
     similarActivities?: { id: string; title_he: string; similarity: number }[];
+    matchReasons?: Record<string, string[]>;
+    warnings?: Record<string, string[]>;
 }

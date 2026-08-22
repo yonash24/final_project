@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import crypto from 'node:crypto';
+import { z } from 'zod';
 
 import { getCachedChatResponse, cacheChatResponse } from '@/lib/ai/chat-cache';
 import { getChatResponse } from '@/lib/ai/chat-service';
@@ -9,6 +10,10 @@ import { recordChatInsight, recordChatMetric } from '@/lib/observability/audit';
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 15;
+const chatRequestSchema = z.object({
+    message: z.string().trim().min(1).max(500),
+    history: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().max(500) })).max(20).default([]),
+});
 
 function checkRateLimit(ip: string): boolean {
     const now = Date.now();
@@ -33,21 +38,10 @@ export async function POST(request: NextRequest) {
             return Response.json({ error: 'יותר מדי בקשות. נסה שוב בעוד דקה.' }, { status: 429 });
         }
 
-        const body = await request.json();
-        const message: string | undefined = body?.message;
-        const history: ChatMessage[] = body?.history ?? [];
-
-        if (!message || typeof message !== 'string' || message.trim().length === 0) {
-            return Response.json({ error: 'נא לשלוח הודעה תקינה.' }, { status: 400 });
-        }
-
-        if (message.length > 500) {
-            return Response.json({ error: 'ההודעה ארוכה מדי. נסה לנסח בקצרה.' }, { status: 400 });
-        }
-
-        const normalizedHistory = Array.isArray(history)
-            ? history.filter((item) => item && (item.role === 'user' || item.role === 'assistant') && typeof item.content === 'string').slice(-8)
-            : [];
+        const parsed = chatRequestSchema.safeParse(await request.json());
+        if (!parsed.success) return Response.json({ error: 'נא לשלוח הודעה תקינה וקצרה.' }, { status: 400 });
+        const { message } = parsed.data;
+        const normalizedHistory: ChatMessage[] = parsed.data.history.slice(-8);
 
         if (normalizedHistory.length === 0) {
             const cached = await getCachedChatResponse(message);
@@ -99,6 +93,6 @@ export async function POST(request: NextRequest) {
             errorType: errMsg.slice(0, 120),
             cacheHit: false,
         });
-        return Response.json({ error: errMsg }, { status: 500 });
+        return Response.json({ error: 'מצטער, אירעה תקלה זמנית. אפשר לנסות שוב בעוד רגע.' }, { status: 500 });
     }
 }

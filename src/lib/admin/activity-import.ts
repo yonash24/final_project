@@ -322,9 +322,11 @@ export function buildImportPreview(
         if (payload.min_age != null && payload.max_age != null && payload.min_age > payload.max_age) {
             errors.push('טווח גילאים לא תקין');
         }
+        if (payload.min_age != null && payload.min_age < 0 || payload.max_age != null && payload.max_age < 0) errors.push('גיל לא יכול להיות שלילי');
         if (getDraftValue(row, mapping, 'start_time') && !payload.start_time) errors.push('שעת התחלה לא תקינה');
         if (getDraftValue(row, mapping, 'end_time') && !payload.end_time) errors.push('שעת סיום לא תקינה');
         if (getDraftValue(row, mapping, 'price') && payload.price == null) errors.push('מחיר לא תקין');
+        if (payload.price != null && payload.price < 0) errors.push('מחיר לא יכול להיות שלילי');
         if (getDraftValue(row, mapping, 'max_participants') && payload.max_participants == null) errors.push('מכסה לא תקינה');
         if (getDraftValue(row, mapping, 'is_active') && parseBoolean(getDraftValue(row, mapping, 'is_active')) == null) errors.push('ערך פעיל לא תקין');
 

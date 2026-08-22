@@ -4,7 +4,7 @@ import type { ChatApiResponse } from './chat-types';
 import { supabaseServer } from '@/lib/supabase/server';
 
 const MODEL_VERSION = process.env.GEMINI_CHAT_MODEL ?? 'gemini-3-flash-preview';
-const KNOWLEDGE_VERSION = process.env.CHAT_KNOWLEDGE_VERSION ?? 'v1';
+const KNOWLEDGE_VERSION = process.env.CHAT_KNOWLEDGE_VERSION ?? 'recommendations-v2';
 
 export function normalizeChatQuery(message: string) {
     return message.trim().toLocaleLowerCase('he-IL').replace(/[!?.,;:]+/g, '').replace(/\s+/g, ' ');

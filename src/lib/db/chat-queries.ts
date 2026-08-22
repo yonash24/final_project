@@ -50,6 +50,12 @@ export interface EventRow {
     max_attendees: number | null;
     current_attendees: number | null;
     is_published: boolean;
+    min_age: number | null;
+    max_age: number | null;
+    target_age_group: string | null;
+    audience_tags: string[] | null;
+    is_family_friendly: boolean | null;
+    requires_adult_companion: boolean | null;
 }
 
 export interface KnowledgeBaseRow {
@@ -83,6 +89,7 @@ const ACTIVITY_SELECT = [
 const EVENT_SELECT = [
     'id', 'title', 'description', 'event_date', 'start_time', 'end_time', 'location',
     'type', 'category', 'max_attendees', 'current_attendees', 'is_published',
+    'min_age', 'max_age', 'target_age_group', 'audience_tags', 'is_family_friendly', 'requires_adult_companion',
 ].join(', ');
 
 // ─── Activity Queries ───────────────────────────────────

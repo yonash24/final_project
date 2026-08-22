@@ -7,6 +7,7 @@
 import { supabaseServer } from '@/lib/supabase/server';
 import { generateEmbedding } from './embeddings';
 import type { ActivityRow, EventRow } from '@/lib/db/chat-queries';
+import type { RecommendationRequest } from './recommendation-request';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -118,6 +119,12 @@ async function searchAllWithEmbedding(
         max_attendees: row.max_attendees as number | null,
         current_attendees: row.current_attendees as number | null,
         is_published: true,
+        min_age: row.min_age as number | null,
+        max_age: row.max_age as number | null,
+        target_age_group: row.target_age_group as string | null,
+        audience_tags: row.audience_tags as string[] | null,
+        is_family_friendly: row.is_family_friendly as boolean | null,
+        requires_adult_companion: row.requires_adult_companion as boolean | null,
     }));
 
     const knowledge = (knowledgeResult.data || []) as KnowledgeResult[];
@@ -139,16 +146,17 @@ export async function semanticSearchActivities(
     queryText: string,
     threshold: number = 0.45,
     limit: number = 8,
+    request?: RecommendationRequest,
 ): Promise<ActivityRow[]> {
     try {
         const embedding = await generateEmbedding(queryText);
 
-        const { data, error } = await supabaseServer.rpc('match_activities_by_embedding', {
-            query_embedding: embedding,
-            match_threshold: threshold,
-            match_count: limit,
-        });
-
+        const rpcName = request && (request.exactAge != null || request.days.length > 0 || request.maxPrice != null || request.freeOnly || request.requiresAvailability)
+            ? 'match_activities_filtered' : 'match_activities_by_embedding';
+        const params = rpcName === 'match_activities_filtered'
+            ? { query_embedding: embedding, match_threshold: threshold, match_count: limit, exact_age: request?.exactAge ?? null, requested_days: request?.days ?? null, max_price: request?.maxPrice ?? null, free_only: request?.freeOnly ?? false, requires_availability: request?.requiresAvailability ?? false }
+            : { query_embedding: embedding, match_threshold: threshold, match_count: limit };
+        const { data, error } = await supabaseServer.rpc(rpcName, params);
         if (error) {
             console.warn('[SemanticSearch] Activities RPC error:', error.message);
             return [];
@@ -243,6 +251,12 @@ export async function semanticSearchEvents(
             max_attendees: row.max_attendees as number | null,
             current_attendees: row.current_attendees as number | null,
             is_published: true,
+            min_age: row.min_age as number | null,
+            max_age: row.max_age as number | null,
+            target_age_group: row.target_age_group as string | null,
+            audience_tags: row.audience_tags as string[] | null,
+            is_family_friendly: row.is_family_friendly as boolean | null,
+            requires_adult_companion: row.requires_adult_companion as boolean | null,
         }));
     } catch (err) {
         console.error('[SemanticSearch] Events error:', err);
