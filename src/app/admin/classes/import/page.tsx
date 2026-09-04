@@ -24,6 +24,14 @@ const FIELD_LABELS: Record<(typeof IMPORTABLE_FIELDS)[number], string> = {
     instructor_name: 'מדריך',
     location: 'מיקום',
     max_participants: 'מכסה',
+    venue: 'מקום',
+    group_name: 'קבוצה',
+    contact_name: 'איש קשר',
+    contact_phone: 'טלפון',
+    contact_email: 'דוא״ל',
+    notes: 'הערות',
+    min_grade: 'כיתה מינימלית',
+    max_grade: 'כיתה מקסימלית',
     is_active: 'פעיל',
 };
 
@@ -39,12 +47,14 @@ export default function AdminClassesImportPage() {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [publuuUrl, setPubluuUrl] = useState('');
+    const [publuuPdfUrl, setPubluuPdfUrl] = useState('');
     const [approvedRows, setApprovedRows] = useState<Set<number>>(new Set());
 
     async function inspectFile(selectedFile: File) {
         const formData = new FormData();
         formData.append('file', selectedFile);
         if (publuuUrl.trim()) formData.append('publuuUrl', publuuUrl.trim());
+        if (publuuPdfUrl.trim()) formData.append('publuuPdfUrl', publuuPdfUrl.trim());
 
         const response = await fetch('/api/admin/activity-import/preview', {
             method: 'POST',
@@ -67,6 +77,7 @@ export default function AdminClassesImportPage() {
         formData.append('file', file);
         formData.append('mapping', JSON.stringify(mapping));
         if (publuuUrl.trim()) formData.append('publuuUrl', publuuUrl.trim());
+        if (publuuPdfUrl.trim()) formData.append('publuuPdfUrl', publuuPdfUrl.trim());
 
         const response = await fetch('/api/admin/activity-import/preview', {
             method: 'POST',
@@ -152,7 +163,13 @@ export default function AdminClassesImportPage() {
                         <label style={{ display: 'block', marginBottom: '1rem' }}>
                             <span style={{ display: 'block', fontWeight: 700, marginBottom: '0.4rem' }}>קישור Publuu (רשות)</span>
                             <input className="input-field" type="url" dir="ltr" placeholder="https://publuu.com/flip-book/..." value={publuuUrl} onChange={(event) => setPubluuUrl(event.target.value)} />
-                            <small style={{ color: 'var(--text-secondary)' }}>הקישור נשמר כמקור. יש לצרף את קובץ ה-PDF המקורי לצורך החילוץ.</small>
+                            <small style={{ color: 'var(--text-secondary)' }}>הקישור נשמר כמקור לצורך provenance.</small>
+                            <input className="input-field" type="url" dir="ltr" placeholder="קישור PDF רשמי מהורדת Publuu (רשות)" value={publuuPdfUrl} onChange={(event) => setPubluuPdfUrl(event.target.value)} style={{ marginTop: '0.5rem' }} />
+                            <small style={{ color: 'var(--text-secondary)' }}>
+                                איך משיגים את הקישור: פתחו את חוברת ה־Publuu, לחצו על כפתור ההורדה (סמל ⭳) בסרגל הצופה, והדביקו כאן את הקישור שנפתח או שממנו מתחילה ההורדה.
+                                אם הכפתור לא מופיע, יש לבקש מבעל החשבון להפעיל את אפשרות &quot;הורדת PDF&quot; בהגדרות החוברת (CUSTOMIZE → MENU → DOWNLOAD PDF).
+                                אם עדיין אין קישור PDF רשמי זמין, יש להעלות את ה־PDF המקורי בשדה הבא.
+                            </small>
                         </label>
                         <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '260px', border: '2px dashed var(--border-color)', borderRadius: 'var(--radius-lg)', cursor: 'pointer', gap: '1rem' }}>
                             <UploadCloud size={42} color="var(--accent-primary)" />

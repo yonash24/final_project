@@ -3,8 +3,11 @@ import crypto from 'node:crypto';
 
 import { parseSpreadsheet, parseActivityDocument, buildImportPreview, type ImportMapping } from '@/lib/admin/activity-import';
 import { requireAdminRequest, requirePermission } from '@/lib/admin/auth';
+import { fetchOfficialPubluuPdf, isPubluuHost } from '@/lib/admin/publuu';
 import { supabaseServer } from '@/lib/supabase/server';
 import type { AdminActivity } from '@/lib/admin/types';
+
+const MAX_IMPORT_BYTES = 25 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
     const auth = await requireAdminRequest(request);
@@ -14,18 +17,29 @@ export async function POST(request: NextRequest) {
 
     try {
         const formData = await request.formData();
-        const file = formData.get('file');
+        let file = formData.get('file');
         const mappingRaw = formData.get('mapping');
+        const publuuPdfUrl = formData.get('publuuPdfUrl') ? String(formData.get('publuuPdfUrl')).trim() : '';
 
-        if (!(file instanceof File)) {
+        if (!(file instanceof File) && !publuuPdfUrl) {
             return NextResponse.json({ error: 'לא נבחר קובץ לייבוא.' }, { status: 400 });
         }
+
+        if (!(file instanceof File) && publuuPdfUrl) {
+            try {
+                file = await fetchOfficialPubluuPdf(publuuPdfUrl);
+            } catch (error) {
+                return NextResponse.json({ error: error instanceof Error ? error.message : 'לא ניתן להוריד את קובץ Publuu.' }, { status: 400 });
+            }
+        }
+
+        if (!(file instanceof File)) return NextResponse.json({ error: 'קובץ הייבוא אינו תקין.' }, { status: 400 });
 
         if (file.size === 0) {
             return NextResponse.json({ error: 'הקובץ ריק.' }, { status: 400 });
         }
 
-        if (file.size > 25 * 1024 * 1024) {
+        if (file.size > MAX_IMPORT_BYTES) {
             return NextResponse.json({ error: 'גודל הקובץ מוגבל ל־25MB.' }, { status: 413 });
         }
 
@@ -45,7 +59,7 @@ export async function POST(request: NextRequest) {
         if (publuuValue) {
             try {
                 const url = new URL(publuuValue);
-                if (url.protocol !== 'https:' || !/(^|\.)publuu\.com$/i.test(url.hostname)) throw new Error('invalid host');
+                if (url.protocol !== 'https:' || !isPubluuHost(url.hostname)) throw new Error('invalid host');
             } catch {
                 return NextResponse.json({ error: 'קישור Publuu חייב להיות כתובת HTTPS תקינה תחת publuu.com.' }, { status: 400 });
             }
@@ -97,11 +111,11 @@ export async function POST(request: NextRequest) {
 
         const sha256 = crypto.createHash('sha256').update(fileBytes).digest('hex');
         const actorId = /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(auth.profile.id) ? auth.profile.id : null;
-        const sourceType = publuuValue ? 'publuu' : extension;
+        const sourceType = publuuValue || publuuPdfUrl ? 'publuu' : extension;
         const { data: source, error: sourceError } = await supabaseServer.from('import_sources').insert({
             source_type: sourceType,
             display_name: file.name,
-            publuu_url: publuuValue || null,
+            publuu_url: publuuValue || publuuPdfUrl || null,
             created_by: actorId,
         }).select('id').single();
         if (sourceError) return NextResponse.json({ error: sourceError.message }, { status: 500 });
