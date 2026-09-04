@@ -1,6 +1,6 @@
 import type { ActivityRow } from '@/lib/db/chat-queries';
-import type { RecommendationRequest } from './recommendation-request';
-import { interestLabel, interestsFromText } from './activity-taxonomy';
+import type { RecommendationRequest } from './recommendation-request.ts';
+import { interestLabel, interestsFromText } from './activity-taxonomy.ts';
 
 export interface ActivityRecommendation { activity: ActivityRow; score: number; matchReasons: string[]; warnings: string[]; }
 export function rankEligibleActivities(activities: ActivityRow[], request: RecommendationRequest): ActivityRecommendation[] {

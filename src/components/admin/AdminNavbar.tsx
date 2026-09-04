@@ -1,7 +1,7 @@
 "use client";
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, Calendar, Users, Settings, LayoutDashboard, Megaphone, Palette, Upload, House } from 'lucide-react';
+import { BookOpen, Bot, Calendar, Users, Settings, LayoutDashboard, Megaphone, Palette, Upload, House } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { logoutAdmin } from '@/app/admin/login/actions';
@@ -12,6 +12,7 @@ const navItems = [
     { href: '/admin/feed', icon: Megaphone, label: 'פיד קהילתי' },
     { href: '/admin/studio', icon: Palette, label: 'סטודיו גנרטיבי' },
     { href: '/admin/classes/import', icon: Upload, label: 'ייבוא חוגים' },
+    { href: '/admin/assistant', icon: Bot, label: 'עוזר ניהולי' },
     { href: '/admin/members', icon: Users, label: 'משתתפים' },
     { href: '/admin/settings', icon: Settings, label: 'הגדרות' },
 ];

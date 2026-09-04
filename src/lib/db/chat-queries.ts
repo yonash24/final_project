@@ -25,16 +25,24 @@ export interface ActivityRow {
     target_age_group: string | null;
     min_age: number | null;
     max_age: number | null;
+    min_grade?: number | null;
+    max_grade?: number | null;
     days_of_week: string | null;
     start_time: string | null;
     end_time: string | null;
     price: number | null;
     instructor_name: string | null;
     location: string | null;
+    venue?: string | null;
+    group_name?: string | null;
     max_participants: number | null;
     current_participants: number | null;
     is_active: boolean;
+    publication_status?: string;
+    updated_at?: string;
     categories: { name_he: string } | null;
+    branches?: { name: string; branch_aliases?: { alias: string }[] } | null;
+    activity_schedules?: { day_of_week: number | null; day_name?: string; start_time: string | null; end_time: string | null }[];
 }
 
 export interface EventRow {
@@ -66,6 +74,36 @@ export interface KnowledgeBaseRow {
     tags: string[] | null;
 }
 
+function normalizeName(value: string) { return value.trim().toLocaleLowerCase('he-IL').replace(/["'׳״]/g, '').replace(/\s+/g, ' '); }
+function editDistance(a: string, b: string) {
+    const row = Array.from({ length: b.length + 1 }, (_, index) => index);
+    for (let i = 1; i <= a.length; i += 1) {
+        let previous = row[0]; row[0] = i;
+        for (let j = 1; j <= b.length; j += 1) {
+            const old = row[j];
+            row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
+            previous = old;
+        }
+    }
+    return row[b.length];
+}
+
+export async function resolveBranchName(input: string) {
+    const { data, error } = await supabaseServer.from('branches').select('id,name,branch_aliases(alias)').eq('is_active', true).limit(200);
+    if (error) return { exact: null, suggestions: [] as string[] };
+    const wanted = normalizeName(input);
+    for (const branch of data ?? []) {
+        const names = [branch.name, ...((branch.branch_aliases as { alias: string }[] | null) ?? []).map((item) => item.alias)];
+        if (names.some((name) => normalizeName(name) === wanted)) return { exact: branch.name, suggestions: [] as string[] };
+    }
+    const { data: legacyLocation } = await supabaseServer.from('activities').select('location').ilike('location', input).eq('is_active', true).limit(1).maybeSingle();
+    if (legacyLocation?.location && normalizeName(legacyLocation.location) === wanted) return { exact: legacyLocation.location, suggestions: [] as string[] };
+    const suggestions = (data ?? []).map((branch) => ({ name: branch.name, distance: editDistance(wanted, normalizeName(branch.name)) }))
+        .filter((item) => item.distance <= Math.max(2, Math.floor(wanted.length * 0.3)))
+        .sort((a, b) => a.distance - b.distance).slice(0, 3).map((item) => item.name);
+    return { exact: null, suggestions };
+}
+
 function mergeUniqueById<T extends { id: string }>(primary: T[], secondary: T[]) {
     const seen = new Set(primary.map((row) => row.id));
     const merged = [...primary];
@@ -81,9 +119,9 @@ function mergeUniqueById<T extends { id: string }>(primary: T[], secondary: T[])
 
 const ACTIVITY_SELECT = [
     'id', 'title', 'title_he', 'description', 'description_he', 'target_age_group',
-    'min_age', 'max_age', 'days_of_week', 'start_time', 'end_time', 'price',
-    'instructor_name', 'location', 'max_participants', 'current_participants', 'is_active',
-    'categories(name_he)',
+    'min_age', 'max_age', 'min_grade', 'max_grade', 'days_of_week', 'start_time', 'end_time', 'price',
+    'instructor_name', 'location', 'venue', 'group_name', 'max_participants', 'current_participants', 'is_active', 'publication_status', 'updated_at',
+    'categories(name_he)', 'branches(name,branch_aliases(alias))', 'activity_schedules(day_of_week,start_time,end_time)',
 ].join(', ');
 
 const EVENT_SELECT = [
@@ -107,7 +145,9 @@ export async function searchActivities(
     const buildBaseQuery = () => supabaseServer
         .from('activities')
         .select(ACTIVITY_SELECT)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .eq('publication_status', 'approved')
+        .is('archived_at', null);
 
     const applyFilters = (query: ReturnType<typeof buildBaseQuery>) => {
         let next = query;
@@ -129,7 +169,7 @@ export async function searchActivities(
             );
         }
 
-        return next.order('title_he', { ascending: true }).limit(50);
+        return next.order('title_he', { ascending: true }).limit(200);
     };
 
     const buildTextQuery = () => {
@@ -181,20 +221,26 @@ export async function searchActivities(
  * Get a single activity by searching its Hebrew name.
  */
 export async function getActivityByName(name: string): Promise<ActivityRow | null> {
+    const matches = await getActivitiesByName(name);
+    return matches.length === 1 ? matches[0] : null;
+}
+
+export async function getActivitiesByName(name: string): Promise<ActivityRow[]> {
     const { data, error } = await supabaseServer
         .from('activities')
         .select(ACTIVITY_SELECT)
         .ilike('title_he', `%${name}%`)
         .eq('is_active', true)
-        .limit(1)
-        .maybeSingle();
+        .eq('publication_status', 'approved')
+        .is('archived_at', null)
+        .limit(10);
 
     if (error) {
         console.error('[ChatQueries] getActivityByName error:', error);
-        return null;
+        return [];
     }
 
-    return data as ActivityRow | null;
+    return (data ?? []) as unknown as ActivityRow[];
 }
 
 // ─── Event Queries ──────────────────────────────────────
@@ -341,7 +387,7 @@ export async function searchKnowledgeBase(
         }) as KnowledgeBaseScoredRow)
         .sort((a, b) => b.score - a.score)
         .slice(0, limit)
-        .map(({ score: _score, ...row }) => row);
+        .map((item) => ({ id: item.id, category: item.category, title_he: item.title_he, content_he: item.content_he, tags: item.tags }));
 }
 
 /**

@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminRequest, requirePermission } from '@/lib/admin/auth';
 import { supabaseServer } from '@/lib/supabase/server';
 import type { ActivityImportDraft } from '@/lib/admin/types';
+import { activityImportDraftSchema } from '@/lib/admin/activity-import';
+import { invalidateChatCache } from '@/lib/ai/chat-cache';
 
 async function ensureCategory(name: string | null) {
     const normalizedName = name?.trim().replace(/\s+/g, ' ');
@@ -35,6 +37,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const jobId = body?.jobId as string | undefined;
+    const approvedRowIndexes = new Set<number>(Array.isArray(body?.approvedRowIndexes) ? body.approvedRowIndexes.filter((value: unknown): value is number => Number.isInteger(value)) : []);
+    const editedRows = new Map<number, unknown>(Array.isArray(body?.rowEdits) ? body.rowEdits.map((item: { rowIndex: number; payload: unknown }) => [item.rowIndex, item.payload]) : []);
 
     if (!jobId) {
         return NextResponse.json({ error: 'Missing jobId' }, { status: 400 });
@@ -42,7 +46,7 @@ export async function POST(request: NextRequest) {
 
     const { data: job, error: jobError } = await supabaseServer
         .from('import_jobs')
-        .select('id, status')
+        .select('id, status, source_revision_id')
         .eq('id', jobId)
         .maybeSingle();
 
@@ -94,12 +98,20 @@ export async function POST(request: NextRequest) {
 
     try {
         for (const row of rows ?? []) {
-        if (row.status === 'invalid') {
+        if (row.status === 'invalid' || !approvedRowIndexes.has(row.row_index)) {
             skipped += 1;
+            await supabaseServer.from('import_rows').update({ status: 'skipped', review_decision: 'skip', reviewed_by: /^[0-9a-f-]{36}$/i.test(auth.profile.id) ? auth.profile.id : null, reviewed_at: new Date().toISOString() }).eq('id', row.id);
             continue;
         }
 
-        const payload = row.normalized_data as ActivityImportDraft;
+        const parsedPayload = activityImportDraftSchema.safeParse(editedRows.get(row.row_index) ?? row.normalized_data);
+        if (!parsedPayload.success) {
+            skipped += 1;
+            await supabaseServer.from('import_rows').update({ status: 'skipped', error_messages: parsedPayload.error.issues.map((issue) => issue.message) }).eq('id', row.id);
+            continue;
+        }
+        const payload = parsedPayload.data as ActivityImportDraft;
+        await supabaseServer.from('import_rows').update({ normalized_data: payload }).eq('id', row.id);
         const categoryId = await ensureCategory(payload.category);
         const activityPayload = {
             title: payload.title_he,
@@ -118,6 +130,10 @@ export async function POST(request: NextRequest) {
             location: payload.location,
             max_participants: payload.max_participants,
             is_active: payload.is_active,
+            publication_status: 'approved',
+            approved_at: new Date().toISOString(),
+            approved_by: /^[0-9a-f-]{36}$/i.test(auth.profile.id) ? auth.profile.id : null,
+            source_revision_id: job.source_revision_id,
         };
 
         if (row.status === 'update_candidate' && row.duplicate_activity_id) {
@@ -136,7 +152,7 @@ export async function POST(request: NextRequest) {
             }
 
             updated += 1;
-            await supabaseServer.from('import_rows').update({ status: 'updated' }).eq('id', row.id);
+            await supabaseServer.from('import_rows').update({ status: 'updated', review_decision: 'approve', reviewed_at: new Date().toISOString() }).eq('id', row.id);
             continue;
         }
 
@@ -151,7 +167,7 @@ export async function POST(request: NextRequest) {
         }
 
         imported += 1;
-        await supabaseServer.from('import_rows').update({ status: 'imported' }).eq('id', row.id);
+        await supabaseServer.from('import_rows').update({ status: 'imported', review_decision: 'approve', reviewed_at: new Date().toISOString() }).eq('id', row.id);
         }
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Import failed.';
@@ -170,9 +186,11 @@ export async function POST(request: NextRequest) {
             updated_count: updated,
             skipped_count: skipped,
             completed_at: new Date().toISOString(),
-            completed_by: auth.profile.id,
+            completed_by: /^[0-9a-f-]{36}$/i.test(auth.profile.id) ? auth.profile.id : null,
         })
         .eq('id', jobId);
+
+    if (imported > 0 || updated > 0) void invalidateChatCache();
 
     return NextResponse.json({
         success: true,

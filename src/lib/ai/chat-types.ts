@@ -21,4 +21,6 @@ export interface ChatApiResponse {
     similarActivities?: { id: string; title_he: string; similarity: number }[];
     matchReasons?: Record<string, string[]>;
     warnings?: Record<string, string[]>;
+    appliedFilters?: Record<string, unknown>;
+    missingDataSummary?: string[];
 }

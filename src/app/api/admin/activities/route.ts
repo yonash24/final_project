@@ -4,6 +4,7 @@ import { requireAdminRequest, requirePermission } from '@/lib/admin/auth';
 import { activitySchema } from '@/lib/admin/schemas';
 import { supabaseServer } from '@/lib/supabase/server';
 import { writeAuditLog } from '@/lib/observability/audit';
+import { invalidateChatCache } from '@/lib/ai/chat-cache';
 
 export async function GET(request: NextRequest) {
     const auth = await requireAdminRequest(request);
@@ -17,8 +18,6 @@ export async function GET(request: NextRequest) {
     if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
-
-    void writeAuditLog({ actor: auth.profile, action: 'activity.created', resourceType: 'activity', resourceId: data?.[0]?.id, request });
 
     return NextResponse.json(data);
 }
@@ -52,6 +51,9 @@ export async function POST(request: NextRequest) {
     if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    void writeAuditLog({ actor: auth.profile, action: 'activity.created', resourceType: 'activity', resourceId: data.id, metadata: { after: data }, request });
+    void invalidateChatCache();
 
     return NextResponse.json(data);
 }

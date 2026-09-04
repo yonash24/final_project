@@ -2,11 +2,12 @@ import { GREETING_MESSAGE } from '@/lib/ai/chat-constants';
 import { type ChatApiResponse, type ClarificationOption } from '@/lib/ai/chat-types';
 import { classifyIntent, type ChatMessage } from '@/lib/ai/intent-classifier';
 import {
-    getActivityByName,
+    getActivitiesByName,
     getCategories,
     searchKnowledgeBase,
     searchActivities,
     searchEvents,
+    resolveBranchName,
     type ActivityRow,
     type KnowledgeBaseRow,
     type EventRow,
@@ -144,7 +145,7 @@ function buildClarification(intent: string, response: string, options?: Clarific
 }
 
 function buildPriceResponse(activity: ActivityRow) {
-    const price = activity.price === 0 || activity.price == null ? 'חינם' : `${activity.price}₪ לחודש`;
+    const price = activity.price == null ? 'לא צוין במאגר' : activity.price === 0 ? 'חינם' : `${activity.price}₪ לחודש`;
     const schedule = activity.days_of_week
         ? `החוג מתקיים ב${activity.days_of_week}${activity.start_time ? ` בשעה ${activity.start_time.slice(0, 5)}` : ''}.`
         : '';
@@ -159,12 +160,16 @@ function buildScheduleResponse(activity: ActivityRow) {
 }
 
 function buildDetailsResponse(activity: ActivityRow) {
+    const age = activity.min_age != null && activity.max_age != null
+        ? `גילים: ${activity.min_age}-${activity.max_age}.`
+        : activity.min_age != null ? `גיל מינימלי: ${activity.min_age}; גיל מרבי לא צוין.`
+            : activity.max_age != null ? `עד גיל ${activity.max_age}; גיל מינימלי לא צוין.` : null;
     const detailParts = [
         `**${activity.title_he}**`,
         activity.description_he || 'אין כרגע תיאור מפורט.',
         activity.instructor_name ? `מדריך/ה: ${activity.instructor_name}.` : null,
         activity.location ? `מיקום: ${activity.location}.` : null,
-        activity.min_age != null || activity.max_age != null ? `גילים: ${activity.min_age ?? 0}-${activity.max_age ?? '+'}.` : null,
+        age,
     ].filter(Boolean);
     return detailParts.join('\n');
 }
@@ -270,6 +275,13 @@ async function buildNoResultsWithRAG(
     sessionPrefs: SessionPreferences,
     recommendationRequest?: RecommendationRequest,
 ): Promise<ChatApiResponse> {
+    if (['search_activities', 'age_inquiry', 'availability_inquiry', 'price_inquiry', 'schedule_inquiry', 'activity_details'].includes(intent)) {
+        return createResponse(
+            'answer',
+            'לא מצאתי במאגר חוג שמסומן במפורש כמתאים לכל התנאים שביקשת. לא כללתי חוגים שחסר בהם מידע באחד מהתנאים.',
+            intent,
+        );
+    }
     const structuredKnowledgeRows = await measureStage(
         'knowledge-search',
         () => searchKnowledgeBase(message, 3),
@@ -465,6 +477,33 @@ export async function getChatResponse(
     const sessionPrefs = extractSessionPreferences([...history, { role: 'user', content: message }]);
     const recommendationRequest = buildRecommendationRequest(message, classified, history);
 
+    if (recommendationRequest.locationQuery) {
+        const branch = await resolveBranchName(recommendationRequest.locationQuery);
+        if (!branch.exact) {
+            return buildClarification(
+                classified.intent,
+                `לא מצאתי סניף בשם “${recommendationRequest.locationQuery}”.${branch.suggestions.length ? ' האם התכוונת לאחד מהסניפים הבאים?' : ''}`,
+                branch.suggestions.map((name) => ({ label: name, value: message.replace(recommendationRequest.locationQuery!, name) })),
+            );
+        }
+        recommendationRequest.locationQuery = branch.exact;
+    }
+
+    if (/(אחר הצהריים|אחה[״"]?צ|בערב)/.test(message) && !recommendationRequest.startsAfter && !recommendationRequest.startsBefore) {
+        return buildClarification(
+            classified.intent,
+            'כדי לא לנחש למה התכוונת, בין אילו שעות לחפש?',
+            [
+                { label: '12:00–17:00', value: `${message} בין 12:00 ל-17:00` },
+                { label: '17:00–21:00', value: `${message} בין 17:00 ל-21:00` },
+            ],
+        );
+    }
+
+    if (classified.confidence < 0.55 && classified.intent !== 'greeting') {
+        return buildClarification(classified.intent, 'לא הצלחתי להבין את הבקשה בוודאות. אפשר לציין שם חוג, גיל, יום, סניף או שעה?');
+    }
+
     // Greeting
     if (classified.intent === 'greeting') {
         return createResponse('answer', GREETING_MESSAGE, classified.intent);
@@ -530,9 +569,9 @@ export async function getChatResponse(
             if (classified.activity_name) {
                 const exact = await measureStage(
                     'structured-activity-name-search',
-                    () => getActivityByName(classified.activity_name!),
+                    () => getActivitiesByName(classified.activity_name!),
                 );
-                if (exact) activityCards = [exact];
+                if (exact.length > 0) activityCards = exact;
             }
 
             if (activityCards.length === 0) {

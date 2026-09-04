@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { redirect } from 'next/navigation';
 
 import { createSSRClient, supabaseServer } from '@/lib/supabase/server';
+import { isAdminAuthBypassEnabled } from '@/lib/admin/bypass';
 
 export interface AdminProfile {
     id: string;
@@ -26,6 +27,15 @@ export async function getCurrentUser() {
 }
 
 export async function getAdminProfile() {
+    if (isAdminAuthBypassEnabled()) {
+        return {
+            id: 'local-admin-bypass',
+            email: 'local-admin@localhost',
+            role: 'super_admin',
+            is_active: true,
+        } satisfies AdminProfile;
+    }
+
     const user = await getCurrentUser();
     if (!user) return null;
 

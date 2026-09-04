@@ -267,12 +267,12 @@ export default function ClassesPage() {
                                             )}
                                             {(item.min_age != null || item.max_age != null) && (
                                                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                    <Users size={14} /> גיל {item.min_age ?? 0}–{item.max_age ?? '+'}
+                                                    <Users size={14} /> גיל {item.min_age == null && item.max_age == null ? 'לא צוין' : `${item.min_age ?? 'לא צוין'}–${item.max_age ?? 'לא צוין'}`}
                                                 </span>
                                             )}
                                             {item.price != null && (
                                                 <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--accent-primary)', fontWeight: 700 }}>
-                                                    <BadgeDollarSign size={14} /> {item.price === 0 ? 'חינם' : `₪${item.price} לחודש`}
+                                                    <BadgeDollarSign size={14} /> {item.price == null ? 'מחיר לא צוין' : item.price === 0 ? 'חינם' : `₪${item.price} לחודש`}
                                                 </span>
                                             )}
                                         </div>

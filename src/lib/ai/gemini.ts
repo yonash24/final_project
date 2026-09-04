@@ -84,3 +84,21 @@ export function getStudioModel() {
         },
     });
 }
+
+export function getDocumentExtractionModel() {
+    return getGenAI().getGenerativeModel({
+        model: process.env.GEMINI_DOCUMENT_MODEL || 'gemini-3-flash-preview',
+        generationConfig: {
+            temperature: 0,
+            maxOutputTokens: 8192,
+            responseMimeType: 'application/json',
+        },
+    });
+}
+
+export function getAdminCommandModel() {
+    return getGenAI().getGenerativeModel({
+        model: process.env.GEMINI_CHAT_MODEL || 'gemini-3-flash-preview',
+        generationConfig: { temperature: 0, maxOutputTokens: 1024, responseMimeType: 'application/json' },
+    });
+}

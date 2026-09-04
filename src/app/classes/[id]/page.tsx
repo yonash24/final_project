@@ -166,7 +166,7 @@ export default function ActivityDetailPage() {
                                         <div>
                                             <div className="activity-info-label">גיל מתאים</div>
                                             <div className="activity-info-value">
-                                                {activity.min_age ?? 0}–{activity.max_age ?? '+'} שנים
+                                                {activity.min_age == null && activity.max_age == null ? 'לא צוין' : `${activity.min_age ?? 'לא צוין'}–${activity.max_age ?? 'לא צוין'} שנים`}
                                             </div>
                                         </div>
                                     </div>
@@ -189,7 +189,7 @@ export default function ActivityDetailPage() {
                                     <div>
                                         <div className="activity-info-label">מחיר</div>
                                         <div className="activity-info-value" style={{ color: 'var(--accent-primary)', fontWeight: 800 }}>
-                                            {activity.price === 0 || activity.price == null ? 'חינם 🎉' : `₪${activity.price} לחודש`}
+                                            {activity.price == null ? 'מחיר לא צוין' : activity.price === 0 ? 'חינם 🎉' : `₪${activity.price} לחודש`}
                                         </div>
                                     </div>
                                 </div>
@@ -223,7 +223,7 @@ export default function ActivityDetailPage() {
                             <div className="activity-sidebar-card">
                                 <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                                     <div style={{ fontSize: '2.5rem', fontWeight: 900, color: 'var(--accent-primary)' }}>
-                                        {activity.price === 0 || activity.price == null ? 'חינם' : `₪${activity.price}`}
+                                        {activity.price == null ? 'מחיר לא צוין' : activity.price === 0 ? 'חינם' : `₪${activity.price}`}
                                     </div>
                                     {activity.price != null && activity.price > 0 && (
                                         <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>לחודש</div>

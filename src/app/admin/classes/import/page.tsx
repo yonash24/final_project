@@ -38,10 +38,13 @@ export default function AdminClassesImportPage() {
     const [summary, setSummary] = useState<{ imported: number; updated: number; skipped: number } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [publuuUrl, setPubluuUrl] = useState('');
+    const [approvedRows, setApprovedRows] = useState<Set<number>>(new Set());
 
     async function inspectFile(selectedFile: File) {
         const formData = new FormData();
         formData.append('file', selectedFile);
+        if (publuuUrl.trim()) formData.append('publuuUrl', publuuUrl.trim());
 
         const response = await fetch('/api/admin/activity-import/preview', {
             method: 'POST',
@@ -63,6 +66,7 @@ export default function AdminClassesImportPage() {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('mapping', JSON.stringify(mapping));
+        if (publuuUrl.trim()) formData.append('publuuUrl', publuuUrl.trim());
 
         const response = await fetch('/api/admin/activity-import/preview', {
             method: 'POST',
@@ -74,6 +78,7 @@ export default function AdminClassesImportPage() {
 
         setJob(data.job);
         setPreviewRows(data.previewRows);
+        setApprovedRows(new Set());
         setStep('preview');
     }
 
@@ -83,7 +88,7 @@ export default function AdminClassesImportPage() {
         const response = await fetch('/api/admin/activity-import/commit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jobId: job.id }),
+            body: JSON.stringify({ jobId: job.id, approvedRowIndexes: [...approvedRows], rowEdits: previewRows.filter((row) => approvedRows.has(row.rowIndex)).map((row) => ({ rowIndex: row.rowIndex, payload: row.payload })) }),
         });
 
         const data = await response.json();
@@ -91,6 +96,10 @@ export default function AdminClassesImportPage() {
 
         setSummary(data);
         setStep('done');
+    }
+
+    function editRow(rowIndex: number, field: keyof ImportRowResult['payload'], value: string) {
+        setPreviewRows((rows) => rows.map((row) => row.rowIndex === rowIndex ? { ...row, payload: { ...row.payload, [field]: ['min_age', 'max_age', 'price', 'max_participants'].includes(field) ? (value === '' ? null : Number(value)) : (value === '' ? null : value) } } : row));
     }
 
     async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -140,11 +149,16 @@ export default function AdminClassesImportPage() {
 
                 {step === 'upload' && (
                     <div className="card" style={{ padding: '2rem' }}>
+                        <label style={{ display: 'block', marginBottom: '1rem' }}>
+                            <span style={{ display: 'block', fontWeight: 700, marginBottom: '0.4rem' }}>קישור Publuu (רשות)</span>
+                            <input className="input-field" type="url" dir="ltr" placeholder="https://publuu.com/flip-book/..." value={publuuUrl} onChange={(event) => setPubluuUrl(event.target.value)} />
+                            <small style={{ color: 'var(--text-secondary)' }}>הקישור נשמר כמקור. יש לצרף את קובץ ה-PDF המקורי לצורך החילוץ.</small>
+                        </label>
                         <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '260px', border: '2px dashed var(--border-color)', borderRadius: 'var(--radius-lg)', cursor: 'pointer', gap: '1rem' }}>
                             <UploadCloud size={42} color="var(--accent-primary)" />
-                            <div style={{ fontWeight: 700 }}>בחר קובץ `xlsx` או `csv`</div>
-                            <p style={{ color: 'var(--text-secondary)' }}>המערכת תנתח את הכותרות ותציע מיפוי אוטומטי.</p>
-                            <input type="file" accept=".xlsx,.csv" onChange={handleFileChange} style={{ display: 'none' }} />
+                            <div style={{ fontWeight: 700 }}>בחר CSV, Excel, Word או PDF</div>
+                            <p style={{ color: 'var(--text-secondary)' }}>המערכת תחלץ נתונים ותציג אותם לבדיקה לפני שמירה.</p>
+                            <input type="file" accept=".xlsx,.csv,.doc,.docx,.pdf" onChange={handleFileChange} style={{ display: 'none' }} />
                         </label>
                         <div style={{ marginTop: '1.25rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', lineHeight: 1.7 }}>
                             <strong>מבנה CSV מומלץ</strong>
@@ -231,6 +245,7 @@ export default function AdminClassesImportPage() {
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                 <thead>
                                     <tr>
+                                        <th style={{ padding: '0.75rem', background: 'var(--bg-secondary)' }}>אישור</th>
                                         <th style={{ padding: '0.75rem', background: 'var(--bg-secondary)' }}>שורה</th>
                                         <th style={{ padding: '0.75rem', background: 'var(--bg-secondary)' }}>סטטוס</th>
                                         <th style={{ padding: '0.75rem', background: 'var(--bg-secondary)' }}>שם חוג</th>
@@ -241,16 +256,24 @@ export default function AdminClassesImportPage() {
                                 <tbody>
                                     {previewRows.map((row) => (
                                         <tr key={row.rowIndex}>
+                                            <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>
+                                                <input type="checkbox" disabled={row.status === 'invalid'} checked={approvedRows.has(row.rowIndex)} onChange={(event) => setApprovedRows((current) => {
+                                                    const next = new Set(current);
+                                                    if (event.target.checked) next.add(row.rowIndex); else next.delete(row.rowIndex);
+                                                    return next;
+                                                })} aria-label={`אישור שורה ${row.rowIndex}`} />
+                                            </td>
                                             <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>{row.rowIndex}</td>
                                             <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)', fontWeight: 700 }}>
                                                 {row.status === 'new' ? 'חדש' : row.status === 'update_candidate' ? 'לעדכון' : 'שגוי'}
                                             </td>
-                                            <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>{row.payload.title_he}</td>
+                                            <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)' }}><input className="input-field" value={row.payload.title_he} onChange={(event) => editRow(row.rowIndex, 'title_he', event.target.value)} /></td>
                                             <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>
-                                                {row.payload.days_of_week || '-'} {row.payload.start_time || ''}
+                                                <input className="input-field" value={row.payload.days_of_week || ''} onChange={(event) => editRow(row.rowIndex, 'days_of_week', event.target.value)} placeholder="יום" />
+                                                <input className="input-field" type="time" value={row.payload.start_time || ''} onChange={(event) => editRow(row.rowIndex, 'start_time', event.target.value)} />
                                             </td>
                                             <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)', color: '#b91c1c' }}>
-                                                {row.errors.join(', ') || 'תקין'}
+                                                {[...row.errors, ...(row.warnings ?? [])].join(', ') || 'תקין'}
                                             </td>
                                         </tr>
                                     ))}
@@ -266,7 +289,7 @@ export default function AdminClassesImportPage() {
                                 setIsLoading(true);
                                 void commitImport().catch((caught) => setError(caught instanceof Error ? caught.message : 'שגיאה באישור הייבוא')).finally(() => setIsLoading(false));
                             }}
-                            disabled={isLoading}
+                            disabled={isLoading || approvedRows.size === 0}
                         >
                             אשר ייבוא
                         </button>

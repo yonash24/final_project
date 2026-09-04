@@ -26,6 +26,10 @@ export type IntentType =
 
 export interface IntentFilters {
     age: number | null;
+    age_min?: number | null;
+    age_max?: number | null;
+    grade_min?: number | null;
+    grade_max?: number | null;
     min_age_lte: number | null;
     max_age_gte: number | null;
     days: string[] | null;
@@ -36,6 +40,10 @@ export interface IntentFilters {
     target_age_group: 'kids' | 'teens' | 'adults' | 'seniors' | null;
     has_spots: boolean | null;
     free_only: boolean | null;
+    branch?: string | null;
+    starts_after?: string | null;
+    starts_before?: string | null;
+    ends_before?: string | null;
 }
 
 export interface ClassifiedIntent {
@@ -56,6 +64,7 @@ export interface ChatMessage {
 
 const EMPTY_FILTERS: IntentFilters = {
     age: null,
+    age_min: null, age_max: null, grade_min: null, grade_max: null,
     min_age_lte: null,
     max_age_gte: null,
     days: null,
@@ -66,6 +75,7 @@ const EMPTY_FILTERS: IntentFilters = {
     target_age_group: null,
     has_spots: null,
     free_only: null,
+    branch: null, starts_after: null, starts_before: null, ends_before: null,
 };
 
 function fastClassify(userMessage: string): ClassifiedIntent | null {
@@ -86,13 +96,17 @@ function fastClassify(userMessage: string): ClassifiedIntent | null {
     if (text.includes('חוג') || text.includes('פעילות') || text.includes('סדנה')) {
         const constraints = extractConstraints(userMessage);
         const interests = constraints.interests ?? [];
-        const hasStructuredConstraint = constraints.exactAge != null || constraints.targetAgeGroup != null || constraints.days?.length || interests.length || constraints.maxPrice != null || constraints.freeOnly;
+        const hasStructuredConstraint = constraints.exactAge != null || constraints.ageMin != null || constraints.targetAgeGroup != null || constraints.days?.length || interests.length || constraints.maxPrice != null || constraints.freeOnly || constraints.locationQuery != null || constraints.startsAfter != null || constraints.endsBefore != null;
         if (!hasStructuredConstraint) return null;
         return {
             intent: 'search_activities', confidence: 0.94,
             filters: {
                 ...filters,
                 age: constraints.exactAge ?? null,
+                age_min: constraints.ageMin ?? null,
+                age_max: constraints.ageMax ?? null,
+                grade_min: constraints.gradeMin ?? null,
+                grade_max: constraints.gradeMax ?? null,
                 min_age_lte: constraints.exactAge ?? null,
                 max_age_gte: constraints.exactAge ?? null,
                 days: constraints.days ? [...constraints.days] : null,
@@ -101,6 +115,10 @@ function fastClassify(userMessage: string): ClassifiedIntent | null {
                 target_age_group: constraints.targetAgeGroup ?? null,
                 has_spots: constraints.requiresAvailability ?? null,
                 free_only: constraints.freeOnly ?? null,
+                branch: constraints.locationQuery ?? null,
+                starts_after: constraints.startsAfter ?? null,
+                starts_before: constraints.startsBefore ?? null,
+                ends_before: constraints.endsBefore ?? null,
             },
             search_terms: [userMessage], activity_name: null, response_hint: interests.length > 0 ? 'recommend' : null,
         };

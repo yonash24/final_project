@@ -2,12 +2,16 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { createClient } from '@supabase/supabase-js';
 
+import { isAdminAuthBypassEnabled } from '@/lib/admin/bypass';
+
 export async function proxy(request: NextRequest) {
     const response = NextResponse.next({
         request: {
             headers: request.headers,
         },
     });
+
+    if (isAdminAuthBypassEnabled()) return response;
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

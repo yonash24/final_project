@@ -169,7 +169,7 @@ export default function RegistrationModal({ activity, onClose, onRegistered }: R
                         )}
                         {activity.location && <span>📍 {activity.location}</span>}
                         {activity.price != null && (
-                            <span>💰 {activity.price === 0 ? 'חינם' : `₪${activity.price}/חודש`}</span>
+                            <span>💰 {activity.price == null ? 'מחיר לא צוין' : activity.price === 0 ? 'חינם' : `₪${activity.price}/חודש`}</span>
                         )}
                     </div>
                 )}

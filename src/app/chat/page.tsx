@@ -185,13 +185,13 @@ function ActivityResultCard({ activity, index, onRegister, matchReasons }: Activ
                 {(activity.min_age != null || activity.max_age != null) && (
                     <span className="meta-item">
                         <Users size={14} />
-                        גיל {activity.min_age ?? 0}–{activity.max_age ?? '+'}
+                        גיל {activity.min_age == null && activity.max_age == null ? 'לא צוין' : `${activity.min_age ?? 'לא צוין'}–${activity.max_age ?? 'לא צוין'}`}
                     </span>
                 )}
                 {activity.price != null && (
                     <span className="meta-item meta-price">
                         <BadgeDollarSign size={14} />
-                        {activity.price === 0 ? 'חינם' : `${activity.price}₪ חודשי`}
+                        {activity.price == null ? 'מחיר לא צוין' : activity.price === 0 ? 'חינם' : `${activity.price}₪ חודשי`}
                     </span>
                 )}
             </div>

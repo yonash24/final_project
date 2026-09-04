@@ -19,6 +19,8 @@ export interface AdminActivity {
     max_participants: number | null;
     current_participants: number | null;
     is_active: boolean;
+    updated_at: string;
+    publication_status?: 'draft' | 'approved' | 'archived';
     categories?: { id?: string; name_he: string; icon?: string | null } | null;
 }
 
@@ -159,6 +161,8 @@ export interface ImportRowResult {
     duplicateActivityId: string | null;
     errors: string[];
     payload: ActivityImportDraft;
+    confidence?: number;
+    warnings?: string[];
 }
 
 export interface ImportJob {

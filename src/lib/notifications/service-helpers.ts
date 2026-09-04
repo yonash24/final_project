@@ -11,7 +11,7 @@ export function mapDeliveryStatus(status: string) {
         case 'delivered':
             return 'delivered';
         case 'read':
-            return 'read';
+            return 'delivered';
         case 'accepted':
         case 'queued':
         case 'sent':

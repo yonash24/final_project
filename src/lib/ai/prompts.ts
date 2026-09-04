@@ -63,6 +63,10 @@ export const INTENT_CLASSIFIER_SYSTEM_PROMPT = `
   "confidence": <0.0-1.0>,
   "filters": {
     "age": <number | null>,
+    "age_min": <number | null>,
+    "age_max": <number | null>,
+    "grade_min": <0-12 | null>,
+    "grade_max": <0-12 | null>,
     "min_age_lte": <number | null>,
     "max_age_gte": <number | null>,
     "days": [<"ראשון"|"שני"|"שלישי"|"רביעי"|"חמישי"|"שישי">] | null,
@@ -72,7 +76,11 @@ export const INTENT_CLASSIFIER_SYSTEM_PROMPT = `
     "specific_date": "<YYYY-MM-DD>" | null,
     "target_age_group": "kids" | "teens" | "adults" | "seniors" | null,
     "has_spots": <boolean | null>,
-    "free_only": <boolean | null>
+    "free_only": <boolean | null>,
+    "branch": "<שם סניף>" | null,
+    "starts_after": "<HH:MM>" | null,
+    "starts_before": "<HH:MM>" | null,
+    "ends_before": "<HH:MM>" | null
   },
   "search_terms": ["<keyword1>", "<keyword2>"] | null,
   "activity_name": "<name if asking about specific activity>" | null,
@@ -272,8 +280,8 @@ export function formatActivitiesForContext(activities: ActivityRow[]): string {
 קטגוריה: ${a.categories?.name_he || 'כללי'}
 ימים: ${a.days_of_week || 'לא צוין'}
 שעות: ${a.start_time || ''} - ${a.end_time || ''}
-גיל: ${a.min_age || 0}-${a.max_age || '+'} שנים
-מחיר: ₪${a.price || 0}/חודש
+גיל: ${a.min_age == null && a.max_age == null ? 'לא צוין' : `${a.min_age ?? 'לא צוין'}-${a.max_age ?? 'לא צוין'} שנים`}
+מחיר: ${a.price == null ? 'לא צוין' : a.price === 0 ? 'חינם' : `₪${a.price}/חודש`}
 מדריך: ${a.instructor_name || 'לא צוין'}
 מיקום: ${a.location || 'לא צוין'}
 מקומות פנויים: ${spotsLeft !== null ? spotsLeft : 'לא ידוע'}

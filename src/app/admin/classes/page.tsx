@@ -166,7 +166,7 @@ export default function AdminClassesPage() {
                 {
                     method: editingClass ? 'PATCH' : 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(form),
+                    body: JSON.stringify(editingClass ? { ...form, expected_updated_at: editingClass.updated_at } : form),
                 },
             );
 
@@ -187,12 +187,16 @@ export default function AdminClassesPage() {
         }
     }
 
-    async function deleteClass(id: string) {
-        if (!confirm('האם למחוק חוג זה מהמערכת?')) return;
+    async function deleteClass(activity: AdminActivity) {
+        if (!confirm(`החוג "${activity.title_he}" (${activity.location || 'מיקום לא צוין'}, ${activity.days_of_week || 'יום לא צוין'} ${activity.start_time?.slice(0, 5) || ''}) יועבר לארכיון ויוסר מהאתר. לאשר?`)) return;
 
         setLoading(true);
         try {
-            const response = await fetch(`/api/admin/activities/${id}`, { method: 'DELETE' });
+            const response = await fetch(`/api/admin/activities/${activity.id}`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ expected_updated_at: activity.updated_at }),
+            });
             if (!response.ok) {
                 const data = await response.json();
                 throw new Error(data.error || 'Delete failed');
@@ -321,7 +325,7 @@ export default function AdminClassesPage() {
                                             </button>
                                             <button
                                                 className="btn btn-ghost btn-icon"
-                                                onClick={() => deleteClass(activity.id)}
+                                                onClick={() => deleteClass(activity)}
                                                 style={{ backgroundColor: 'var(--error-100)' }}
                                                 title="מחק חוג"
                                             >

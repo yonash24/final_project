@@ -51,3 +51,29 @@ test('reasons are deterministic and factual', () => {
     const [result] = rankEligibleActivities([activity()], request);
     assert.deepEqual(result.matchReasons, ['מתאים לגיל 7', 'יצירה ואמנות', 'מתקיים ביום שלישי', 'בתוך התקציב']);
 });
+
+test('age range, time, and branch are hard constraints and missing data never matches', () => {
+    const request = {
+        exactAge: null, ageMin: 8, ageMax: 10, gradeMin: null, gradeMax: null,
+        targetAgeGroup: 'kids', interests: [], hardInterests: [], days: ['רביעי'],
+        maxPrice: null, freeOnly: false, requiresAvailability: false,
+        locationQuery: 'מרכז', startsAfter: '17:00', startsBefore: '18:00', endsBefore: null,
+        accessibilityNeeds: [], explicitConstraints: [],
+    } as const;
+    const matching = activity({ min_age: 6, max_age: 12, days_of_week: 'רביעי', start_time: '17:30', location: 'מרכז' });
+    assert.equal(isActivityEligible(matching, request), true);
+    assert.equal(isActivityEligible({ ...matching, min_age: null }, request), false);
+    assert.equal(isActivityEligible({ ...matching, start_time: null }, request), false);
+    assert.equal(isActivityEligible({ ...matching, location: null }, request), false);
+    assert.equal(isActivityEligible({ ...matching, start_time: '18:30' }, request), false);
+});
+
+test('extracts explicit age and time ranges without inventing vague periods', () => {
+    const explicit = extractConstraints('חוג לגילאי 8 עד 10 ביום רביעי בין 16:00 ל-18:00 בסניף מרכז');
+    assert.equal(explicit.ageMin, 8);
+    assert.equal(explicit.ageMax, 10);
+    assert.equal(explicit.startsAfter, '16:00');
+    assert.equal(explicit.startsBefore, '18:00');
+    const vague = extractConstraints('מה יש בערב?');
+    assert.equal(vague.startsAfter, null);
+});
