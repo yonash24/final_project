@@ -1,6 +1,6 @@
 import type { ActivityRow, EventRow } from '@/lib/db/chat-queries';
 
-export type ChatResponseType = 'answer' | 'results' | 'clarification' | 'error';
+export type ChatResponseType = 'answer' | 'results' | 'clarification' | 'error' | 'system_error';
 
 export interface ClarificationOption {
     label: string;

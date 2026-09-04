@@ -10,7 +10,7 @@ function ageMatches(min: number | null, max: number | null, request: Recommendat
             && (request.ageMin == null || min <= request.ageMin)
             && (request.ageMax == null || max >= request.ageMax);
     }
-    return request.targetAgeGroup == null || (min != null && max != null);
+    return true;
 }
 function normalized(value: string) { return value.trim().toLocaleLowerCase('he-IL').replace(/["'׳״]/g, '').replace(/\s+/g, ' '); }
 function scheduleMatches(activity: ActivityRow, request: RecommendationRequest) {
@@ -23,7 +23,7 @@ function scheduleMatches(activity: ActivityRow, request: RecommendationRequest) 
         const start = schedule.start_time?.slice(0, 5) ?? null;
         const end = schedule.end_time?.slice(0, 5) ?? null;
         return dayOk
-            && (request.startsAfter == null || (start != null && start >= request.startsAfter))
+            && (request.startsAfter == null || (start != null && (request.startsAfterExclusive ? start > request.startsAfter : start >= request.startsAfter)))
             && (request.startsBefore == null || (start != null && start <= request.startsBefore))
             && (request.endsBefore == null || (end != null && end <= request.endsBefore));
     });
@@ -45,7 +45,7 @@ export function isActivityEligible(activity: ActivityRow, request: Recommendatio
     }
     if (request.maxPrice != null && (activity.price == null || activity.price > request.maxPrice)) return false;
     if (request.freeOnly && activity.price !== 0) return false;
-    if (request.requiresAvailability && activity.max_participants != null && (activity.current_participants ?? 0) >= activity.max_participants) return false;
+    if (request.requiresAvailability && (activity.max_participants == null || (activity.current_participants ?? 0) >= activity.max_participants)) return false;
     if (request.hardInterests.length > 0) {
         const activityInterests = interestsFromText(`${activity.title_he} ${activity.description_he ?? ''} ${activity.categories?.name_he ?? ''}`);
         if (!request.hardInterests.some((interest) => activityInterests.includes(interest))) return false;

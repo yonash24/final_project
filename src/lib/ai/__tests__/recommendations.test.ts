@@ -77,3 +77,29 @@ test('extracts explicit age and time ranges without inventing vague periods', ()
     const vague = extractConstraints('מה יש בערב?');
     assert.equal(vague.startsAfter, null);
 });
+
+test('keeps start-before and end-before semantics distinct', () => {
+    const starts = extractConstraints('איזה חוגים מתחילים לפני 19:00?');
+    assert.equal(starts.startsBefore, '19:00');
+    assert.equal(starts.endsBefore, null);
+
+    const ends = extractConstraints('איזה חוגים מסתיימים לפני 19:00?');
+    assert.equal(ends.endsBefore, '19:00');
+    assert.equal(ends.startsBefore, null);
+});
+
+test('after is exclusive and explicit interests are hard constraints', () => {
+    const parsed = extractConstraints('איזה חוגי ספורט יש אחרי 17:00?');
+    assert.equal(parsed.startsAfter, '17:00');
+    assert.equal(parsed.startsAfterExclusive, true);
+    assert.deepEqual(parsed.hardInterests, ['sports']);
+
+    const request = {
+        exactAge: null, targetAgeGroup: null, interests: ['sports'], hardInterests: ['sports'], days: [],
+        maxPrice: null, freeOnly: false, requiresAvailability: false, locationQuery: 'מרכז',
+        startsAfter: '17:00', startsAfterExclusive: true, startsBefore: null, endsBefore: null,
+        accessibilityNeeds: [], explicitConstraints: [],
+    } as const;
+    assert.equal(isActivityEligible(activity({ start_time: '17:00', location: 'מרכז', title_he: 'ציור', description_he: 'אמנות', categories: { name_he: 'אמנות' } }), request), false);
+    assert.equal(isActivityEligible(activity({ start_time: '17:01', location: 'מרכז', title_he: 'כדורגל', description_he: 'ספורט', categories: { name_he: 'ספורט' } }), request), true);
+});

@@ -6,6 +6,7 @@ import { getCachedChatResponse, cacheChatResponse } from '@/lib/ai/chat-cache';
 import { getChatResponse } from '@/lib/ai/chat-service';
 import { type ChatMessage } from '@/lib/ai/intent-classifier';
 import { recordChatInsight, recordChatMetric } from '@/lib/observability/audit';
+import { DataSourceUnavailableError } from '@/lib/db/data-source';
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 const RATE_LIMIT_WINDOW_MS = 60_000;
@@ -80,6 +81,17 @@ export async function POST(request: NextRequest) {
 
         return Response.json(response, { headers: { 'x-request-id': requestId, 'x-chat-cache': 'miss' } });
     } catch (error) {
+        if (error instanceof DataSourceUnavailableError) {
+            return Response.json({
+                responseType: 'system_error',
+                response: 'מקור המידע אינו זמין כרגע. נסה שוב בעוד כמה רגעים.',
+                intent: 'system_error',
+                resultCount: 0,
+                activityCards: [],
+                eventCards: [],
+                errorCode: error.code,
+            }, { status: 503 });
+        }
         const errMsg = error instanceof Error ? error.message : 'Unknown error';
         console.error('[ChatAPI] Failed to handle message:', error);
         console.info('[ChatTiming]', JSON.stringify({

@@ -8,6 +8,7 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { generateEmbedding } from './embeddings';
 import type { ActivityRow, EventRow } from '@/lib/db/chat-queries';
 import type { RecommendationRequest } from './recommendation-request';
+import { DataSourceUnavailableError } from '@/lib/db/data-source';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -159,7 +160,7 @@ export async function semanticSearchActivities(
         const { data, error } = await supabaseServer.rpc(rpcName, params);
         if (error) {
             console.warn('[SemanticSearch] Activities RPC error:', error.message);
-            return [];
+            throw new DataSourceUnavailableError('Semantic activity search failed.');
         }
 
         // Map RPC result to ActivityRow shape
@@ -184,8 +185,9 @@ export async function semanticSearchActivities(
             categories: row.category_name_he ? { name_he: row.category_name_he as string } : null,
         }));
     } catch (err) {
+        if (err instanceof DataSourceUnavailableError) throw err;
         console.error('[SemanticSearch] Activities error:', err);
-        return [];
+        throw new DataSourceUnavailableError('Semantic activity search failed.');
     }
 }
 
@@ -206,13 +208,9 @@ export async function semanticSearchAll(
             knowledgeLimit: options.knowledgeLimit ?? 3,
         });
     } catch (err) {
+        if (err instanceof DataSourceUnavailableError) throw err;
         console.error('[SemanticSearch] Combined search error:', err);
-        return {
-            activities: [],
-            events: [],
-            knowledge: [],
-            hasSemanticResults: false,
-        };
+        throw new DataSourceUnavailableError('Semantic search failed.');
     }
 }
 
@@ -235,7 +233,7 @@ export async function semanticSearchEvents(
 
         if (error) {
             console.warn('[SemanticSearch] Events RPC error:', error.message);
-            return [];
+            throw new DataSourceUnavailableError('Semantic event search failed.');
         }
 
         return (data || []).map((row: Record<string, unknown>) => ({
@@ -259,8 +257,9 @@ export async function semanticSearchEvents(
             requires_adult_companion: row.requires_adult_companion as boolean | null,
         }));
     } catch (err) {
+        if (err instanceof DataSourceUnavailableError) throw err;
         console.error('[SemanticSearch] Events error:', err);
-        return [];
+        throw new DataSourceUnavailableError('Semantic event search failed.');
     }
 }
 
@@ -283,13 +282,14 @@ export async function semanticSearchKnowledge(
 
         if (error) {
             console.warn('[SemanticSearch] Knowledge RPC error:', error.message);
-            return [];
+            throw new DataSourceUnavailableError('Semantic knowledge search failed.');
         }
 
         return (data || []) as KnowledgeResult[];
     } catch (err) {
+        if (err instanceof DataSourceUnavailableError) throw err;
         console.error('[SemanticSearch] Knowledge error:', err);
-        return [];
+        throw new DataSourceUnavailableError('Semantic knowledge search failed.');
     }
 }
 

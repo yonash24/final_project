@@ -13,6 +13,7 @@ import {
     rankEvents,
     scoreTextMatch,
 } from './chat-search-utils.ts';
+import { DataSourceUnavailableError } from './data-source.ts';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -90,7 +91,7 @@ function editDistance(a: string, b: string) {
 
 export async function resolveBranchName(input: string) {
     const { data, error } = await supabaseServer.from('branches').select('id,name,branch_aliases(alias)').eq('is_active', true).limit(200);
-    if (error) return { exact: null, suggestions: [] as string[] };
+    if (error) throw new DataSourceUnavailableError('Branch lookup failed.');
     const wanted = normalizeName(input);
     for (const branch of data ?? []) {
         const names = [branch.name, ...((branch.branch_aliases as { alias: string }[] | null) ?? []).map((item) => item.alias)];
@@ -193,7 +194,7 @@ export async function searchActivities(
     const { data, error } = await buildTextQuery();
     if (error) {
         console.error('[DB] ❌ searchActivities error:', error.message);
-        return [];
+        throw new DataSourceUnavailableError('Activity search failed.');
     }
 
     let results = (data ?? []) as unknown as ActivityRow[];
@@ -201,6 +202,7 @@ export async function searchActivities(
         const { data: fallbackData, error: fallbackError } = await applyFilters(buildBaseQuery());
         if (fallbackError) {
             console.error('[DB] ❌ searchActivities fallback error:', fallbackError.message);
+            throw new DataSourceUnavailableError('Activity search fallback failed.');
         } else {
             results = mergeUniqueById(results, (fallbackData ?? []) as unknown as ActivityRow[]);
         }
@@ -237,7 +239,7 @@ export async function getActivitiesByName(name: string): Promise<ActivityRow[]> 
 
     if (error) {
         console.error('[ChatQueries] getActivityByName error:', error);
-        return [];
+        throw new DataSourceUnavailableError('Activity lookup failed.');
     }
 
     return (data ?? []) as unknown as ActivityRow[];
@@ -324,7 +326,7 @@ export async function searchEvents(
     const { data, error } = await buildTextQuery();
     if (error) {
         console.error('[DB] ❌ searchEvents error:', error.message);
-        return [];
+        throw new DataSourceUnavailableError('Event search failed.');
     }
 
     let results = (data ?? []) as unknown as EventRow[];
@@ -332,6 +334,7 @@ export async function searchEvents(
         const { data: fallbackData, error: fallbackError } = await applyFilters(buildBaseQuery());
         if (fallbackError) {
             console.error('[DB] ❌ searchEvents fallback error:', fallbackError.message);
+            throw new DataSourceUnavailableError('Event search fallback failed.');
         } else {
             results = mergeUniqueById(results, (fallbackData ?? []) as unknown as EventRow[]);
         }
@@ -371,7 +374,7 @@ export async function searchKnowledgeBase(
 
     if (error) {
         console.error('[DB] ❌ searchKnowledgeBase error:', error.message);
-        return [];
+        throw new DataSourceUnavailableError('Knowledge base search failed.');
     }
 
     const rows = (data ?? []) as KnowledgeBaseRow[];
@@ -409,7 +412,7 @@ export async function getUpcomingEvents(days: number = 7): Promise<EventRow[]> {
 
     if (error) {
         console.error('[ChatQueries] getUpcomingEvents error:', error);
-        return [];
+        throw new DataSourceUnavailableError('Upcoming events lookup failed.');
     }
 
     return (data ?? []) as unknown as EventRow[];
@@ -434,7 +437,7 @@ export async function getCategories(): Promise<CategoryRow[]> {
 
     if (error) {
         console.error('[DB] ❌ getCategories error:', error.message);
-        return [];
+        throw new DataSourceUnavailableError('Category lookup failed.');
     }
 
     return (data ?? []) as CategoryRow[];

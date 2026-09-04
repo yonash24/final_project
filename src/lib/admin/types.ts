@@ -16,6 +16,14 @@ export interface AdminActivity {
     price: number | null;
     instructor_name: string | null;
     location: string | null;
+    venue?: string | null;
+    group_name?: string | null;
+    contact_name?: string | null;
+    contact_phone?: string | null;
+    contact_email?: string | null;
+    notes?: string | null;
+    min_grade?: number | null;
+    max_grade?: number | null;
     max_participants: number | null;
     current_participants: number | null;
     is_active: boolean;
@@ -151,6 +159,14 @@ export interface ActivityImportDraft {
     price: number | null;
     instructor_name: string | null;
     location: string | null;
+    venue: string | null;
+    group_name: string | null;
+    contact_name: string | null;
+    contact_phone: string | null;
+    contact_email: string | null;
+    notes: string | null;
+    min_grade: number | null;
+    max_grade: number | null;
     max_participants: number | null;
     is_active: boolean;
 }

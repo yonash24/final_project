@@ -437,7 +437,7 @@ export default function ChatPage() {
 
                 if (!res.ok) {
                     const err = await res.json().catch(() => ({}));
-                    throw new Error(err.error || `שגיאת שרת ${res.status}`);
+                    throw new Error(err.response || err.error || `שגיאת שרת ${res.status}`);
                 }
 
                 const data = await res.json();

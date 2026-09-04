@@ -19,6 +19,7 @@ export interface RecommendationRequest {
     requiresAvailability: boolean;
     locationQuery: string | null;
     startsAfter?: string | null;
+    startsAfterExclusive?: boolean;
     startsBefore?: string | null;
     endsBefore?: string | null;
     accessibilityNeeds: readonly string[];
@@ -71,14 +72,17 @@ export function extractConstraints(text: string): Partial<RecommendationRequest>
     const gradeMax = gradeRange ? gradeValues[gradeRange[2] ?? gradeRange[1]] ?? null : null;
     const branch = lower.match(/בסניף\s+(.+?)(?=\s+ביום|\s+אחרי|\s+לפני|\s+בין|[?.!,]|$)/)?.[1]?.trim() ?? null;
     const after = lower.match(/אחרי\s+(\d{1,2})(?::(\d{2}))?/);
-    const before = lower.match(/(?:מתחילים\s+)?לפני\s+(\d{1,2})(?::(\d{2}))?/);
+    const startsBefore = lower.match(/מתחילים\s+לפני\s+(\d{1,2})(?::(\d{2}))?/);
+    const endsBefore = lower.match(/מסתיימים\s+לפני\s+(\d{1,2})(?::(\d{2}))?/);
     const between = lower.match(/בין\s+(\d{1,2})(?::(\d{2}))?\s*(?:ל(?:-|־)?|עד|-)\s*(\d{1,2})(?::(\d{2}))?/);
     const asTime = (hours?: string, minutes?: string) => hours ? `${hours.padStart(2, '0')}:${minutes ?? '00'}` : null;
     const days = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'].filter((day) => lower.includes(day));
     const budget = lower.match(/(?:עד|מקסימום|תקציב(?: של)?)\s*(?:₪\s*)?(\d+(?:\.\d+)?)|(?:₪\s*)(\d+(?:\.\d+)?)/);
     const maxPrice = budget ? Number(budget[1] ?? budget[2]) : null;
     const interests = interestsFromText(lower);
-    const hardInterests = /רק|אך ורק|בלבד/.test(lower) ? interests : [];
+    // An explicit category in a search request is a hard filter. Recommendations
+    // may still rank additional signals, but must never return another domain.
+    const hardInterests = interests;
     const targetAgeGroup: AgeGroup | null = lower.includes('קשיש') || lower.includes('גיל שלישי') ? 'seniors'
         : lower.includes('נוער') || lower.includes('מתבגר') ? 'teens'
             : lower.includes('מבוגר') || lower.includes('בשבילי') ? 'adults'
@@ -92,8 +96,10 @@ export function extractConstraints(text: string): Partial<RecommendationRequest>
         locationQuery: branch, accessibilityNeeds: [], explicitConstraints: [],
         ageMin, ageMax, gradeMin, gradeMax,
         startsAfter: between ? asTime(between[1], between[2]) : after ? asTime(after[1], after[2]) : null,
+        startsAfterExclusive: Boolean(after),
         startsBefore: between ? asTime(between[3], between[4]) : null,
-        endsBefore: before ? asTime(before[1], before[2]) : null,
+        endsBefore: endsBefore ? asTime(endsBefore[1], endsBefore[2]) : startsBefore ? null : null,
+        ...(startsBefore ? { startsBefore: asTime(startsBefore[1], startsBefore[2]) } : {}),
     };
 }
 
@@ -118,7 +124,7 @@ export function buildRecommendationRequest(message: string, classified: Classifi
         gradeMin: result.gradeMin ?? null, gradeMax: result.gradeMax ?? null,
         targetAgeGroup: result.targetAgeGroup ?? null,
         interests: [...new Set([...(merged.interests ?? []), ...(current.interests ?? [])])],
-        hardInterests: [...new Set(current.hardInterests ?? [])],
+        hardInterests: [...new Set([...(merged.hardInterests ?? []), ...(current.hardInterests ?? [])])],
         days: [...new Set([...(merged.days ?? []), ...(fromClassifier.days ?? []), ...(current.days ?? [])])],
         maxPrice: current.maxPrice ?? fromClassifier.maxPrice ?? merged.maxPrice ?? null,
         freeOnly: current.freeOnly || fromClassifier.freeOnly || merged.freeOnly || false,
@@ -127,6 +133,7 @@ export function buildRecommendationRequest(message: string, classified: Classifi
         startsAfter: current.startsAfter ?? fromClassifier.startsAfter ?? merged.startsAfter ?? null,
         startsBefore: current.startsBefore ?? fromClassifier.startsBefore ?? merged.startsBefore ?? null,
         endsBefore: current.endsBefore ?? fromClassifier.endsBefore ?? merged.endsBefore ?? null,
+        startsAfterExclusive: current.startsAfterExclusive ?? false,
         accessibilityNeeds: [], explicitConstraints: [],
     };
 }
