@@ -22,21 +22,47 @@ interface PublicEvent {
 export default function EventsPage() {
     const [events, setEvents] = useState<PublicEvent[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedType, setSelectedType] = useState('all');
     const [selectedTimeframe, setSelectedTimeframe] = useState<'all' | '7' | '30'>('all');
 
-    useEffect(() => {
-        void (async () => {
-            setLoading(true);
+    async function loadEvents() {
+        setLoading(true);
+        setLoadError(null);
+        try {
             const { data, error } = await supabase
                 .from('events')
                 .select('*')
                 .eq('is_published', true)
                 .order('event_date', { ascending: true });
-            if (data) setEvents(data as PublicEvent[]);
-            if (error) console.error('Error fetching events:', error);
+
+            if (error) {
+                // Supabase errors are not enumerable, so logging the object directly
+                // often renders as `{}` and hides the actual cause.
+                const details = [error.message, error.code ? `code=${error.code}` : null]
+                    .filter(Boolean)
+                    .join(' | ');
+                console.error('Events query failed', { message: error.message, code: error.code, details });
+                setEvents([]);
+                setLoadError('לא ניתן לטעון את האירועים כרגע. נסו שוב בעוד רגע.');
+            } else {
+                setEvents((data ?? []) as PublicEvent[]);
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error('Events request failed', { message });
+            setEvents([]);
+            setLoadError('לא ניתן לטעון את האירועים כרגע. נסו שוב בעוד רגע.');
+        } finally {
             setLoading(false);
+        }
+    }
+
+    useEffect(() => {
+        void (async () => {
+            setLoading(true);
+            await loadEvents();
         })();
     }, []);
 
@@ -115,6 +141,11 @@ export default function EventsPage() {
                                     <div className="skeleton-block" />
                                 </div>
                             ))}
+                        </div>
+                    ) : loadError ? (
+                        <div className="card" role="alert" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                            <p style={{ marginBottom: '1rem' }}>{loadError}</p>
+                            <button type="button" className="btn btn-primary" onClick={() => void loadEvents()}>נסו שוב</button>
                         </div>
                     ) : filteredEvents.length === 0 ? (
                         <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
