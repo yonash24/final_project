@@ -190,6 +190,12 @@ export interface WhatsAppInboundMessage {
     text: string;
     receivedAt: string;
     rawPayload: Record<string, unknown>;
+    media?: Array<{
+        id?: string;
+        url?: string;
+        mimeType?: string | null;
+        filename?: string | null;
+    }>;
 }
 
 export interface WhatsAppStatusEvent {

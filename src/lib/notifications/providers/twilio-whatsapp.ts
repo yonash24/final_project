@@ -184,6 +184,12 @@ export class TwilioWhatsAppProvider implements NotificationProvider {
         const occurredAt = parsedTimestamp && !Number.isNaN(parsedTimestamp.valueOf())
             ? parsedTimestamp.toISOString()
             : new Date().toISOString();
+        const mediaCount = Number(form.get('NumMedia') ?? '0');
+        const media = Array.from({ length: Number.isFinite(mediaCount) ? Math.min(mediaCount, 5) : 0 }, (_, index) => ({
+            url: form.get(`MediaUrl${index}`) ?? undefined,
+            mimeType: form.get(`MediaContentType${index}`),
+            filename: null,
+        })).filter((item) => item.url);
 
         if (messageStatus && form.get('Body') === null) {
             return {
@@ -209,6 +215,7 @@ export class TwilioWhatsAppProvider implements NotificationProvider {
                 text: body,
                 receivedAt: occurredAt,
                 rawPayload: Object.fromEntries(form.entries()),
+                ...(media.length ? { media } : {}),
             }],
             statusEvents: [],
         };

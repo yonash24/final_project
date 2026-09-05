@@ -232,6 +232,18 @@ test('TwilioWhatsAppProvider.parseWebhook uses Twilio Timestamp for stable statu
     assert.equal(result.statusEvents[0]?.occurredAt, '2026-08-11T10:00:00.000Z');
 });
 
+test('TwilioWhatsAppProvider.parseWebhook captures inbound documents', async () => {
+    const provider = new TwilioWhatsAppProvider();
+    const request = new Request('https://example.com/api/webhooks/whatsapp/twilio-whatsapp', { method: 'POST' });
+    const result = await provider.parseWebhook({
+        request,
+        rawBody: 'MessageSid=SMFILE&From=whatsapp%3A%2B972501234567&NumMedia=1&MediaUrl0=https%3A%2F%2Fapi.twilio.com%2Fmedia%2F1&MediaContentType0=application%2Fpdf',
+        url: request.url,
+    });
+    assert.equal(result.inboundMessages[0]?.media?.[0]?.mimeType, 'application/pdf');
+    assert.equal(result.inboundMessages[0]?.media?.[0]?.url, 'https://api.twilio.com/media/1');
+});
+
 function buildTwilioSignature(url: string, rawBody: string, authToken: string) {
     const params = new URLSearchParams(rawBody);
     const sorted = Array.from(params.entries()).sort(([a], [b]) => a.localeCompare(b));

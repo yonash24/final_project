@@ -23,6 +23,13 @@ test('exact age is a hard eligibility constraint', () => {
     assert.equal(isActivityEligible(activity({ min_age: null, max_age: null }), request), false);
 });
 
+test('draft and archived activities never pass eligibility', () => {
+    const request = { exactAge: null, targetAgeGroup: null, interests: [], hardInterests: [], days: [], maxPrice: null, freeOnly: false, requiresAvailability: false, locationQuery: null, accessibilityNeeds: [], explicitConstraints: [] } as const;
+    assert.equal(isActivityEligible(activity({ publication_status: 'draft' }), request), false);
+    assert.equal(isActivityEligible(activity({ publication_status: 'archived' }), request), false);
+    assert.equal(isActivityEligible(activity({ publication_status: 'approved' }), request), true);
+});
+
 test('hard category, price, day and availability constraints are preserved', () => {
     const request = { exactAge: 7, targetAgeGroup: 'kids', interests: ['creative'], hardInterests: ['creative'], days: ['שלישי'], maxPrice: 150, freeOnly: false, requiresAvailability: true, locationQuery: null, accessibilityNeeds: [], explicitConstraints: [] } as const;
     assert.equal(isActivityEligible(activity(), request), true);

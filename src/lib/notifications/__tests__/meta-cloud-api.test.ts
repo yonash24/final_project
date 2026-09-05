@@ -141,3 +141,16 @@ test('MetaCloudApiProvider parses inbound text and delivery status webhooks', as
     assert.equal(result.statusEvents[0]?.status, 'delivered');
     assert.equal(result.statusEvents[0]?.providerMessageId, 'wamid.out-1');
 });
+
+test('MetaCloudApiProvider parses inbound document metadata', async () => {
+    const provider = new MetaCloudApiProvider();
+    const rawBody = JSON.stringify({ entry: [{ changes: [{ value: {
+        contacts: [{ profile: { name: 'Dana' } }],
+        messages: [{ from: '972501234567', id: 'wamid.file', document: { id: 'media-1', mime_type: 'application/pdf', filename: 'classes.pdf', caption: 'ייבוא חוגים' } }],
+    } }] }] });
+    const request = new Request('https://example.com/api/webhooks/whatsapp/meta-cloud-api', { method: 'POST' });
+    const result = await provider.parseWebhook({ request, rawBody, url: request.url });
+    assert.equal(result.inboundMessages[0]?.text, 'ייבוא חוגים');
+    assert.equal(result.inboundMessages[0]?.media?.[0]?.id, 'media-1');
+    assert.equal(result.inboundMessages[0]?.media?.[0]?.filename, 'classes.pdf');
+});

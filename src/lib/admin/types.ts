@@ -22,6 +22,8 @@ export interface AdminActivity {
     contact_phone?: string | null;
     contact_email?: string | null;
     notes?: string | null;
+    branch_id?: string | null;
+    extra_data?: Record<string, unknown>;
     min_grade?: number | null;
     max_grade?: number | null;
     max_participants: number | null;
@@ -29,6 +31,7 @@ export interface AdminActivity {
     is_active: boolean;
     updated_at: string;
     publication_status?: 'draft' | 'approved' | 'archived';
+    activity_schedules?: Array<{ id?: string; day_of_week: number; start_time: string | null; end_time: string | null }>;
     categories?: { id?: string; name_he: string; icon?: string | null } | null;
 }
 
@@ -141,6 +144,7 @@ export interface AdminMember {
 export type ImportRowStatus =
     | 'new'
     | 'update_candidate'
+    | 'conflict'
     | 'invalid'
     | 'imported'
     | 'updated'
@@ -169,6 +173,12 @@ export interface ActivityImportDraft {
     max_grade: number | null;
     max_participants: number | null;
     is_active: boolean;
+    extra_data?: Record<string, unknown>;
+}
+
+export interface ImportFieldConflict {
+    existing: unknown;
+    incoming: unknown;
 }
 
 export interface ImportRowResult {
@@ -179,6 +189,8 @@ export interface ImportRowResult {
     payload: ActivityImportDraft;
     confidence?: number;
     warnings?: string[];
+    conflicts?: Record<string, ImportFieldConflict>;
+    expectedUpdatedAt?: string | null;
 }
 
 export interface ImportJob {

@@ -13,7 +13,7 @@ Publuu does not offer a public developer API (verified against their public help
 - Commit API: `src/app/api/admin/activity-import/commit/route.ts`
 - Publuu URL validation and PDF download: `src/lib/admin/publuu.ts` (`isPubluuHost`, `fetchOfficialPubluuPdf`)
 - Document extraction (shared with Word/PDF uploads): `src/lib/admin/activity-import.ts` (`parseActivityDocument`)
-- DB tables: `import_sources` (`source_type = 'publuu'`, `publuu_url`), `source_revisions`, `import_jobs`, `import_rows`, `import_evidence` — see `supabase/migrations/0018_safe_activity_management.sql`
+- DB tables: `import_sources` (`source_type = 'publuu'`, `publuu_url`), `source_revisions`, `import_jobs`, `import_rows`, `import_evidence`, and field-level provenance — see migrations `0018_safe_activity_management.sql` through `0021_activity_safety_boundary.sql`
 
 ## Automated Verification
 
@@ -43,7 +43,7 @@ The automated tests only prove the code behaves correctly against a *simulated* 
 5. Open the published flip-book, click the download button, and copy the resulting URL (check the browser's network tab if the link isn't directly visible — it may trigger a download rather than navigate).
 6. Confirm the copied URL's host matches `*.publuu.com` per `isPubluuHost` in `src/lib/admin/publuu.ts`. If it does not, the allowlist in that file needs to be updated to include the actual host before this flow will work — this is expected to require a source change once a real link is available.
 7. Start the app (`npm run dev`), open `/admin/classes/import`.
-8. Paste the flip-book viewer URL into the "קישור Publuu" field and the download URL into the "קישור PDF רשמי" field.
+8. Paste the flip-book viewer URL into the "קישור Publuu" field and the download URL into the "קישור PDF רשמי" field. A manually downloaded PDF can be uploaded through the same screen as a fallback.
 9. Proceed through the wizard (upload/inspect → mapping → preview → commit) and confirm:
    - the activities from the test PDF are extracted correctly;
    - any field intentionally left out of the test PDF (e.g. no listed price) shows up as missing/blank in the preview, not guessed;

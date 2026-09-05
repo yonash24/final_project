@@ -18,6 +18,13 @@ interface SettingsResponse {
     providerStatus: AdminNotificationProviderStatus[];
 }
 
+interface AdminChannelIdentity {
+    id: string;
+    provider: 'twilio-whatsapp' | 'meta-cloud-api';
+    contact_phone: string;
+    verified_at: string;
+}
+
 interface SettingsFormState {
     provider: AdminNotificationSettings['provider'];
     is_enabled: boolean;
@@ -111,6 +118,8 @@ export default function AdminSettingsPage() {
     const [form, setForm] = useState<SettingsFormState | null>(null);
     const [testMessage, setTestMessage] = useState('');
     const [processMessage, setProcessMessage] = useState<string | null>(null);
+    const [adminPhone, setAdminPhone] = useState('');
+    const [linkedNumbers, setLinkedNumbers] = useState<AdminChannelIdentity[]>([]);
 
     useEffect(() => {
         let ignore = false;
@@ -142,6 +151,30 @@ export default function AdminSettingsPage() {
             ignore = true;
         };
     }, []);
+
+    useEffect(() => {
+        void fetch('/api/admin/whatsapp-link').then(async (response) => {
+            if (response.ok) setLinkedNumbers(await response.json() as AdminChannelIdentity[]);
+        });
+    }, []);
+
+    async function linkAdminPhone() {
+        if (!form || !adminPhone.trim() || form.provider === 'mock-whatsapp') return;
+        const response = await fetch('/api/admin/whatsapp-link', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider: form.provider, phone: adminPhone }),
+        });
+        const data = await response.json();
+        if (!response.ok) return alert(data.error || 'לא ניתן לקשר את המספר');
+        setLinkedNumbers((items) => [...items.filter((item) => item.provider !== data.provider), data]);
+        setAdminPhone('');
+    }
+
+    async function unlinkAdminPhone(provider: AdminChannelIdentity['provider']) {
+        const response = await fetch(`/api/admin/whatsapp-link?provider=${provider}`, { method: 'DELETE' });
+        if (!response.ok) return alert('לא ניתן להסיר את הקישור');
+        setLinkedNumbers((items) => items.filter((item) => item.provider !== provider));
+    }
 
     async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -272,6 +305,21 @@ export default function AdminSettingsPage() {
 
                 <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1.08fr 0.92fr', gap: '2rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <div className="card admin-section-card" style={{ padding: '1.75rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                                <Smartphone size={20} color="var(--primary-600)" />
+                                <h2 style={{ fontSize: '1.35rem' }}>קישור מנהל ל-WhatsApp</h2>
+                            </div>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>רק מספר שקושר מתוך חשבון מנהל יוכל להציע פעולות ניהול. כל פעולה עדיין תחייב אישור חד-פעמי.</p>
+                            <div style={{ display: 'flex', gap: '0.6rem' }}>
+                                <input className="input-field" dir="ltr" placeholder="+972501234567" value={adminPhone} onChange={(event) => setAdminPhone(event.target.value)} />
+                                <button type="button" className="btn btn-secondary" disabled={form.provider === 'mock-whatsapp' || !adminPhone.trim()} onClick={() => void linkAdminPhone()}>קשר</button>
+                            </div>
+                            {linkedNumbers.map((identity) => <div key={identity.id} style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
+                                <span dir="ltr">{identity.provider}: {identity.contact_phone}</span>
+                                <button type="button" className="btn btn-ghost" onClick={() => void unlinkAdminPhone(identity.provider)}>הסר</button>
+                            </div>)}
+                        </div>
                         <div className="card admin-section-card" style={{ padding: '1.75rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
                                 <Bell size={20} color="var(--primary-600)" />

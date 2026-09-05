@@ -176,9 +176,9 @@ function buildDetailsResponse(activity: ActivityRow) {
 
 function buildActivitiesResultsResponse(activities: ActivityRow[]) {
     if (activities.length === 1) {
-        return `מצאתי חוג אחד שמתאים בדיוק למה שביקשת:\n**${activities[0].title_he}**`;
+        return `מצאתי חוג אחד שמתאים בדיוק למה שביקשת:\n**${activities[0].title_he}**\nהצגתי רק התאמות שמבוססות על פרטים שמופיעים במפורש במאגר.`;
     }
-    return `מצאתי ${activities.length} חוגים תואמים. ריכזתי אותם בכרטיסים כאן למטה כדי שתוכל לבחור בקלות.`;
+    return `מצאתי ${activities.length} חוגים תואמים. ריכזתי אותם בכרטיסים כאן למטה. הוצגו רק חוגים שכל התנאים המבוקשים מופיעים בהם במפורש.`;
 }
 
 function buildEventsResultsResponse(events: EventRow[]) {
@@ -251,7 +251,7 @@ ${prefsContext ? `## העדפות שהמשתמש ציין בשיחה:\n${prefsCo
 ## הודעה מהמשתמש:
 "${message}"
 
-ענה בעברית. אם יש מידע רלוונטי מבסיס הידע — השתמש בו. אם אין — תן תשובה כללית מועילה.`;
+ענה בעברית ורק על בסיס ההקשר שסופק. אם ההקשר אינו מכיל תשובה מפורשת, אמור שאין מספיק מידע ואל תשלים מידע כללי.`;
 
     const startedAt = performance.now();
     try {
@@ -403,12 +403,15 @@ async function handleGeneralInfoWithRAG(
     sessionPrefs: SessionPreferences,
 ): Promise<ChatApiResponse> {
     const retrievalStartedAt = performance.now();
-    const [activities, events, knowledgeRows, categories] = await Promise.all([
-        searchActivities(classified.filters, classified.search_terms, message),
-        searchEvents(classified.filters, classified.search_terms, message),
+    // General information is answered only from the curated knowledge base.
+    // Broad activity fallbacks are intentionally excluded here because they
+    // can be unrelated to the question and must not become model context.
+    const [knowledgeRows, categories] = await Promise.all([
         searchKnowledgeBase(message, 4),
         getCategories(),
     ]);
+    const activities: ActivityRow[] = [];
+    const events: EventRow[] = [];
     logRetrievalTrace('timing', {
         stage: 'structured-search',
         durationMs: Math.round(performance.now() - retrievalStartedAt),

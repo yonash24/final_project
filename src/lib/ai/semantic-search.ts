@@ -6,7 +6,7 @@
 
 import { supabaseServer } from '@/lib/supabase/server';
 import { generateEmbedding } from './embeddings';
-import type { ActivityRow, EventRow } from '@/lib/db/chat-queries';
+import { getApprovedActivitiesByIds, type ActivityRow, type EventRow } from '@/lib/db/chat-queries';
 import type { RecommendationRequest } from './recommendation-request';
 import { DataSourceUnavailableError } from '@/lib/db/data-source';
 
@@ -86,7 +86,7 @@ async function searchAllWithEmbedding(
         knowledgeError: knowledgeResult.error?.message ?? null,
     });
 
-    const activities = (activitiesResult.data || []).map((row: Record<string, unknown>) => ({
+    const rawActivities = (activitiesResult.data || []).map((row: Record<string, unknown>) => ({
         id: row.id as string,
         title: row.title as string,
         title_he: row.title_he as string,
@@ -104,9 +104,11 @@ async function searchAllWithEmbedding(
         max_participants: row.max_participants as number | null,
         current_participants: row.current_participants as number | null,
         is_active: row.is_active as boolean,
+        publication_status: row.publication_status as string | undefined,
         categories: row.category_name_he ? { name_he: row.category_name_he as string } : null,
     }));
 
+    const activities = await getApprovedActivitiesByIds(rawActivities.map((item: { id: string }) => item.id));
     const events = (eventsResult.data || []).map((row: Record<string, unknown>) => ({
         id: row.id as string,
         title: row.title as string,
@@ -164,7 +166,7 @@ export async function semanticSearchActivities(
         }
 
         // Map RPC result to ActivityRow shape
-        return (data || []).map((row: Record<string, unknown>) => ({
+        const rawActivities = (data || []).map((row: Record<string, unknown>) => ({
             id: row.id as string,
             title: row.title as string,
             title_he: row.title_he as string,
@@ -182,8 +184,10 @@ export async function semanticSearchActivities(
             max_participants: row.max_participants as number | null,
             current_participants: row.current_participants as number | null,
             is_active: row.is_active as boolean,
+            publication_status: row.publication_status as string | undefined,
             categories: row.category_name_he ? { name_he: row.category_name_he as string } : null,
         }));
+        return getApprovedActivitiesByIds(rawActivities.map((item: { id: string }) => item.id));
     } catch (err) {
         if (err instanceof DataSourceUnavailableError) throw err;
         console.error('[SemanticSearch] Activities error:', err);

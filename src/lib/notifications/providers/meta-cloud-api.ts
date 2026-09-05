@@ -195,7 +195,7 @@ export class MetaCloudApiProvider implements NotificationProvider {
                 changes?: Array<{
                     value?: {
                         contacts?: Array<{ profile?: { name?: string }; wa_id?: string }>;
-                        messages?: Array<{ from?: string; id?: string; text?: { body?: string }; timestamp?: string }>;
+                        messages?: Array<{ from?: string; id?: string; text?: { body?: string }; document?: { id?: string; mime_type?: string; filename?: string; caption?: string }; timestamp?: string }>;
                         statuses?: Array<{ id?: string; status?: string; timestamp?: string; errors?: Array<{ code?: number; title?: string }> }>;
                     };
                 }>;
@@ -212,14 +212,20 @@ export class MetaCloudApiProvider implements NotificationProvider {
                 const contact = contacts[0];
 
                 for (const message of value?.messages ?? []) {
+                    const media = message.document?.id ? [{
+                        id: message.document.id,
+                        mimeType: message.document.mime_type ?? null,
+                        filename: message.document.filename ?? null,
+                    }] : [];
                     inboundMessages.push({
                         provider: this.name,
                         providerMessageId: message.id ?? crypto.randomUUID(),
                         fromPhone: message.from ? `+${message.from}` : '',
                         profileName: contact?.profile?.name ?? null,
-                        text: message.text?.body ?? '',
+                        text: message.text?.body ?? message.document?.caption ?? '',
                         receivedAt: message.timestamp ? new Date(Number(message.timestamp) * 1000).toISOString() : new Date().toISOString(),
                         rawPayload: payload as unknown as Record<string, unknown>,
+                        ...(media.length ? { media } : {}),
                     });
                 }
 

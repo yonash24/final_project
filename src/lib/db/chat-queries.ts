@@ -97,7 +97,12 @@ export async function resolveBranchName(input: string) {
         const names = [branch.name, ...((branch.branch_aliases as { alias: string }[] | null) ?? []).map((item) => item.alias)];
         if (names.some((name) => normalizeName(name) === wanted)) return { exact: branch.name, suggestions: [] as string[] };
     }
-    const { data: legacyLocation } = await supabaseServer.from('activities').select('location').ilike('location', input).eq('is_active', true).limit(1).maybeSingle();
+    const { data: legacyLocation } = await supabaseServer.from('activities').select('location')
+        .ilike('location', input)
+        .eq('is_active', true)
+        .eq('publication_status', 'approved')
+        .is('archived_at', null)
+        .limit(1).maybeSingle();
     if (legacyLocation?.location && normalizeName(legacyLocation.location) === wanted) return { exact: legacyLocation.location, suggestions: [] as string[] };
     const suggestions = (data ?? []).map((branch) => ({ name: branch.name, distance: editDistance(wanted, normalizeName(branch.name)) }))
         .filter((item) => item.distance <= Math.max(2, Math.floor(wanted.length * 0.3)))
@@ -130,6 +135,18 @@ const EVENT_SELECT = [
     'type', 'category', 'max_attendees', 'current_attendees', 'is_published',
     'min_age', 'max_age', 'target_age_group', 'audience_tags', 'is_family_friendly', 'requires_adult_companion',
 ].join(', ');
+
+export async function getApprovedActivitiesByIds(ids: string[]): Promise<ActivityRow[]> {
+    if (ids.length === 0) return [];
+    const { data, error } = await supabaseServer.from('activities').select(ACTIVITY_SELECT)
+        .in('id', ids)
+        .eq('is_active', true)
+        .eq('publication_status', 'approved')
+        .is('archived_at', null);
+    if (error) throw new DataSourceUnavailableError('Activity hydration failed.');
+    const byId = new Map(((data ?? []) as unknown as ActivityRow[]).map((item) => [item.id, item]));
+    return ids.map((id) => byId.get(id)).filter((item): item is ActivityRow => Boolean(item));
+}
 
 // ─── Activity Queries ───────────────────────────────────
 
@@ -452,6 +469,8 @@ export async function getActivitiesByCategory(categoryId: string): Promise<Activ
         .select('*, categories(name_he)')
         .eq('category_id', categoryId)
         .eq('is_active', true)
+        .eq('publication_status', 'approved')
+        .is('archived_at', null)
         .order('title_he', { ascending: true });
 
     if (error) {

@@ -3,8 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminRequest, requirePermission } from '@/lib/admin/auth';
 import { activitySchema } from '@/lib/admin/schemas';
 import { supabaseServer } from '@/lib/supabase/server';
-import { writeAuditLog } from '@/lib/observability/audit';
-import { invalidateChatCache } from '@/lib/ai/chat-cache';
+import { ActivityChangeError, proposeActivityChange } from '@/lib/admin/activity-changes';
 
 export async function GET(request: NextRequest) {
     const auth = await requireAdminRequest(request);
@@ -12,7 +11,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabaseServer
         .from('activities')
-        .select('*, categories(id, name_he, icon)')
+        .select('*, categories(id, name_he, icon), branches(id, name), activity_schedules(id, day_of_week, start_time, end_time)')
         .order('title_he', { ascending: true });
 
     if (error) {
@@ -35,25 +34,15 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
 
-    const payload = {
-        ...parsed.data,
-        title: parsed.data.title_he,
-        description: parsed.data.description_he,
-        current_participants: parsed.data.current_participants ?? 0,
-    };
-
-    const { data, error } = await supabaseServer
-        .from('activities')
-        .insert([payload])
-        .select('*, categories(id, name_he, icon)')
-        .single();
-
-    if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    try {
+        return NextResponse.json(await proposeActivityChange({
+            profile: auth.profile,
+            operation: 'create',
+            changes: parsed.data,
+            request,
+        }));
+    } catch (error) {
+        if (error instanceof ActivityChangeError) return NextResponse.json({ error: error.message }, { status: error.status });
+        throw error;
     }
-
-    void writeAuditLog({ actor: auth.profile, action: 'activity.created', resourceType: 'activity', resourceId: data.id, metadata: { after: data }, request });
-    void invalidateChatCache();
-
-    return NextResponse.json(data);
 }

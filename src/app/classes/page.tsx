@@ -4,7 +4,6 @@ import Navbar from '@/components/layout/Navbar';
 import { Clock, User, MapPin, BadgeDollarSign, Users, Search, SlidersHorizontal } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase/client';
 import RegistrationModal from '@/components/ui/RegistrationModal';
 
 const needPresets = [
@@ -57,13 +56,8 @@ export default function ClassesPage() {
     useEffect(() => {
         void (async () => {
             setLoading(true);
-            const { data } = await supabase
-                .from('activities')
-                .select('*, categories(name_he)')
-                .eq('is_active', true)
-                .order('title_he', { ascending: true });
-
-            if (data) setClasses(data as Activity[]);
+            const response = await fetch('/api/activities');
+            if (response.ok) setClasses(await response.json() as Activity[]);
             setLoading(false);
         })();
     }, []);

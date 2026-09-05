@@ -16,7 +16,7 @@ type Activity = {
     instructor_name?: string | null;
 };
 type Pending = { token: string; response: string; operation: string; target?: Activity; changes: Record<string, unknown> };
-type Message = { role: 'user' | 'assistant'; text: string; activityCards?: Activity[] };
+type Message = { role: 'user' | 'assistant'; text: string; activityCards?: Activity[]; selectionPrefix?: string };
 
 function ActivityChoices({ activities, onChoose }: { activities: Activity[]; onChoose: (activity: Activity) => void }) {
     if (!activities.length) return null;
@@ -47,7 +47,7 @@ export default function AdminAssistantPage() {
             const response = await fetch('/api/admin/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message }) });
             const data = await response.json();
             if (!response.ok) throw new Error(data.error || 'הבקשה נכשלה');
-            setMessages((items) => [...items, { role: 'assistant', text: data.response, activityCards: data.activityCards ?? [] }]);
+            setMessages((items) => [...items, { role: 'assistant', text: data.response, activityCards: data.activityCards ?? [], selectionPrefix: message }]);
             if (data.responseType === 'confirmation') setPending(data);
         } catch (error) { setMessages((items) => [...items, { role: 'assistant', text: error instanceof Error ? error.message : 'שגיאה זמנית' }]); }
         finally { setLoading(false); }
@@ -71,7 +71,7 @@ export default function AdminAssistantPage() {
             <div aria-live="polite" style={{ minHeight: 260, display: 'grid', gap: '0.75rem', alignContent: 'start' }}>
                 {messages.map((message, index) => <div key={index} style={{ padding: '0.8rem', borderRadius: 12, background: message.role === 'user' ? 'var(--primary-50)' : 'var(--bg-secondary)' }}>
                     <div>{message.text}</div>
-                    {message.activityCards && <ActivityChoices activities={message.activityCards} onChoose={(activity) => setInput(activity.title_he || '')} />}
+                    {message.activityCards && <ActivityChoices activities={message.activityCards} onChoose={(activity) => setInput(`${message.selectionPrefix ?? 'בחר את החוג'} מזהה חוג ${activity.id}`)} />}
                 </div>)}
             </div>
             {pending && <div role="alert" style={{ border: '2px solid var(--warning-500)', padding: '1rem', borderRadius: 12, marginBlock: '1rem' }}>

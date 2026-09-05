@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight, Clock, MapPin, Users, BadgeDollarSign, UserCheck, CalendarDays, Loader as Loader2, CircleAlert as AlertCircle } from 'lucide-react';
-import { supabase } from '@/lib/supabase/client';
 import Navbar from '@/components/layout/Navbar';
 import RegistrationModal from '@/components/ui/RegistrationModal';
 
@@ -44,17 +43,11 @@ export default function ActivityDetailPage() {
     useEffect(() => {
         if (!id) return;
         (async () => {
-            const { data, error } = await supabase
-                .from('activities')
-                .select('*, categories(name_he, icon)')
-                .eq('id', id)
-                .eq('is_active', true)
-                .maybeSingle();
-
-            if (error || !data) {
+            const response = await fetch(`/api/activities/${encodeURIComponent(id)}`);
+            if (!response.ok) {
                 setNotFound(true);
             } else {
-                setActivity(data as Activity);
+                setActivity(await response.json() as Activity);
             }
             setLoading(false);
         })();

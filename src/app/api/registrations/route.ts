@@ -25,6 +25,16 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        const { data: eligibleActivity, error: eligibilityError } = await supabaseServer
+            .from('activities').select('id')
+            .eq('id', activity_id)
+            .eq('is_active', true)
+            .eq('publication_status', 'approved')
+            .is('archived_at', null)
+            .maybeSingle();
+        if (eligibilityError) return Response.json({ error: 'לא ניתן לבדוק את החוג כרגע.' }, { status: 503 });
+        if (!eligibleActivity) return Response.json({ error: 'החוג אינו זמין להרשמה.' }, { status: 404 });
+
         const data = await createRegistration({
             activity_id,
             full_name,

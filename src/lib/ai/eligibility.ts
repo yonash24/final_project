@@ -29,7 +29,7 @@ function scheduleMatches(activity: ActivityRow, request: RecommendationRequest) 
     });
 }
 export function isActivityEligible(activity: ActivityRow, request: RecommendationRequest): boolean {
-    if (!activity.is_active || !ageMatches(activity.min_age, activity.max_age, request)) return false;
+    if (!activity.is_active || (activity.publication_status != null && activity.publication_status !== 'approved') || !ageMatches(activity.min_age, activity.max_age, request)) return false;
     if (request.exactAge == null && request.targetAgeGroup != null && activity.target_age_group !== request.targetAgeGroup) return false;
     if (!scheduleMatches(activity, request)) return false;
     if (request.gradeMin != null || request.gradeMax != null) {

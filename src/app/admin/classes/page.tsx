@@ -19,12 +19,18 @@ interface ActivityFormState {
     category_id: string;
     target_age_group: string;
     instructor_name: string;
-    days_of_week: string;
-    start_time: string;
-    end_time: string;
+    schedules: Array<{ day_of_week: number; start_time: string; end_time: string }>;
     start_date: string;
     end_date: string;
     location: string;
+    venue: string;
+    group_name: string;
+    contact_name: string;
+    contact_phone: string;
+    contact_email: string;
+    notes: string;
+    min_grade: string;
+    max_grade: string;
     min_age: string;
     max_age: string;
     price: string;
@@ -32,18 +38,33 @@ interface ActivityFormState {
     is_active: boolean;
 }
 
+type PendingChange = {
+    token: string;
+    operation: 'create' | 'update' | 'archive';
+    target: AdminActivity | null;
+    changes: Record<string, unknown>;
+};
+
+const DAY_LABELS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+
 const EMPTY_FORM: ActivityFormState = {
     title_he: '',
     description_he: '',
     category_id: '',
     target_age_group: '',
     instructor_name: '',
-    days_of_week: '',
-    start_time: '',
-    end_time: '',
+    schedules: [],
     start_date: '',
     end_date: '',
     location: '',
+    venue: '',
+    group_name: '',
+    contact_name: '',
+    contact_phone: '',
+    contact_email: '',
+    notes: '',
+    min_grade: '',
+    max_grade: '',
     min_age: '',
     max_age: '',
     price: '',
@@ -52,18 +73,36 @@ const EMPTY_FORM: ActivityFormState = {
 };
 
 function mapActivityToForm(activity: AdminActivity): ActivityFormState {
+    const fallbackSchedules = (activity.days_of_week ?? '').split(/[,;/]+/)
+        .map((day) => DAY_LABELS.indexOf(day.trim()))
+        .filter((day) => day >= 0)
+        .map((day_of_week) => ({
+            day_of_week,
+            start_time: activity.start_time?.slice(0, 5) ?? '',
+            end_time: activity.end_time?.slice(0, 5) ?? '',
+        }));
     return {
         title_he: activity.title_he ?? '',
         description_he: activity.description_he ?? '',
         category_id: activity.category_id ?? '',
         target_age_group: activity.target_age_group ?? '',
         instructor_name: activity.instructor_name ?? '',
-        days_of_week: activity.days_of_week ?? '',
-        start_time: activity.start_time ? activity.start_time.slice(0, 5) : '',
-        end_time: activity.end_time ? activity.end_time.slice(0, 5) : '',
+        schedules: activity.activity_schedules?.map((schedule) => ({
+            day_of_week: schedule.day_of_week,
+            start_time: schedule.start_time?.slice(0, 5) ?? '',
+            end_time: schedule.end_time?.slice(0, 5) ?? '',
+        })) ?? fallbackSchedules,
         start_date: activity.start_date ?? '',
         end_date: activity.end_date ?? '',
         location: activity.location ?? '',
+        venue: activity.venue ?? '',
+        group_name: activity.group_name ?? '',
+        contact_name: activity.contact_name ?? '',
+        contact_phone: activity.contact_phone ?? '',
+        contact_email: activity.contact_email ?? '',
+        notes: activity.notes ?? '',
+        min_grade: activity.min_grade?.toString() ?? '',
+        max_grade: activity.max_grade?.toString() ?? '',
         min_age: activity.min_age?.toString() ?? '',
         max_age: activity.max_age?.toString() ?? '',
         price: activity.price?.toString() ?? '',
@@ -80,6 +119,7 @@ export default function AdminClassesPage() {
     const [saving, setSaving] = useState(false);
     const [editingClass, setEditingClass] = useState<AdminActivity | null>(null);
     const [form, setForm] = useState<ActivityFormState>(EMPTY_FORM);
+    const [pendingChange, setPendingChange] = useState<PendingChange | null>(null);
 
     async function loadClasses() {
         const response = await fetch('/api/admin/activities');
@@ -175,10 +215,9 @@ export default function AdminClassesPage() {
                 throw new Error(data.error?.formErrors?.join(', ') || data.error || 'Failed to save');
             }
 
+            if (data.responseType !== 'confirmation' || !data.token) throw new Error('לא התקבלה בקשת אישור תקינה');
+            setPendingChange(data as PendingChange);
             setShowModal(false);
-            setForm(EMPTY_FORM);
-            setEditingClass(null);
-            await refreshData();
         } catch (error) {
             const message = error instanceof Error ? error.message : 'שגיאה בשמירת החוג';
             alert(message);
@@ -188,8 +227,6 @@ export default function AdminClassesPage() {
     }
 
     async function deleteClass(activity: AdminActivity) {
-        if (!confirm(`החוג "${activity.title_he}" (${activity.location || 'מיקום לא צוין'}, ${activity.days_of_week || 'יום לא צוין'} ${activity.start_time?.slice(0, 5) || ''}) יועבר לארכיון ויוסר מהאתר. לאשר?`)) return;
-
         setLoading(true);
         try {
             const response = await fetch(`/api/admin/activities/${activity.id}`, {
@@ -201,11 +238,36 @@ export default function AdminClassesPage() {
                 const data = await response.json();
                 throw new Error(data.error || 'Delete failed');
             }
-            await refreshData();
+            const data = await response.json();
+            if (data.responseType !== 'confirmation' || !data.token) throw new Error('לא התקבלה בקשת אישור תקינה');
+            setPendingChange(data as PendingChange);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'שגיאה במחיקה';
             alert(message);
+        } finally {
             setLoading(false);
+        }
+    }
+
+    async function confirmPendingChange() {
+        if (!pendingChange || saving) return;
+        setSaving(true);
+        try {
+            const response = await fetch('/api/admin/activity-changes', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'confirm', token: pendingChange.token }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'האישור נכשל');
+            setPendingChange(null);
+            setForm(EMPTY_FORM);
+            setEditingClass(null);
+            await refreshData();
+        } catch (error) {
+            alert(error instanceof Error ? error.message : 'האישור נכשל');
+        } finally {
+            setSaving(false);
         }
     }
 
@@ -376,11 +438,24 @@ export default function AdminClassesPage() {
                                     <option value="seniors">גיל שלישי</option>
                                 </select>
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr 1fr', gap: '1rem' }}>
-                                <input className="input-field" placeholder="ימים (למשל ראשון, שלישי)" value={form.days_of_week} onChange={(event) => setForm((prev) => ({ ...prev, days_of_week: event.target.value }))} />
-                                <input type="time" className="input-field" value={form.start_time} onChange={(event) => setForm((prev) => ({ ...prev, start_time: event.target.value }))} />
-                                <input type="time" className="input-field" value={form.end_time} onChange={(event) => setForm((prev) => ({ ...prev, end_time: event.target.value }))} />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <input className="input-field" placeholder="מקום / אולם" value={form.venue} onChange={(event) => setForm((prev) => ({ ...prev, venue: event.target.value }))} />
+                                <input className="input-field" placeholder="שם קבוצה" value={form.group_name} onChange={(event) => setForm((prev) => ({ ...prev, group_name: event.target.value }))} />
                             </div>
+                            <fieldset style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
+                                <legend style={{ fontWeight: 700, paddingInline: '0.5rem' }}>מפגשים</legend>
+                                {form.schedules.map((schedule, index) => (
+                                    <div key={index} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                                        <select className="input-field" value={schedule.day_of_week} onChange={(event) => setForm((prev) => ({ ...prev, schedules: prev.schedules.map((item, itemIndex) => itemIndex === index ? { ...item, day_of_week: Number(event.target.value) } : item) }))}>
+                                            {DAY_LABELS.map((day, dayIndex) => <option key={day} value={dayIndex}>{day}</option>)}
+                                        </select>
+                                        <input type="time" className="input-field" value={schedule.start_time} onChange={(event) => setForm((prev) => ({ ...prev, schedules: prev.schedules.map((item, itemIndex) => itemIndex === index ? { ...item, start_time: event.target.value } : item) }))} />
+                                        <input type="time" className="input-field" value={schedule.end_time} onChange={(event) => setForm((prev) => ({ ...prev, schedules: prev.schedules.map((item, itemIndex) => itemIndex === index ? { ...item, end_time: event.target.value } : item) }))} />
+                                        <button type="button" className="btn btn-ghost btn-icon" aria-label={`הסר מפגש ${index + 1}`} onClick={() => setForm((prev) => ({ ...prev, schedules: prev.schedules.filter((_, itemIndex) => itemIndex !== index) }))}><X size={16} /></button>
+                                    </div>
+                                ))}
+                                <button type="button" className="btn btn-secondary btn-md" onClick={() => setForm((prev) => ({ ...prev, schedules: [...prev.schedules, { day_of_week: 0, start_time: '', end_time: '' }] }))}>הוסף מפגש</button>
+                            </fieldset>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '1rem' }}>
                                 <input type="date" className="input-field" value={form.start_date} onChange={(event) => setForm((prev) => ({ ...prev, start_date: event.target.value }))} />
                                 <input type="date" className="input-field" value={form.end_date} onChange={(event) => setForm((prev) => ({ ...prev, end_date: event.target.value }))} />
@@ -395,10 +470,38 @@ export default function AdminClassesPage() {
                                     חוג פעיל באתר
                                 </label>
                             </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                <input className="input-field" placeholder="כיתה מינימלית (0–12)" value={form.min_grade} onChange={(event) => setForm((prev) => ({ ...prev, min_grade: event.target.value }))} />
+                                <input className="input-field" placeholder="כיתה מקסימלית (0–12)" value={form.max_grade} onChange={(event) => setForm((prev) => ({ ...prev, max_grade: event.target.value }))} />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                                <input className="input-field" placeholder="איש קשר" value={form.contact_name} onChange={(event) => setForm((prev) => ({ ...prev, contact_name: event.target.value }))} />
+                                <input className="input-field" placeholder="טלפון קשר" value={form.contact_phone} onChange={(event) => setForm((prev) => ({ ...prev, contact_phone: event.target.value }))} />
+                                <input type="email" className="input-field" placeholder="דוא״ל קשר" value={form.contact_email} onChange={(event) => setForm((prev) => ({ ...prev, contact_email: event.target.value }))} />
+                            </div>
+                            <textarea className="input-field" placeholder="הערות ומידע נוסף" value={form.notes} onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))} />
                             <button type="submit" disabled={saving} className="btn btn-primary btn-md">
                                 {saving ? 'שומר חוג...' : editingClass ? 'שמור שינויים' : 'שמור חוג'}
                             </button>
                         </form>
+                    </div>
+                </div>
+            )}
+            {pendingChange && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(13,27,42,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+                    <div className="card" role="alertdialog" aria-modal="true" aria-labelledby="confirm-change-title" style={{ width: '100%', maxWidth: 760, padding: '2rem', background: 'white', maxHeight: '90vh', overflowY: 'auto' }}>
+                        <h2 id="confirm-change-title">אישור שינוי במאגר</h2>
+                        <p style={{ color: 'var(--text-secondary)', marginBlock: '0.75rem' }}>הפעולה עדיין לא בוצעה. בדקו את החוג ואת הערכים החדשים לפני האישור.</p>
+                        <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', lineHeight: 1.7 }}>
+                            <strong>פעולה:</strong> {pendingChange.operation === 'create' ? 'יצירה' : pendingChange.operation === 'update' ? 'עדכון' : 'העברה לארכיון'}<br />
+                            <strong>חוג:</strong> {pendingChange.target?.title_he ?? String(pendingChange.changes.title_he ?? 'חוג חדש')}
+                            {pendingChange.target && <><br /><strong>מצב קיים:</strong> {pendingChange.target.location || 'מיקום לא צוין'} · {pendingChange.target.days_of_week || 'יום לא צוין'} · {pendingChange.target.start_time?.slice(0, 5) || 'שעה לא צוינה'}</>}
+                        </div>
+                        {pendingChange.operation !== 'archive' && <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', padding: '1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', marginBlock: '1rem' }}>{JSON.stringify(pendingChange.changes, null, 2)}</pre>}
+                        <div style={{ display: 'flex', gap: '0.75rem' }}>
+                            <button className="btn btn-primary" disabled={saving} onClick={() => void confirmPendingChange()}>{saving ? 'מבצע...' : 'אני מאשר/ת את הפעולה המדויקת'}</button>
+                            <button className="btn btn-secondary" disabled={saving} onClick={() => setPendingChange(null)}>ביטול</button>
+                        </div>
                     </div>
                 </div>
             )}

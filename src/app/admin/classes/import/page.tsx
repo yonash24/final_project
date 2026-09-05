@@ -1,7 +1,7 @@
 "use client";
 
 import { FileSpreadsheet, CheckCircle2, UploadCloud, ArrowLeftRight, DatabaseZap } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import AdminNavbar from '@/components/admin/AdminNavbar';
 import type { ImportMapping } from '@/lib/admin/activity-import';
@@ -49,10 +49,25 @@ export default function AdminClassesImportPage() {
     const [publuuUrl, setPubluuUrl] = useState('');
     const [publuuPdfUrl, setPubluuPdfUrl] = useState('');
     const [approvedRows, setApprovedRows] = useState<Set<number>>(new Set());
+    const [conflictDecisions, setConflictDecisions] = useState<Set<string>>(new Set());
 
-    async function inspectFile(selectedFile: File) {
+    useEffect(() => {
+        const jobId = new URLSearchParams(window.location.search).get('job');
+        if (!jobId) return;
+        void fetch(`/api/admin/activity-import/${encodeURIComponent(jobId)}`).then(async (response) => {
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'לא ניתן לטעון את הייבוא');
+            setJob(data.job);
+            setPreviewRows(data.previewRows);
+            setApprovedRows(new Set());
+            setStep('preview');
+        }).catch((caught) => setError(caught instanceof Error ? caught.message : 'לא ניתן לטעון את הייבוא'))
+            .finally(() => setIsLoading(false));
+    }, []);
+
+    async function inspectFile(selectedFile?: File | null) {
         const formData = new FormData();
-        formData.append('file', selectedFile);
+        if (selectedFile) formData.append('file', selectedFile);
         if (publuuUrl.trim()) formData.append('publuuUrl', publuuUrl.trim());
         if (publuuPdfUrl.trim()) formData.append('publuuPdfUrl', publuuPdfUrl.trim());
 
@@ -71,10 +86,10 @@ export default function AdminClassesImportPage() {
     }
 
     async function buildPreview() {
-        if (!file) return;
+        if (!file && !publuuPdfUrl.trim()) return;
 
         const formData = new FormData();
-        formData.append('file', file);
+        if (file) formData.append('file', file);
         formData.append('mapping', JSON.stringify(mapping));
         if (publuuUrl.trim()) formData.append('publuuUrl', publuuUrl.trim());
         if (publuuPdfUrl.trim()) formData.append('publuuPdfUrl', publuuPdfUrl.trim());
@@ -90,6 +105,7 @@ export default function AdminClassesImportPage() {
         setJob(data.job);
         setPreviewRows(data.previewRows);
         setApprovedRows(new Set());
+        setConflictDecisions(new Set());
         setStep('preview');
     }
 
@@ -99,7 +115,12 @@ export default function AdminClassesImportPage() {
         const response = await fetch('/api/admin/activity-import/commit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ jobId: job.id, approvedRowIndexes: [...approvedRows], rowEdits: previewRows.filter((row) => approvedRows.has(row.rowIndex)).map((row) => ({ rowIndex: row.rowIndex, payload: row.payload })) }),
+            body: JSON.stringify({
+                jobId: job.id,
+                approvedRowIndexes: [...approvedRows],
+                conflictDecisions: [...conflictDecisions],
+                rowEdits: previewRows.filter((row) => approvedRows.has(row.rowIndex)).map((row) => ({ rowIndex: row.rowIndex, payload: row.payload })),
+            }),
         });
 
         const data = await response.json();
@@ -110,7 +131,17 @@ export default function AdminClassesImportPage() {
     }
 
     function editRow(rowIndex: number, field: keyof ImportRowResult['payload'], value: string) {
-        setPreviewRows((rows) => rows.map((row) => row.rowIndex === rowIndex ? { ...row, payload: { ...row.payload, [field]: ['min_age', 'max_age', 'price', 'max_participants'].includes(field) ? (value === '' ? null : Number(value)) : (value === '' ? null : value) } } : row));
+        setPreviewRows((rows) => rows.map((row) => row.rowIndex === rowIndex ? { ...row, payload: { ...row.payload, [field]: ['min_age', 'max_age', 'min_grade', 'max_grade', 'price', 'max_participants'].includes(field) ? (value === '' ? null : Number(value)) : (value === '' ? null : value) } } : row));
+        setConflictDecisions((current) => new Set(current).add(`${rowIndex}:${field}`));
+    }
+
+    function resolveConflict(row: ImportRowResult, field: string, choice: 'existing' | 'incoming') {
+        const conflict = row.conflicts?.[field];
+        if (!conflict) return;
+        setPreviewRows((rows) => rows.map((item) => item.rowIndex === row.rowIndex
+            ? { ...item, payload: { ...item.payload, [field]: choice === 'existing' ? conflict.existing : conflict.incoming } }
+            : item));
+        setConflictDecisions((current) => new Set(current).add(`${row.rowIndex}:${field}`));
     }
 
     async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -170,6 +201,11 @@ export default function AdminClassesImportPage() {
                                 אם הכפתור לא מופיע, יש לבקש מבעל החשבון להפעיל את אפשרות &quot;הורדת PDF&quot; בהגדרות החוברת (CUSTOMIZE → MENU → DOWNLOAD PDF).
                                 אם עדיין אין קישור PDF רשמי זמין, יש להעלות את ה־PDF המקורי בשדה הבא.
                             </small>
+                            <button type="button" className="btn btn-secondary btn-md" style={{ marginTop: '0.75rem' }} disabled={isLoading || !publuuPdfUrl.trim()} onClick={() => {
+                                setError(null);
+                                setIsLoading(true);
+                                void inspectFile(null).catch((caught) => setError(caught instanceof Error ? caught.message : 'שגיאה בקריאת Publuu')).finally(() => setIsLoading(false));
+                            }}>קרא PDF מ-Publuu</button>
                         </label>
                         <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '260px', border: '2px dashed var(--border-color)', borderRadius: 'var(--radius-lg)', cursor: 'pointer', gap: '1rem' }}>
                             <UploadCloud size={42} color="var(--accent-primary)" />
@@ -256,6 +292,7 @@ export default function AdminClassesImportPage() {
                         <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
                             `חדש`: {previewRows.filter((row) => row.status === 'new').length} ·
                             ` לעדכון`: {previewRows.filter((row) => row.status === 'update_candidate').length} ·
+                            ` סתירות`: {previewRows.filter((row) => row.status === 'conflict').length} ·
                             ` שגויות`: {previewRows.filter((row) => row.status === 'invalid').length}
                         </p>
                         <div style={{ overflowX: 'auto' }}>
@@ -274,7 +311,7 @@ export default function AdminClassesImportPage() {
                                     {previewRows.map((row) => (
                                         <tr key={row.rowIndex}>
                                             <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>
-                                                <input type="checkbox" disabled={row.status === 'invalid'} checked={approvedRows.has(row.rowIndex)} onChange={(event) => setApprovedRows((current) => {
+                                                <input type="checkbox" disabled={row.status === 'invalid' || Object.keys(row.conflicts ?? {}).some((field) => !conflictDecisions.has(`${row.rowIndex}:${field}`))} checked={approvedRows.has(row.rowIndex)} onChange={(event) => setApprovedRows((current) => {
                                                     const next = new Set(current);
                                                     if (event.target.checked) next.add(row.rowIndex); else next.delete(row.rowIndex);
                                                     return next;
@@ -282,7 +319,7 @@ export default function AdminClassesImportPage() {
                                             </td>
                                             <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>{row.rowIndex}</td>
                                             <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)', fontWeight: 700 }}>
-                                                {row.status === 'new' ? 'חדש' : row.status === 'update_candidate' ? 'לעדכון' : 'שגוי'}
+                                                {row.status === 'new' ? 'חדש' : row.status === 'update_candidate' ? 'זהה לקיים' : row.status === 'conflict' ? 'דורש הכרעה' : 'שגוי'}
                                             </td>
                                             <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)' }}><input className="input-field" value={row.payload.title_he} onChange={(event) => editRow(row.rowIndex, 'title_he', event.target.value)} /></td>
                                             <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)' }}>
@@ -291,6 +328,17 @@ export default function AdminClassesImportPage() {
                                             </td>
                                             <td style={{ padding: '0.75rem', borderBottom: '1px solid var(--border-color)', color: '#b91c1c' }}>
                                                 {[...row.errors, ...(row.warnings ?? [])].join(', ') || 'תקין'}
+                                                {Object.entries(row.conflicts ?? {}).map(([field, conflict]) => (
+                                                    <div key={field} style={{ marginTop: '0.6rem', padding: '0.6rem', border: '1px solid var(--warning-500)', borderRadius: 8, color: 'var(--text-primary)' }}>
+                                                        <strong>{FIELD_LABELS[field as keyof typeof FIELD_LABELS] ?? field}</strong>
+                                                        <div style={{ fontSize: '0.8rem' }}>קיים: {String(conflict.existing ?? 'לא צוין')} · חדש: {String(conflict.incoming ?? 'לא צוין')}</div>
+                                                        <select className="input-field" value={conflictDecisions.has(`${row.rowIndex}:${field}`) ? (row.payload[field as keyof typeof row.payload] === conflict.existing ? 'existing' : 'incoming') : ''} onChange={(event) => resolveConflict(row, field, event.target.value as 'existing' | 'incoming')}>
+                                                            <option value="">יש לבחור</option>
+                                                            <option value="existing">שמור ערך קיים</option>
+                                                            <option value="incoming">קבל ערך חדש</option>
+                                                        </select>
+                                                    </div>
+                                                ))}
                                             </td>
                                         </tr>
                                     ))}

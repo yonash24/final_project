@@ -4,7 +4,7 @@ The application already sends an inbound WhatsApp message to the same
 `getChatResponse` flow used by the web chat. To make it answer real WhatsApp
 messages:
 
-1. Apply all Supabase migrations, including `0012_category_deduplication.sql`.
+1. Apply all Supabase migrations through `0021_activity_safety_boundary.sql`.
 2. Set `GOOGLE_API_KEY` in the server environment. The chatbot uses Gemini for
    intent classification and answer generation.
 3. Seed the knowledge base and embeddings with
@@ -25,6 +25,23 @@ messages:
 7. Deploy with a public HTTPS URL. Test by sending `START`, then a normal
    Hebrew question. Check Admin → Settings → recent deliveries and server
    logs if a reply is not delivered.
+
+## Linked administrator flow
+
+An inbound phone number has no management permission by itself. Sign in to the
+website as an administrator, open Admin → Settings, and explicitly link the
+E.164 WhatsApp number to either Twilio or Meta. A linked administrator can send
+a create/update/archive instruction and receives a six-digit, ten-minute
+confirmation code. The change is executed only after the same linked identity
+sends that code; the code is single-use and the activity version is checked
+again before execution.
+
+Linked administrators may also send CSV, XLSX, DOC, DOCX, or PDF documents (up
+to 25 MB). The file is staged in the normal import pipeline and WhatsApp returns
+a website review link. The administrator must review conflicts and explicitly
+approve rows on the website before anything is published. For Meta, configure
+the existing bearer token; for Twilio, configure the account SID and auth token
+so the server can download provider-hosted media.
 
 For scheduled confirmations, reminders, and change notifications, create an
 approved Twilio Content Template and enter each exact `ContentSid` in Admin →

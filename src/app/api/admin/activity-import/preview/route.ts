@@ -97,7 +97,8 @@ export async function POST(request: NextRequest) {
 
         const { data: activities, error: activitiesError } = await supabaseServer
         .from('activities')
-        .select('id, category_id, title, title_he, description, description_he, target_age_group, min_age, max_age, days_of_week, start_time, end_time, price, instructor_name, location, max_participants, current_participants, is_active');
+        .select('id, category_id, title, title_he, description, description_he, target_age_group, min_age, max_age, min_grade, max_grade, days_of_week, start_time, end_time, price, instructor_name, location, venue, group_name, contact_name, contact_phone, contact_email, notes, max_participants, current_participants, is_active,updated_at')
+        .eq('is_active', true).eq('publication_status', 'approved').is('archived_at', null);
 
         if (activitiesError) {
             return NextResponse.json({ error: activitiesError.message }, { status: 500 });
@@ -156,8 +157,14 @@ export async function POST(request: NextRequest) {
         status: row.status,
         duplicate_activity_id: row.duplicateActivityId,
         error_messages: row.errors,
-        confidence_by_field: parsedSheet.evidence?.[index] ? { record: parsedSheet.evidence[index].confidence } : {},
+        confidence_by_field: parsedSheet.evidence?.[index]
+            ? (Object.keys(parsedSheet.evidence[index].confidenceByField ?? {}).length
+                ? parsedSheet.evidence[index].confidenceByField
+                : { record: parsedSheet.evidence[index].confidence })
+            : {},
         warnings: parsedSheet.evidence?.[index] && parsedSheet.evidence[index].confidence < 0.75 ? ['ביטחון חילוץ נמוך - נדרשת בדיקה'] : [],
+        conflicts: row.conflicts ?? {},
+        expected_updated_at: row.expectedUpdatedAt ?? null,
     }));
 
         const { data: savedRows, error: rowsError } = await supabaseServer.from('import_rows').insert(rowsPayload).select('id,row_index');
@@ -166,7 +173,12 @@ export async function POST(request: NextRequest) {
         }
         const evidenceRows = (savedRows ?? []).flatMap((saved) => {
             const evidence = parsedSheet.evidence?.[saved.row_index - 2];
-            return evidence ? [{ import_row_id: saved.id, field_name: 'record', source_locator: { page: evidence.page }, source_excerpt: evidence.excerpt, confidence: evidence.confidence }] : [];
+            if (!evidence) return [];
+            const locator = { page: evidence.page, sheet: evidence.sheet ?? null, row: evidence.row ?? null };
+            const fieldEntries = Object.entries(evidence.confidenceByField ?? {});
+            return fieldEntries.length
+                ? fieldEntries.map(([fieldName, confidence]) => ({ import_row_id: saved.id, field_name: fieldName, source_locator: locator, source_excerpt: evidence.excerpt, confidence }))
+                : [{ import_row_id: saved.id, field_name: 'record', source_locator: locator, source_excerpt: evidence.excerpt, confidence: evidence.confidence }];
         });
         if (evidenceRows.length) await supabaseServer.from('import_evidence').insert(evidenceRows);
 

@@ -2,6 +2,11 @@ import { z } from 'zod';
 
 import { getChatResponse } from '@/lib/ai/chat-service';
 import type { ChatMessage } from '@/lib/ai/intent-classifier';
+import { parseAdminCommand } from '@/lib/admin/admin-command';
+import { resolveAdminActivitySelector } from '@/lib/admin/activity-selector';
+import { ActivityChangeError, confirmActivityChange, proposeActivityChange } from '@/lib/admin/activity-changes';
+import { hasPermission, type AdminProfile } from '@/lib/admin/auth';
+import { stageWhatsAppActivityImport } from '@/lib/admin/whatsapp-import';
 import { getAllNotificationProviders, getNotificationProvider } from '@/lib/notifications/provider';
 import { supabaseServer } from '@/lib/supabase/server';
 import type {
@@ -1172,6 +1177,115 @@ function buildCommandReply(command: 'opt_in' | 'opt_out' | 'help') {
     }
 }
 
+function formatChatResponseForWhatsApp(response: Awaited<ReturnType<typeof getChatResponse>>) {
+    const activityLines = response.activityCards.map((activity) => [
+        `*${activity.title_he}*`,
+        activity.days_of_week ?? null,
+        activity.start_time ? activity.start_time.slice(0, 5) : null,
+        activity.location ? `📍 ${activity.location}` : null,
+        activity.min_age != null && activity.max_age != null ? `גיל ${activity.min_age}–${activity.max_age}` : null,
+        activity.price == null ? 'מחיר לא צוין' : activity.price === 0 ? 'חינם' : `₪${activity.price}`,
+    ].filter(Boolean).join(' · '));
+    const eventLines = response.eventCards.map((event) => [
+        `*${event.title}*`, event.event_date, event.start_time?.slice(0, 5),
+        event.location ? `📍 ${event.location}` : null,
+    ].filter(Boolean).join(' · '));
+    const details = [...activityLines, ...eventLines];
+    const intro = response.response
+        .replace(/ריכזתי אותם בכרטיסים[^.]*\.?/g, '')
+        .replace(/כל הפרטים מופיעים בכרטיס[^.]*\.?/g, '')
+        .trim();
+    return details.length ? `${intro}\n\n${details.join('\n')}` : intro;
+}
+
+const ADMIN_MUTATION_PATTERN = /(מחק|מחיקה|העבר.{0,8}ארכיון|שנה|עדכן|הוסף|צור)/;
+const ADMIN_CONFIRM_PATTERN = /^(?:אשר|confirm)\s+(\d{6})$/i;
+
+async function getLinkedWhatsAppAdmin(provider: WhatsAppInboundMessage['provider'], phone: string) {
+    if (provider === 'mock-whatsapp') return null;
+    const { data, error } = await supabaseServer.from('admin_channel_identities')
+        .select('admin_user_id,admin_users(id,email,role,is_active)')
+        .eq('provider', provider)
+        .eq('contact_phone', phone)
+        .maybeSingle();
+    if (error || !data) return null;
+    const linked = data.admin_users as unknown as AdminProfile | AdminProfile[] | null;
+    const profile = Array.isArray(linked) ? linked[0] : linked;
+    return profile?.is_active ? profile : null;
+}
+
+async function buildWhatsAppAdminReply(message: WhatsAppInboundMessage, phone: string) {
+    const confirmMatch = message.text.trim().match(ADMIN_CONFIRM_PATTERN);
+    const looksLikeMutation = ADMIN_MUTATION_PATTERN.test(message.text);
+    const hasMedia = Boolean(message.media?.length);
+    if (!confirmMatch && !looksLikeMutation && !hasMedia) return null;
+
+    const profile = await getLinkedWhatsAppAdmin(message.provider, phone);
+    if (!profile || !hasPermission(profile, 'content:write')) {
+        return { body: 'פעולות ניהול זמינות רק למספר שקושר מראש לחשבון מנהל פעיל באתר.', payload: { adminAction: 'denied' } };
+    }
+
+    if (hasMedia) {
+        try {
+            const preview = await stageWhatsAppActivityImport(message, profile);
+            return {
+                body: `הקובץ נקלט ונמצאו ${preview.previewRows.length} שורות לבדיקה. דבר לא פורסם. לבדיקה ואישור: ${(process.env.APP_BASE_URL ?? '').replace(/\/$/, '')}/admin/classes/import?job=${preview.job.id}`,
+                payload: { adminAction: 'import_staged', importJobId: preview.job.id },
+            };
+        } catch (error) {
+            return { body: error instanceof Error ? error.message : 'לא ניתן לעבד את הקובץ.', payload: { adminAction: 'import_failed' } };
+        }
+    }
+
+    if (confirmMatch) {
+        try {
+            const confirmed = await confirmActivityChange({ profile, token: confirmMatch[1] });
+            return { body: confirmed.response, payload: { adminAction: 'confirmed' } };
+        } catch (error) {
+            return { body: error instanceof ActivityChangeError ? error.message : 'לא ניתן לבצע את האישור.', payload: { adminAction: 'confirmation_failed' } };
+        }
+    }
+
+    const command = await parseAdminCommand(message.text);
+    if (command.operation === 'query') return null;
+    if (command.confidence < 0.75) {
+        return { body: 'לא זיהיתי בוודאות את החוג או את השינוי. יש לציין שם, סניף, יום ושעה.', payload: { adminAction: 'clarification' } };
+    }
+
+    let activityId: string | undefined;
+    if (command.operation !== 'create') {
+        const matches = await resolveAdminActivitySelector({
+            ...command.target_selector,
+            name: command.target_selector.name ?? command.target_name,
+        });
+        if (matches.length === 0) return { body: 'לא נמצא חוג שמתאים לכל התנאים שציינת. לא בוצע שינוי.', payload: { adminAction: 'not_found' } };
+        if (matches.length > 1) {
+            const options = matches.slice(0, 6).map((activity, index) =>
+                `${index + 1}. ${activity.title_he} · ${activity.location || 'ללא סניף'} · ${activity.days_of_week || 'ללא יום'} ${activity.start_time?.slice(0, 5) || ''}`,
+            ).join('\n');
+            return { body: `נמצאו כמה חוגים. שלח שוב את הבקשה עם הפרטים המדויקים:\n${options}`, payload: { adminAction: 'ambiguous', candidateIds: matches.map((item) => item.id) } };
+        }
+        activityId = matches[0].id;
+    }
+
+    try {
+        const proposal = await proposeActivityChange({
+            profile,
+            operation: command.operation,
+            activityId,
+            changes: command.changes,
+            channel: 'whatsapp',
+        });
+        const targetName = proposal.target?.title_he ?? proposal.changes.title_he ?? 'חוג חדש';
+        return {
+            body: `הפעולה עדיין לא בוצעה.\nפעולה: ${proposal.operation}\nחוג: ${String(targetName)}\nשינויים: ${JSON.stringify(proposal.changes)}\nלאישור שלח: אשר ${proposal.token}\nהקוד תקף ל-10 דקות.`,
+            payload: { adminAction: 'proposed', operation: proposal.operation },
+        };
+    } catch (error) {
+        return { body: error instanceof ActivityChangeError ? error.message : 'לא ניתן ליצור הצעת שינוי.', payload: { adminAction: 'proposal_failed' } };
+    }
+}
+
 export async function handleIncomingWhatsAppMessage(message: WhatsAppInboundMessage) {
     const normalizedPhone = normalizePhoneNumber(message.fromPhone);
     const member = await upsertMemberByPhone(normalizedPhone, message.profileName);
@@ -1280,6 +1394,20 @@ export async function handleIncomingWhatsAppMessage(message: WhatsAppInboundMess
         return;
     }
 
+    const adminReply = await buildWhatsAppAdminReply(message, normalizedPhone);
+    if (adminReply) {
+        await sendConversationReply({
+            conversation,
+            memberId: member.id,
+            recipientName: member.full_name,
+            recipientPhone: normalizedPhone,
+            body: adminReply.body,
+            payload: adminReply.payload,
+            inReplyToMessageId: inboundRecord.id,
+        });
+        return;
+    }
+
     try {
         const history = await getConversationHistoryExcludingMessage(conversation.id, inboundRecord.id);
         const configuredTimeout = Number(process.env.WHATSAPP_AI_TIMEOUT_MS ?? '20000');
@@ -1299,7 +1427,7 @@ export async function handleIncomingWhatsAppMessage(message: WhatsAppInboundMess
                 memberId: member.id,
                 recipientName: member.full_name,
                 recipientPhone: normalizedPhone,
-                body: chatResponse.response,
+                body: formatChatResponseForWhatsApp(chatResponse),
                 payload: {
                     source: 'whatsapp_chat',
                     intent: chatResponse.intent,
