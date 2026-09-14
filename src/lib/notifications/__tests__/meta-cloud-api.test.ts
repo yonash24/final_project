@@ -154,3 +154,104 @@ test('MetaCloudApiProvider parses inbound document metadata', async () => {
     assert.equal(result.inboundMessages[0]?.media?.[0]?.id, 'media-1');
     assert.equal(result.inboundMessages[0]?.media?.[0]?.filename, 'classes.pdf');
 });
+
+test('MetaCloudApiProvider rejects a webhook with an invalid signature', async () => {
+    const provider = new MetaCloudApiProvider();
+    const originalAppSecret = process.env.META_WHATSAPP_APP_SECRET;
+    process.env.META_WHATSAPP_APP_SECRET = 'app-secret';
+
+    try {
+        const rawBody = JSON.stringify({ object: 'whatsapp_business_account', entry: [] });
+        const request = new Request('https://example.com/api/webhooks/whatsapp/meta-cloud-api', {
+            method: 'POST',
+            headers: { 'x-hub-signature-256': 'sha256=deadbeef' },
+            body: rawBody,
+        });
+        const verification = await provider.verifyWebhook({ request, rawBody, url: request.url });
+        assert.equal(verification.ok, false);
+        assert.equal(verification.status, 403);
+    } finally {
+        if (originalAppSecret === undefined) delete process.env.META_WHATSAPP_APP_SECRET;
+        else process.env.META_WHATSAPP_APP_SECRET = originalAppSecret;
+    }
+});
+
+test('MetaCloudApiProvider fails to send when the access token is not configured', async () => {
+    const provider = new MetaCloudApiProvider();
+    const originalToken = process.env.META_WHATSAPP_ACCESS_TOKEN;
+    delete process.env.META_WHATSAPP_ACCESS_TOKEN;
+
+    try {
+        const result = await provider.send({
+            channel: 'whatsapp',
+            deliveryId: 'delivery-3',
+            recipientPhone: '+972501234567',
+            body: 'שלום',
+            providerConfig: baseConfig,
+        });
+
+        assert.equal(result.status, 'failed');
+        assert.equal(result.errorCode, 'meta_not_configured');
+        assert.equal(result.shouldRetry, false);
+    } finally {
+        if (originalToken === undefined) delete process.env.META_WHATSAPP_ACCESS_TOKEN;
+        else process.env.META_WHATSAPP_ACCESS_TOKEN = originalToken;
+    }
+});
+
+test('MetaCloudApiProvider surfaces a failure result when the Graph API responds non-2xx', async () => {
+    const provider = new MetaCloudApiProvider();
+    const originalFetch = globalThis.fetch;
+    const originalToken = process.env.META_WHATSAPP_ACCESS_TOKEN;
+    process.env.META_WHATSAPP_ACCESS_TOKEN = 'meta-token';
+
+    globalThis.fetch = async () => new Response(
+        JSON.stringify({ error: { code: 131047, message: 'Re-engagement message' } }),
+        { status: 400 },
+    );
+
+    try {
+        const result = await provider.send({
+            channel: 'whatsapp',
+            deliveryId: 'delivery-4',
+            recipientPhone: '+972501234567',
+            body: 'שלום',
+            providerConfig: baseConfig,
+        });
+
+        assert.equal(result.status, 'failed');
+        assert.equal(result.errorCode, '131047');
+        assert.equal(result.errorMessage, 'Re-engagement message');
+        assert.equal(result.shouldRetry, false);
+    } finally {
+        globalThis.fetch = originalFetch;
+        if (originalToken === undefined) delete process.env.META_WHATSAPP_ACCESS_TOKEN;
+        else process.env.META_WHATSAPP_ACCESS_TOKEN = originalToken;
+    }
+});
+
+test('MetaCloudApiProvider getHealth reports missing env vars and config as not configured', () => {
+    const provider = new MetaCloudApiProvider();
+    const originalToken = process.env.META_WHATSAPP_ACCESS_TOKEN;
+    const originalVerifyToken = process.env.META_WHATSAPP_VERIFY_TOKEN;
+    const originalAppSecret = process.env.META_WHATSAPP_APP_SECRET;
+    delete process.env.META_WHATSAPP_ACCESS_TOKEN;
+    delete process.env.META_WHATSAPP_VERIFY_TOKEN;
+    delete process.env.META_WHATSAPP_APP_SECRET;
+
+    try {
+        const status = provider.getHealth({});
+        assert.equal(status.provider, 'meta-cloud-api');
+        assert.equal(status.mode, 'live');
+        assert.equal(status.isConfigured, false);
+        assert.ok(status.warnings.some((warning) => warning.includes('phone number ID')));
+        assert.ok(status.warnings.some((warning) => warning.includes('business account ID')));
+    } finally {
+        if (originalToken === undefined) delete process.env.META_WHATSAPP_ACCESS_TOKEN;
+        else process.env.META_WHATSAPP_ACCESS_TOKEN = originalToken;
+        if (originalVerifyToken === undefined) delete process.env.META_WHATSAPP_VERIFY_TOKEN;
+        else process.env.META_WHATSAPP_VERIFY_TOKEN = originalVerifyToken;
+        if (originalAppSecret === undefined) delete process.env.META_WHATSAPP_APP_SECRET;
+        else process.env.META_WHATSAPP_APP_SECRET = originalAppSecret;
+    }
+});

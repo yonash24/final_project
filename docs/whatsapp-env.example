@@ -1,4 +1,4 @@
-# Required for the Smart Hub AI chat
+# Required for the resident AI chat (/chat)
 GOOGLE_API_KEY=
 
 # Required for Supabase server access

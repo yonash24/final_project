@@ -3,5 +3,11 @@
  * unless unrestricted admin access is explicitly intended there.
  */
 export function isAdminAuthBypassEnabled() {
-    return process.env.ADMIN_AUTH_BYPASS === 'true';
+    const enabled = process.env.ADMIN_AUTH_BYPASS === 'true';
+
+    if (enabled && process.env.NODE_ENV === 'production') {
+        throw new Error('ADMIN_AUTH_BYPASS must not be enabled in production.');
+    }
+
+    return enabled;
 }

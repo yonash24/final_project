@@ -1,6 +1,6 @@
 # System Analysis Report
 
-Date: 2026-09-14
+Date: 202   6-09-14
 
 This report answers four questions about the current state of the codebase: how LangGraph/LangChain/RAG are used, how the WhatsApp integration works, whether the AI agent can write to the database, and whether the "Smart Hub" is fully implemented. No code was changed to produce this report — it is based on reading the existing source.
 
@@ -12,10 +12,10 @@ This report answers four questions about the current state of the codebase: how 
 
 **LLM provider:** The app calls Google Gemini directly via the `@google/generative-ai` SDK (`src/lib/ai/gemini.ts`), model `gemini-3-flash-preview`, with embeddings via `gemini-embedding-001` (`src/lib/ai/embeddings.ts:24`). There is no Anthropic or OpenAI SDK anywhere in the dependency tree.
 
-**LangGraph — installed, demonstrated, but unused in production:**
-- `package.json` includes `@langchain/langgraph`, `langchain`, `@langchain/core`, `@langchain/google-genai`.
-- `src/lib/ai/graph.ts` builds a real `StateGraph` (classify → retrieve → generate, using `START`/`END`) with genuine LangGraph primitives.
-- However, nothing else in the app imports `chatGraph`. The live chat endpoint (`src/app/api/chat/route.ts`) and the WhatsApp bot (`src/lib/notifications/service.ts`) both call `getChatResponse` from `src/lib/ai/chat-service.ts` — a large hand-written if/switch orchestration, not the graph. **The LangGraph implementation is orphaned demo code.**
+**LangGraph — was installed and demonstrated, but unused in production (since removed):**
+- `package.json` used to include `@langchain/langgraph`, `langchain`, `@langchain/core`, `@langchain/google-genai`.
+- `src/lib/ai/graph.ts` built a real `StateGraph` (classify → retrieve → generate, using `START`/`END`) with genuine LangGraph primitives.
+- Nothing else in the app imported `chatGraph`. The live chat endpoint (`src/app/api/chat/route.ts`) and the WhatsApp bot (`src/lib/notifications/service.ts`) both call `getChatResponse` from `src/lib/ai/chat-service.ts` — a large hand-written if/switch orchestration, not the graph. Since this was confirmed to have zero importers anywhere in the repo, `graph.ts` and the unused LangChain/LangGraph dependencies were removed to keep the codebase honest about its actual architecture.
 
 **LangChain:** Installed, but not used outside of `graph.ts`'s `Annotation` helper from `@langchain/core`. No chains, retrievers, or the `@langchain/google-genai` chat wrapper are used anywhere; all Gemini calls go through the custom `gemini.ts` wrapper directly.
 
