@@ -9,7 +9,6 @@ import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/ge
 
 let cachedGenAI: GoogleGenerativeAI | null = null;
 let cachedChatModel: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null;
-let cachedClassifierModel: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null;
 
 function getGenAI(): GoogleGenerativeAI {
     if (cachedGenAI) return cachedGenAI;
@@ -53,24 +52,6 @@ export function getChatModel() {
 }
 
 /**
- * Gemini 3 Flash Preview — fast and reliable model for general tasks.
- */
-export function getClassifierModel() {
-    if (cachedClassifierModel) return cachedClassifierModel;
-
-    cachedClassifierModel = getGenAI().getGenerativeModel({
-        model: 'gemini-3-flash-preview',
-        generationConfig: {
-            temperature: 0.1,
-            topP: 0.8,
-            maxOutputTokens: 512,
-            responseMimeType: 'application/json',
-        },
-    });
-    return cachedClassifierModel;
-}
-
-/**
  * Gemini 3 Flash Preview — optimized for marketing content generation.
  */
 export function getStudioModel() {
@@ -82,23 +63,5 @@ export function getStudioModel() {
             maxOutputTokens: 1024,
             responseMimeType: 'application/json',
         },
-    });
-}
-
-export function getDocumentExtractionModel() {
-    return getGenAI().getGenerativeModel({
-        model: process.env.GEMINI_DOCUMENT_MODEL || 'gemini-3-flash-preview',
-        generationConfig: {
-            temperature: 0,
-            maxOutputTokens: 8192,
-            responseMimeType: 'application/json',
-        },
-    });
-}
-
-export function getAdminCommandModel() {
-    return getGenAI().getGenerativeModel({
-        model: process.env.GEMINI_CHAT_MODEL || 'gemini-3-flash-preview',
-        generationConfig: { temperature: 0, maxOutputTokens: 1024, responseMimeType: 'application/json' },
     });
 }

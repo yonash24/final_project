@@ -4,8 +4,7 @@
  * using Gemini's JSON mode for consistent classification.
  */
 
-import { getClassifierModel } from './gemini';
-import { parseJsonObjectResponse } from './json-response';
+import { generateStructuredOutput } from './structured-output';
 import { INTENT_CLASSIFIER_SYSTEM_PROMPT } from './prompts';
 import { extractConstraints, intentSchema } from './recommendation-request';
 
@@ -140,8 +139,6 @@ export async function classifyIntent(
     if (fastResult) return fastResult;
 
     try {
-        const model = getClassifierModel();
-
         // Build conversation context for Gemini
         const historyContext = history.length > 0
             ? '\n\nהיסטוריית השיחה:\n' +
@@ -153,27 +150,11 @@ export async function classifyIntent(
 
         const prompt = `${INTENT_CLASSIFIER_SYSTEM_PROMPT}${historyContext}\n\nשאלה חדשה מהמשתמש: "${userMessage}"\n\nהחזר JSON בלבד.`;
 
-        // Retry logic for transient rate limits
-        let text = '';
-        for (let attempt = 0; attempt < 2; attempt++) {
-            try {
-                const result = await model.generateContent(prompt);
-                text = result.response.text();
-                break;
-            } catch (retryErr: unknown) {
-                const msg = retryErr instanceof Error ? retryErr.message : '';
-                const is429 = msg.includes('429') || msg.includes('quota') || msg.includes('rate');
-                if (is429 && attempt < 1) {
-                    const delay = 500;
-                    await new Promise((r) => setTimeout(r, delay));
-                    continue;
-                }
-                throw retryErr;
-            }
-        }
-
-        // Parse JSON — the classifier model forces JSON output
-        const parsed = intentSchema.parse(parseJsonObjectResponse<unknown>(text));
+        const parsed = await generateStructuredOutput(intentSchema, prompt, {
+            temperature: 0.1,
+            topP: 0.8,
+            maxOutputTokens: 512,
+        });
 
         // Ensure all expected fields exist with defaults
         return {

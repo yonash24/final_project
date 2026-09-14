@@ -5,8 +5,7 @@ import { z } from 'zod';
 import type { ActivityImportDraft, ImportRowResult } from './types';
 import type { AdminActivity } from './types';
 import type { ImportableField } from './import-constants';
-import { getDocumentExtractionModel } from '../ai/gemini.ts';
-import { parseJsonObjectResponse } from '../ai/json-response.ts';
+import { generateStructuredOutput } from '../ai/structured-output.ts';
 export type ImportMapping = Partial<Record<ImportableField, string>>;
 
 export interface ParsedSheetResult {
@@ -89,17 +88,21 @@ export async function parseActivityDocument(file: File): Promise<ParsedSheetResu
     }
 
     if (!text.trim() && !inlineData) throw new Error('לא נמצא במסמך טקסט שניתן לקריאה.');
-    const parts: Array<string | { inlineData: { data: string; mimeType: string } }> = [documentPrompt(inlineData ? undefined : text)];
-    if (inlineData) parts.push(inlineData);
+    const documentModelOptions = {
+        modelName: process.env.GEMINI_DOCUMENT_MODEL || 'gemini-3-flash-preview',
+        temperature: 0,
+        maxOutputTokens: 8192,
+    };
     const extractedActivities: Array<z.infer<typeof extractedActivitySchema>> = [];
     if (inlineData) {
-        const response = await getDocumentExtractionModel().generateContent(parts);
-        extractedActivities.push(...extractedDocumentSchema.parse(parseJsonObjectResponse(response.response.text())).activities);
+        const input = [documentPrompt(undefined), inlineData.inlineData];
+        const extracted = await generateStructuredOutput(extractedDocumentSchema, input, documentModelOptions);
+        extractedActivities.push(...extracted.activities);
     } else {
         const chunks = splitDocumentText(text);
         for (const chunk of chunks) {
-            const response = await getDocumentExtractionModel().generateContent([documentPrompt(chunk)]);
-            extractedActivities.push(...extractedDocumentSchema.parse(parseJsonObjectResponse(response.response.text())).activities);
+            const extracted = await generateStructuredOutput(extractedDocumentSchema, documentPrompt(chunk), documentModelOptions);
+            extractedActivities.push(...extracted.activities);
         }
     }
     const seen = new Set<string>();
