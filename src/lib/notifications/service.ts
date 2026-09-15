@@ -4,6 +4,7 @@ import { getChatResponse } from '@/lib/ai/chat-service';
 import type { ChatMessage } from '@/lib/ai/intent-classifier';
 import { parseAdminCommand, type AdminCommand } from '@/lib/admin/admin-command';
 import { resolveAdminActivitySelector } from '@/lib/admin/activity-selector';
+import { describeActivityChange } from '@/lib/admin/assistant-flow';
 import {
     ActivityChangeError,
     cancelActivityChange,
@@ -1261,32 +1262,6 @@ function activityLine(activity: Record<string, unknown>, index?: number) {
     return `${prefix}${title} · ${location} · ${day}${time ? ` ${time}` : ''}${status ? ` · ${status}` : ''}`;
 }
 
-function formatProposal(proposal: Awaited<ReturnType<typeof proposeActivityChange>>) {
-    const labels: Record<string, string> = {
-        title_he: 'שם', location: 'סניף', venue: 'מיקום', group_name: 'קבוצה', days_of_week: 'יום',
-        start_time: 'שעת התחלה', end_time: 'שעת סיום', price: 'מחיר', instructor_name: 'מדריך',
-        min_age: 'גיל מינימלי', max_age: 'גיל מקסימלי', target_age_group: 'קהל יעד', max_participants: 'מכסה',
-    };
-    const operationLabels: Record<string, string> = {
-        create_draft: 'יצירת טיוטה', update: 'עדכון', archive: 'ארכוב', restore: 'שחזור', publish: 'פרסום',
-    };
-    const target = proposal.target ?? {};
-    const title = String(target.title_he ?? proposal.changes.title_he ?? 'חוג חדש');
-    const details = Object.entries(proposal.changes).map(([field, next]) => {
-        const previous = field in target ? target[field] : 'לא הוגדר';
-        return `${labels[field] ?? field}: ${String(previous ?? 'לא הוגדר')} ← ${String(next ?? 'ריק')}`;
-    });
-    return [
-        'הפעולה עדיין לא בוצעה.', '',
-        `פעולה: ${operationLabels[proposal.operation] ?? proposal.operation}`,
-        `חוג: ${title}`,
-        target.location ? `סניף: ${String(target.location)}` : null,
-        target.group_name ? `קבוצה: ${String(target.group_name)}` : null,
-        target.days_of_week ? `יום: ${String(target.days_of_week)}` : null,
-        details.length ? `\n${details.join('\n')}` : null,
-    ].filter((value): value is string => value != null).join('\n');
-}
-
 async function proposeWhatsAppCommand(args: {
     identity: LinkedAdminIdentity;
     command: AdminCommand;
@@ -1308,7 +1283,7 @@ async function proposeWhatsAppCommand(args: {
         conversationId: args.conversation.id,
         sourceMessageId: args.sourceMessageId,
     });
-    const summary = formatProposal(proposal);
+    const summary = describeActivityChange(proposal);
     if (proposal.approvalMethod === 'web_mfa') {
         const baseUrl = (process.env.APP_BASE_URL ?? '').replace(/\/$/, '');
         return {

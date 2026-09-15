@@ -7,16 +7,10 @@ import { supabaseServer } from '@/lib/supabase/server';
 import { hasPermission, type AdminProfile } from './auth';
 import { activitySchema } from './schemas';
 
-export type ActivityChangeOperation = 'create_draft' | 'update' | 'archive' | 'restore' | 'publish';
-export type ActivityChangeApprovalMethod = 'web_token' | 'whatsapp_code' | 'web_mfa';
-
-export const OPERATION_PERMISSION: Record<ActivityChangeOperation, string> = {
-    create_draft: 'activity:create',
-    update: 'activity:update',
-    archive: 'activity:archive',
-    restore: 'activity:restore',
-    publish: 'activity:publish',
-};
+export type { ActivityChangeOperation, ActivityChangeApprovalMethod } from './activity-change-types.ts';
+export { OPERATION_PERMISSION } from './activity-change-types.ts';
+import type { ActivityChangeOperation, ActivityChangeApprovalMethod } from './activity-change-types.ts';
+import { OPERATION_PERMISSION } from './activity-change-types.ts';
 
 type ClaimedChangeRequest = {
     id: string;
@@ -189,18 +183,6 @@ export async function proposeActivityChange(args: {
     };
 }
 
-export async function autoExecuteActivityChange(args: {
-    profile: AdminProfile;
-    operation: 'create_draft' | 'update';
-    activityId?: string | null;
-    changes?: unknown;
-    expectedUpdatedAt?: string | null;
-    request?: Request;
-}) {
-    const proposal = await proposeActivityChange({ ...args, channel: 'web' });
-    return confirmActivityChange({ profile: args.profile, token: proposal.token, request: args.request });
-}
-
 export async function confirmActivityChange(args: {
     profile: AdminProfile;
     token: string;
@@ -228,9 +210,6 @@ export async function confirmActivityChange(args: {
     }
     if (!hasPermission(args.profile, OPERATION_PERMISSION[typedPending.operation])) {
         throw new ActivityChangeError('ההרשאה לביצוע הפעולה אינה קיימת עוד.', 403);
-    }
-    if (!hasPermission(args.profile, OPERATION_PERMISSION[typedPending.operation])) {
-        throw new ActivityChangeError('ההרשאה לפעולה אינה קיימת עוד.', 403);
     }
     const { data, error } = await supabaseServer.rpc('execute_activity_change', {
         p_request_id: typedPending.id,
@@ -295,9 +274,6 @@ export async function confirmHighRiskActivityChange(args: {
     const operation = pending.operation as ActivityChangeOperation;
     if (!hasPermission(args.profile, OPERATION_PERMISSION[operation])) {
         throw new ActivityChangeError('ההרשאה לביצוע הפעולה אינה קיימת עוד.', 403);
-    }
-    if (!hasPermission(args.profile, OPERATION_PERMISSION[pending.operation as ActivityChangeOperation])) {
-        throw new ActivityChangeError('ההרשאה לפעולה אינה קיימת עוד.', 403);
     }
     const { data, error } = await supabaseServer.rpc('execute_activity_change', {
         p_request_id: pending.id,
