@@ -4,9 +4,9 @@
  * using Gemini's JSON mode for consistent classification.
  */
 
-import { generateStructuredOutput } from './structured-output';
-import { INTENT_CLASSIFIER_SYSTEM_PROMPT } from './prompts';
-import { extractConstraints, intentSchema } from './recommendation-request';
+import { generateStructuredOutput } from './structured-output.ts';
+import { INTENT_CLASSIFIER_SYSTEM_PROMPT } from './prompts.ts';
+import { extractConstraints, intentSchema } from './recommendation-request.ts';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -153,7 +153,6 @@ export async function classifyIntent(
         const parsed = await generateStructuredOutput(intentSchema, prompt, {
             temperature: 0.1,
             topP: 0.8,
-            maxOutputTokens: 512,
         });
 
         // Ensure all expected fields exist with defaults

@@ -6,7 +6,29 @@
  */
 
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import type { AIMessage } from '@langchain/core/messages';
 import type { z } from 'zod';
+
+import { toGeminiResponseSchema } from './gemini-schema.ts';
+
+export const DEFAULT_STRUCTURED_MODEL = 'gemini-3-flash-preview';
+const DEFAULT_MAX_OUTPUT_TOKENS = 4096;
+const DEFAULT_THINKING_LEVEL: GeminiThinkingLevel = 'LOW';
+const DEFAULT_RETRIES = 3;
+const DEFAULT_RETRY_BASE_MS = 1000;
+
+// Only Gemini 3.x models support thinkingConfig; sending it to any other
+// model returns an API error, so it must be gated by model name.
+const THINKING_MODEL_PATTERN = /^gemini-3/;
+
+export type GeminiThinkingLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+
+export class StructuredOutputTruncatedError extends Error {
+    constructor(message = 'Gemini response was truncated (MAX_TOKENS) before valid JSON could be produced.') {
+        super(message);
+        this.name = 'StructuredOutputTruncatedError';
+    }
+}
 
 function getApiKey(): string {
     const apiKey = process.env.GOOGLE_API_KEY;
@@ -31,13 +53,21 @@ export interface StructuredOutputOptions {
     maxOutputTokens?: number;
     topP?: number;
     topK?: number;
-    /** Number of retries on a transient rate-limit error. Default: 2. */
+    /** Thinking budget level for Gemini 3.x models. Pass null to omit thinkingConfig entirely. Default: 'LOW'. */
+    thinkingLevel?: GeminiThinkingLevel | null;
+    /** Number of retries on a transient rate-limit error. Default: 2 (3 attempts total). */
     retries?: number;
+    /** Base delay (ms) for exponential backoff between retries. Default: 1000. */
+    retryBaseMs?: number;
 }
 
 function isRateLimitError(error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     return message.includes('429') || message.includes('quota') || message.includes('rate');
+}
+
+function retryDelayMs(attempt: number, base: number) {
+    return base * (2 ** (attempt + 1) - 1);
 }
 
 function toContentBlocks(input: StructuredOutputInput) {
@@ -59,27 +89,41 @@ export async function generateStructuredOutput<T extends z.ZodType>(
     input: StructuredOutputInput,
     options: StructuredOutputOptions = {},
 ): Promise<z.infer<T>> {
+    const modelName = options.modelName ?? DEFAULT_STRUCTURED_MODEL;
+    const thinkingLevel = options.thinkingLevel === undefined ? DEFAULT_THINKING_LEVEL : options.thinkingLevel;
     const model = new ChatGoogleGenerativeAI({
         apiKey: getApiKey(),
-        model: options.modelName ?? 'gemini-3-flash-preview',
+        model: modelName,
         temperature: options.temperature,
-        maxOutputTokens: options.maxOutputTokens,
+        maxOutputTokens: options.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
         topP: options.topP,
         topK: options.topK,
+        ...(thinkingLevel && THINKING_MODEL_PATTERN.test(modelName)
+            ? { thinkingConfig: { thinkingLevel } }
+            : {}),
     });
 
-    const structuredModel = model.withStructuredOutput(schema);
+    const responseSchema = toGeminiResponseSchema(schema);
+    const structuredModel = model.withStructuredOutput(responseSchema, { includeRaw: true });
     const content = toContentBlocks(input);
-    const maxAttempts = (options.retries ?? 2) + 1;
+    const retryBaseMs = options.retryBaseMs ?? DEFAULT_RETRY_BASE_MS;
+    const maxAttempts = (options.retries ?? DEFAULT_RETRIES - 1) + 1;
 
     let lastError: unknown;
     for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         try {
-            return await structuredModel.invoke(content) as z.infer<T>;
+            const result = await structuredModel.invoke(content) as { raw: AIMessage; parsed: unknown };
+            if (result.raw?.response_metadata?.finishReason === 'MAX_TOKENS') {
+                throw new StructuredOutputTruncatedError();
+            }
+            if (result.parsed == null) {
+                throw new Error('Gemini did not return a parseable structured response.');
+            }
+            return schema.parse(result.parsed);
         } catch (error) {
             lastError = error;
             if (isRateLimitError(error) && attempt < maxAttempts - 1) {
-                await new Promise((resolve) => setTimeout(resolve, 500));
+                await new Promise((resolve) => setTimeout(resolve, retryDelayMs(attempt, retryBaseMs)));
                 continue;
             }
             throw error;

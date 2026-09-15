@@ -11,8 +11,7 @@ target_selector מכיל רק activity_id, name, branch, day, start_time, end_ti
 מחיקה פירושה archive. יצירה פירושה create_draft. שחזור פירושו restore. פרסום פירושו publish. פקודת הצגה/חיפוש היא query. אם אין די מידע לזיהוי יעד יחיד החזר confidence נמוך.
 הודעת המנהל: ${JSON.stringify(message)}`;
     return generateStructuredOutput(adminCommandSchema, prompt, {
-        modelName: process.env.GEMINI_CHAT_MODEL || 'gemini-3-flash-preview',
+        modelName: process.env.GEMINI_CHAT_MODEL || undefined,
         temperature: 0,
-        maxOutputTokens: 1024,
     });
 }
