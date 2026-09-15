@@ -3,8 +3,8 @@ import { z } from 'zod';
 
 import { requireAdminRequest, requirePermission } from '@/lib/admin/auth';
 import { supabaseServer } from '@/lib/supabase/server';
-import { normalizePhoneNumber } from '@/lib/notifications/utils';
 import { writeAuditLog } from '@/lib/observability/audit';
+import { createAdminLinkChallenge } from '@/lib/admin/whatsapp-admin';
 
 const linkSchema = z.object({
     provider: z.enum(['twilio-whatsapp', 'meta-cloud-api']),
@@ -25,20 +25,20 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     const auth = await requireAdminRequest(request);
     if (auth.response) return auth.response;
-    const permission = requirePermission(auth.profile, 'content:write');
+    const permission = requirePermission(auth.profile, 'activity:read');
     if (permission) return permission;
     const parsed = linkSchema.safeParse(await request.json().catch(() => null));
     if (!parsed.success) return NextResponse.json({ error: 'מספר הטלפון או הספק אינם תקינים.' }, { status: 400 });
-    const contactPhone = normalizePhoneNumber(parsed.data.phone);
-    const { data, error } = await supabaseServer.from('admin_channel_identities').upsert({
-        admin_user_id: auth.profile.id,
-        provider: parsed.data.provider,
-        contact_phone: contactPhone,
-        verified_at: new Date().toISOString(),
-    }, { onConflict: 'admin_user_id,provider' }).select('id,provider,contact_phone,verified_at').single();
-    if (error) return NextResponse.json({ error: 'המספר כבר מקושר למנהל אחר או שלא ניתן לשמור אותו.' }, { status: 409 });
-    void writeAuditLog({ actor: auth.profile, action: 'whatsapp.admin.linked', resourceType: 'admin_channel_identity', resourceId: data.id, metadata: { provider: data.provider, phoneSuffix: contactPhone.slice(-4) }, request });
-    return NextResponse.json(data);
+    try {
+        return NextResponse.json(await createAdminLinkChallenge({
+            profile: auth.profile,
+            provider: parsed.data.provider,
+            phone: parsed.data.phone,
+            request,
+        }));
+    } catch (error) {
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'לא ניתן ליצור קוד קישור.' }, { status: 409 });
+    }
 }
 
 export async function DELETE(request: NextRequest) {
@@ -52,4 +52,3 @@ export async function DELETE(request: NextRequest) {
     void writeAuditLog({ actor: auth.profile, action: 'whatsapp.admin.unlinked', resourceType: 'admin_channel_identity', metadata: { provider }, request });
     return NextResponse.json({ success: true });
 }
-

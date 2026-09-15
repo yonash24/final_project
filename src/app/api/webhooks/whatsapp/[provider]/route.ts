@@ -6,6 +6,7 @@ import {
     handleWhatsAppStatusEvent,
 } from '@/lib/notifications/service';
 import type { NotificationProviderName } from '@/lib/notifications/types';
+import { consumeWhatsAppRateLimit } from '@/lib/admin/whatsapp-admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,6 +72,13 @@ export async function POST(request: NextRequest, context: { params: Promise<{ pr
 
         if (!verification.ok) {
             return NextResponse.json({ error: verification.errorMessage ?? 'Webhook verification failed' }, { status: verification.status ?? 403 });
+        }
+
+        const sourceAddress = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+            || request.headers.get('x-real-ip')
+            || 'unknown';
+        if (!await consumeWhatsAppRateLimit(`webhook-source:${provider}:${sourceAddress}`, 60)) {
+            return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
         }
 
         const parsed = await adapter.parseWebhook({

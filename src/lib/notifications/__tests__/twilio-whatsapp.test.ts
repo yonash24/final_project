@@ -176,6 +176,31 @@ test('TwilioWhatsAppProvider.verifyWebhook uses the forwarded public URL and rej
     }
 });
 
+test('TwilioWhatsAppProvider.verifyWebhook prefers the configured canonical HTTPS URL', async () => {
+    const provider = new TwilioWhatsAppProvider();
+    const originalToken = process.env.TWILIO_AUTH_TOKEN;
+    const originalBaseUrl = process.env.APP_BASE_URL;
+    process.env.TWILIO_AUTH_TOKEN = 'webhook-secret';
+    process.env.APP_BASE_URL = 'https://bot.example.com';
+    const rawBody = 'MessageSid=SM456&Body=Hello';
+    const publicUrl = 'https://bot.example.com/api/webhooks/whatsapp/twilio-whatsapp';
+    try {
+        const request = new Request('http://internal:3000/api/webhooks/whatsapp/twilio-whatsapp', {
+            method: 'POST',
+            headers: {
+                'x-forwarded-host': 'spoofed.example.com',
+                'x-forwarded-proto': 'https',
+                'x-twilio-signature': buildTwilioSignature(publicUrl, rawBody, 'webhook-secret'),
+            },
+            body: rawBody,
+        });
+        assert.equal((await provider.verifyWebhook({ request, rawBody, url: request.url })).ok, true);
+    } finally {
+        if (originalToken === undefined) delete process.env.TWILIO_AUTH_TOKEN; else process.env.TWILIO_AUTH_TOKEN = originalToken;
+        if (originalBaseUrl === undefined) delete process.env.APP_BASE_URL; else process.env.APP_BASE_URL = originalBaseUrl;
+    }
+});
+
 test('TwilioWhatsAppProvider rejects a template without a configured Content SID', async () => {
     const provider = new TwilioWhatsAppProvider();
     const result = await provider.send({

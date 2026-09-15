@@ -10,7 +10,7 @@ export async function PATCH(
 ) {
     const auth = await requireAdminRequest(request);
     if (auth.response) return auth.response;
-    const permissionResponse = requirePermission(auth.profile, 'content:write');
+    const permissionResponse = requirePermission(auth.profile, 'activity:update');
     if (permissionResponse) return permissionResponse;
 
     const { id } = await params;
@@ -46,7 +46,7 @@ export async function DELETE(
 ) {
     const auth = await requireAdminRequest(request);
     if (auth.response) return auth.response;
-    const permissionResponse = requirePermission(auth.profile, 'content:write');
+    const permissionResponse = requirePermission(auth.profile, 'activity:archive');
     if (permissionResponse) return permissionResponse;
 
     const { id } = await params;

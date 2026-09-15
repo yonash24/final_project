@@ -4,6 +4,7 @@ import { Activity, Bell, MessageSquareText, Save, SendHorizontal, Smartphone, To
 import { type Dispatch, type ReactNode, type SetStateAction, useEffect, useState } from 'react';
 
 import AdminNavbar from '@/components/admin/AdminNavbar';
+import { supabase } from '@/lib/supabase/client';
 import type {
     AdminNotificationDelivery,
     AdminNotificationProviderStatus,
@@ -24,6 +25,15 @@ interface AdminChannelIdentity {
     contact_phone: string;
     verified_at: string;
 }
+
+interface LinkChallenge {
+    provider: AdminChannelIdentity['provider'];
+    phone: string;
+    code: string;
+    expiresInSeconds: number;
+}
+
+interface ManagedAdmin { id: string; email: string; role: 'viewer' | 'editor' | 'manager' | 'super_admin'; is_active: boolean; last_login_at: string | null }
 
 interface SettingsFormState {
     provider: AdminNotificationSettings['provider'];
@@ -120,6 +130,12 @@ export default function AdminSettingsPage() {
     const [processMessage, setProcessMessage] = useState<string | null>(null);
     const [adminPhone, setAdminPhone] = useState('');
     const [linkedNumbers, setLinkedNumbers] = useState<AdminChannelIdentity[]>([]);
+    const [linkChallenge, setLinkChallenge] = useState<LinkChallenge | null>(null);
+    const [mfaVerified, setMfaVerified] = useState(false);
+    const [mfaEnrollment, setMfaEnrollment] = useState<{ factorId: string; qrCode: string; secret: string } | null>(null);
+    const [mfaCode, setMfaCode] = useState('');
+    const [mfaMessage, setMfaMessage] = useState<string | null>(null);
+    const [managedAdmins, setManagedAdmins] = useState<ManagedAdmin[] | null>(null);
 
     useEffect(() => {
         let ignore = false;
@@ -156,7 +172,38 @@ export default function AdminSettingsPage() {
         void fetch('/api/admin/whatsapp-link').then(async (response) => {
             if (response.ok) setLinkedNumbers(await response.json() as AdminChannelIdentity[]);
         });
+        void supabase.auth.mfa.listFactors().then(({ data }) => {
+            setMfaVerified(Boolean(data?.totp?.some((factor) => factor.status === 'verified')));
+        });
+        void fetch('/api/admin/admin-users').then(async (response) => {
+            if (response.ok) setManagedAdmins(await response.json() as ManagedAdmin[]);
+        });
     }, []);
+
+    async function updateManagedAdmin(admin: ManagedAdmin, update: Partial<Pick<ManagedAdmin, 'role' | 'is_active'>>) {
+        const next = { ...admin, ...update };
+        const response = await fetch('/api/admin/admin-users', {
+            method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: next.id, role: next.role, isActive: next.is_active }),
+        });
+        const data = await response.json();
+        if (!response.ok) return alert(data.error || 'לא ניתן לעדכן הרשאות');
+        setManagedAdmins((items) => items?.map((item) => item.id === data.id ? data as ManagedAdmin : item) ?? null);
+    }
+
+    async function beginMfaEnrollment() {
+        setMfaMessage(null);
+        const { data, error } = await supabase.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'ניהול מתנ״ס' });
+        if (error || !data.totp) return setMfaMessage('לא ניתן להתחיל את הגדרת האימות הדו-שלבי.');
+        setMfaEnrollment({ factorId: data.id, qrCode: data.totp.qr_code, secret: data.totp.secret });
+    }
+
+    async function verifyMfaEnrollment() {
+        if (!mfaEnrollment || !/^\d{6}$/.test(mfaCode)) return setMfaMessage('יש להזין קוד בן 6 ספרות.');
+        const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: mfaEnrollment.factorId, code: mfaCode });
+        if (error) return setMfaMessage('הקוד אינו תקין. נסו שוב.');
+        setMfaVerified(true); setMfaEnrollment(null); setMfaCode(''); setMfaMessage('האימות הדו-שלבי הופעל בהצלחה.');
+    }
 
     async function linkAdminPhone() {
         if (!form || !adminPhone.trim() || form.provider === 'mock-whatsapp') return;
@@ -166,7 +213,7 @@ export default function AdminSettingsPage() {
         });
         const data = await response.json();
         if (!response.ok) return alert(data.error || 'לא ניתן לקשר את המספר');
-        setLinkedNumbers((items) => [...items.filter((item) => item.provider !== data.provider), data]);
+        setLinkChallenge(data as LinkChallenge);
         setAdminPhone('');
     }
 
@@ -305,16 +352,49 @@ export default function AdminSettingsPage() {
 
                 <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1.08fr 0.92fr', gap: '2rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        {managedAdmins && <div className="card admin-section-card" style={{ padding: '1.75rem' }}>
+                            <h2 style={{ fontSize: '1.35rem' }}>מנהלים והרשאות</h2>
+                            <div style={{ display: 'grid', gap: '0.75rem', marginTop: '1rem' }}>
+                                {managedAdmins.map((admin) => <div key={admin.id} style={{ display: 'grid', gridTemplateColumns: '1fr 150px auto', gap: '0.75rem', alignItems: 'center' }}>
+                                    <span dir="ltr">{admin.email}</span>
+                                    <select className="input-field" value={admin.role} onChange={(event) => void updateManagedAdmin(admin, { role: event.target.value as ManagedAdmin['role'] })}>
+                                        <option value="viewer">viewer</option><option value="editor">editor</option><option value="manager">manager</option><option value="super_admin">super_admin</option>
+                                    </select>
+                                    <label><input type="checkbox" checked={admin.is_active} onChange={(event) => void updateManagedAdmin(admin, { is_active: event.target.checked })} /> פעיל</label>
+                                </div>)}
+                            </div>
+                        </div>}
+                        <div className="card admin-section-card" style={{ padding: '1.75rem' }}>
+                            <h2 style={{ fontSize: '1.35rem' }}>אימות דו-שלבי (MFA)</h2>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>נדרש לפרסום, ארכוב ושחזור חוגים.</p>
+                            {mfaVerified ? <strong style={{ color: 'var(--success-600)' }}>MFA פעיל בחשבון</strong> : !mfaEnrollment
+                                ? <button type="button" className="btn btn-secondary" onClick={() => void beginMfaEnrollment()}>הפעל MFA</button>
+                                : <div style={{ display: 'grid', gap: '0.75rem' }}>
+                                    {/* Supabase returns a data URL containing the generated SVG. */}
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={mfaEnrollment.qrCode} alt="קוד QR להגדרת אפליקציית אימות" width={180} height={180} />
+                                    <div>או הזינו ידנית: <code dir="ltr">{mfaEnrollment.secret}</code></div>
+                                    <input className="input-field" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} value={mfaCode} onChange={(event) => setMfaCode(event.target.value)} placeholder="קוד בן 6 ספרות" />
+                                    <button type="button" className="btn btn-primary" onClick={() => void verifyMfaEnrollment()}>אמת והפעל</button>
+                                </div>}
+                            {mfaMessage && <p role="status">{mfaMessage}</p>}
+                        </div>
                         <div className="card admin-section-card" style={{ padding: '1.75rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
                                 <Smartphone size={20} color="var(--primary-600)" />
                                 <h2 style={{ fontSize: '1.35rem' }}>קישור מנהל ל-WhatsApp</h2>
                             </div>
-                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>רק מספר שקושר מתוך חשבון מנהל יוכל להציע פעולות ניהול. כל פעולה עדיין תחייב אישור חד-פעמי.</p>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem' }}>רק מספר שאומת מתוך חשבון מנהל יוכל להציע פעולות ניהול. לאחר יצירת הקוד יש לשלוח אותו לבוט מאותו מספר.</p>
                             <div style={{ display: 'flex', gap: '0.6rem' }}>
                                 <input className="input-field" dir="ltr" placeholder="+972501234567" value={adminPhone} onChange={(event) => setAdminPhone(event.target.value)} />
                                 <button type="button" className="btn btn-secondary" disabled={form.provider === 'mock-whatsapp' || !adminPhone.trim()} onClick={() => void linkAdminPhone()}>קשר</button>
                             </div>
+                            {linkChallenge && <div role="status" style={{ marginTop: '0.75rem', padding: '0.85rem', border: '1px solid var(--primary-300)', borderRadius: 8, background: 'var(--primary-50)' }}>
+                                <strong>הקישור עדיין לא הושלם</strong>
+                                <div>מהמספר {linkChallenge.phone} יש לשלוח לבוט:</div>
+                                <code dir="ltr" style={{ display: 'inline-block', marginTop: '0.4rem', fontSize: '1.1rem' }}>קשר {linkChallenge.code}</code>
+                                <div style={{ fontSize: '0.8rem', marginTop: '0.35rem' }}>הקוד תקף לחמש דקות ועד חמישה ניסיונות.</div>
+                            </div>}
                             {linkedNumbers.map((identity) => <div key={identity.id} style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'space-between', gap: '0.75rem' }}>
                                 <span dir="ltr">{identity.provider}: {identity.contact_phone}</span>
                                 <button type="button" className="btn btn-ghost" onClick={() => void unlinkAdminPhone(identity.provider)}>הסר</button>

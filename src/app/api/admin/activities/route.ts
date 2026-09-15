@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     const auth = await requireAdminRequest(request);
     if (auth.response) return auth.response;
-    const permissionResponse = requirePermission(auth.profile, 'content:write');
+    const permissionResponse = requirePermission(auth.profile, 'activity:create');
     if (permissionResponse) return permissionResponse;
 
     const body = await request.json();
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     try {
         return NextResponse.json(await proposeActivityChange({
             profile: auth.profile,
-            operation: 'create',
+            operation: 'create_draft',
             changes: parsed.data,
             request,
         }));

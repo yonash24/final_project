@@ -15,7 +15,7 @@ type Activity = {
     price?: number | null;
     instructor_name?: string | null;
 };
-type Pending = { token: string; response: string; operation: string; target?: Activity; changes: Record<string, unknown> };
+type Pending = { token: string; requestId: string; approvalMethod: 'web_token' | 'web_mfa'; response: string; operation: string; target?: Activity; changes: Record<string, unknown> };
 type Message = { role: 'user' | 'assistant'; text: string; activityCards?: Activity[]; selectionPrefix?: string };
 
 function ActivityChoices({ activities, onChoose }: { activities: Activity[]; onChoose: (activity: Activity) => void }) {
@@ -82,7 +82,9 @@ export default function AdminAssistantPage() {
                     גיל: {pending.target.min_age ?? 'לא צוין'}–{pending.target.max_age ?? 'לא צוין'} · מחיר: {pending.target.price ?? 'לא צוין'} · מדריך: {pending.target.instructor_name || 'לא צוין'}
                 </div>}
                 <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(pending.changes, null, 2)}</pre>
-                <button className="btn btn-primary" onClick={confirm} disabled={loading}>אני מאשר/ת את הפעולה המדויקת</button>{' '}
+                {pending.approvalMethod === 'web_mfa'
+                    ? <a className="btn btn-primary" href={`/admin/activity-changes/${pending.requestId}`}>מעבר לאישור MFA</a>
+                    : <button className="btn btn-primary" onClick={confirm} disabled={loading}>אני מאשר/ת את הפעולה המדויקת</button>}{' '}
                 <button className="btn btn-secondary" onClick={() => setPending(null)}>ביטול</button>
             </div>}
             <div style={{ display: 'flex', gap: '0.75rem' }}><input className="input-field" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void send(); }} placeholder="למשל: שנה את מחיר חוג הקרמיקה ל-120" /><button className="btn btn-primary" onClick={send} disabled={loading}>שליחה</button></div>

@@ -52,7 +52,11 @@ function validateTwilioSignature(context: NotificationWebhookContext) {
 
     const params = new URLSearchParams(context.rawBody);
     const sorted = Array.from(params.entries()).sort(([a], [b]) => a.localeCompare(b));
-    const effectiveUrl = buildEffectiveWebhookUrl(context.url, context.request.headers);
+    const incomingUrl = new URL(context.url);
+    const configuredBaseUrl = process.env.APP_BASE_URL;
+    const effectiveUrl = configuredBaseUrl?.startsWith('https://')
+        ? new URL(`${incomingUrl.pathname}${incomingUrl.search}`, `${configuredBaseUrl.replace(/\/$/, '')}/`).toString()
+        : buildEffectiveWebhookUrl(context.url, context.request.headers);
     const data = `${effectiveUrl}${sorted.map(([key, value]) => `${key}${value}`).join('')}`;
     const digest = crypto.createHmac('sha1', authToken).update(data).digest('base64');
     const expectedBuffer = Buffer.from(digest);

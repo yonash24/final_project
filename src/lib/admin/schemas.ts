@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 const emptyStringToNull = <T extends z.ZodTypeAny>(schema: T) =>
     z.preprocess((value) => (value === '' ? null : value), schema.nullable());
+const timeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
 
 export const activitySchema = z.object({
     title_he: z.string().min(2),
@@ -11,8 +12,8 @@ export const activitySchema = z.object({
     min_age: emptyStringToNull(z.coerce.number().int().min(0)),
     max_age: emptyStringToNull(z.coerce.number().int().min(0)),
     days_of_week: emptyStringToNull(z.string()),
-    start_time: emptyStringToNull(z.string().regex(/^\d{2}:\d{2}$/)),
-    end_time: emptyStringToNull(z.string().regex(/^\d{2}:\d{2}$/)),
+    start_time: emptyStringToNull(timeSchema),
+    end_time: emptyStringToNull(timeSchema),
     start_date: emptyStringToNull(z.string()),
     end_date: emptyStringToNull(z.string()),
     price: emptyStringToNull(z.coerce.number().min(0)),
@@ -30,8 +31,8 @@ export const activitySchema = z.object({
     extra_data: z.record(z.string(), z.unknown()).optional(),
     schedules: z.array(z.object({
         day_of_week: z.number().int().min(0).max(6),
-        start_time: emptyStringToNull(z.string().regex(/^\d{2}:\d{2}$/)),
-        end_time: emptyStringToNull(z.string().regex(/^\d{2}:\d{2}$/)),
+        start_time: emptyStringToNull(timeSchema),
+        end_time: emptyStringToNull(timeSchema),
     }).refine((value) => !value.start_time || !value.end_time || value.start_time < value.end_time, {
         message: 'שעת הסיום חייבת להיות אחרי שעת ההתחלה',
     })).max(14).optional(),

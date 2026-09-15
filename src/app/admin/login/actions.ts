@@ -66,6 +66,10 @@ export async function verifyMfa(_prevState: MfaState, formData: FormData): Promi
     const factorId = String(formData.get('factorId') ?? '');
     const challengeId = String(formData.get('challengeId') ?? '');
     const code = String(formData.get('code') ?? '').trim();
+    const requestedReturnTo = String(formData.get('returnTo') ?? '');
+    const returnTo = requestedReturnTo.startsWith('/admin/') && !requestedReturnTo.startsWith('//')
+        ? requestedReturnTo
+        : '/admin';
     if (!factorId || !challengeId || !/^\d{6}$/.test(code)) return { error: 'נא להזין קוד בן 6 ספרות.' };
 
     const supabase = await createSSRClient();
@@ -77,5 +81,5 @@ export async function verifyMfa(_prevState: MfaState, formData: FormData): Promi
     }
     const profile = await getAdminProfile();
     await writeAuditLog({ actor: profile, action: 'auth.mfa.success' });
-    redirect('/admin');
+    redirect(returnTo);
 }

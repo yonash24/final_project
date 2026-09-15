@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { parseAdminCommand } from '@/lib/admin/admin-command';
 import { requireAdminRequest, requirePermission } from '@/lib/admin/auth';
-import { ActivityChangeError, confirmActivityChange, proposeActivityChange } from '@/lib/admin/activity-changes';
+import { ActivityChangeError, autoExecuteActivityChange, confirmActivityChange, OPERATION_PERMISSION, proposeActivityChange } from '@/lib/admin/activity-changes';
 import { resolveAdminActivitySelector } from '@/lib/admin/activity-selector';
-import { getChatResponse } from '@/lib/ai/chat-service';
 import { DataSourceUnavailableError } from '@/lib/db/data-source';
 
 export async function POST(request: NextRequest) {
@@ -13,7 +12,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     if (body.action === 'confirm') {
-        const permission = requirePermission(auth.profile, 'content:write');
+        const permission = requirePermission(auth.profile, 'activity:update');
         if (permission) return permission;
         const token = typeof body.token === 'string' ? body.token : '';
         try {
@@ -28,8 +27,18 @@ export async function POST(request: NextRequest) {
     if (!message) return NextResponse.json({ error: 'נא לכתוב בקשה.' }, { status: 400 });
     const command = await parseAdminCommand(message);
     if (command.operation === 'query') {
+        const permission = requirePermission(auth.profile, 'activity:read');
+        if (permission) return permission;
         try {
-            return NextResponse.json(await getChatResponse(command.query || message));
+            const matches = await resolveAdminActivitySelector({
+                ...command.target_selector,
+                name: command.target_selector.name ?? command.target_name,
+            }, 'all');
+            return NextResponse.json({
+                responseType: 'results',
+                response: matches.length ? `נמצאו ${matches.length} חוגים, כולל טיוטות ופריטים בארכיון בהתאם להרשאת הניהול.` : 'לא נמצאו חוגים מתאימים.',
+                intent: 'admin_activity_query', resultCount: matches.length, activityCards: matches, eventCards: [],
+            });
         } catch (error) {
             if (error instanceof DataSourceUnavailableError) {
                 return NextResponse.json({ responseType: 'system_error', response: 'מקור המידע אינו זמין כרגע. נסה שוב בעוד כמה רגעים.', intent: 'system_error', resultCount: 0, activityCards: [], eventCards: [] }, { status: 503 });
@@ -37,12 +46,15 @@ export async function POST(request: NextRequest) {
             throw error;
         }
     }
-    const permission = requirePermission(auth.profile, 'content:write');
+    if (command.operation === 'cancel' || command.operation === 'list_pending') {
+        return NextResponse.json({ responseType: 'clarification', response: 'פקודות ביטול והצגת פעולות ממתינות זמינות כרגע ב־WhatsApp.' });
+    }
+    const permission = requirePermission(auth.profile, OPERATION_PERMISSION[command.operation]);
     if (permission) return permission;
     if (command.confidence < 0.75) return NextResponse.json({ responseType: 'clarification', response: 'לא זיהיתי בוודאות את החוג או את השינוי. נא לציין שם חוג מדויק וערך חדש.' });
 
     let target = null;
-    if (command.operation !== 'create') {
+    if (command.operation !== 'create_draft') {
         const selector = {
             ...command.target_selector,
             name: command.target_selector.name ?? command.target_name,
@@ -52,7 +64,7 @@ export async function POST(request: NextRequest) {
         }
         let matches;
         try {
-            matches = await resolveAdminActivitySelector(selector);
+            matches = await resolveAdminActivitySelector(selector, command.operation === 'restore' ? 'archived' : command.operation === 'publish' ? 'draft' : 'active');
         } catch (error) {
             if (error instanceof DataSourceUnavailableError) return NextResponse.json({ error: 'מקור המידע אינו זמין כרגע.' }, { status: 503 });
             throw error;
@@ -68,6 +80,15 @@ export async function POST(request: NextRequest) {
     }
 
     try {
+        if (command.operation === 'create_draft' || command.operation === 'update') {
+            return NextResponse.json(await autoExecuteActivityChange({
+                profile: auth.profile,
+                operation: command.operation,
+                activityId: target?.id,
+                changes: command.changes,
+                request,
+            }));
+        }
         return NextResponse.json(await proposeActivityChange({
             profile: auth.profile,
             operation: command.operation,

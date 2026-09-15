@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { createSSRClient, supabaseServer } from '@/lib/supabase/server';
 import { isAdminAuthBypassEnabled } from '@/lib/admin/bypass';
+import { roleHasPermission } from './permissions';
 
 export interface AdminProfile {
     id: string;
@@ -11,13 +12,7 @@ export interface AdminProfile {
     is_active: boolean;
 }
 
-export type AdminRole = 'super_admin' | 'editor' | 'viewer';
-
-const ROLE_PERMISSIONS: Record<AdminRole, string[]> = {
-    super_admin: ['read', 'content:write', 'imports:write', 'notifications:write', 'settings:write', 'admin:write'],
-    editor: ['read', 'content:write', 'imports:write', 'notifications:write'],
-    viewer: ['read'],
-};
+export type { AdminRole } from './permissions';
 
 export async function getCurrentUser() {
     const client = await createSSRClient();
@@ -80,8 +75,7 @@ export async function requireAdminRequest(request: NextRequest) {
 }
 
 export function hasPermission(profile: AdminProfile, permission: string) {
-    const role = profile.role as AdminRole;
-    return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
+    return roleHasPermission(profile.role, permission);
 }
 
 export function requirePermission(profile: AdminProfile, permission: string) {

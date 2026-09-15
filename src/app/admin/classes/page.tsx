@@ -40,7 +40,9 @@ interface ActivityFormState {
 
 type PendingChange = {
     token: string;
-    operation: 'create' | 'update' | 'archive';
+    requestId: string;
+    approvalMethod: 'web_token' | 'web_mfa';
+    operation: 'create_draft' | 'update' | 'archive';
     target: AdminActivity | null;
     changes: Record<string, unknown>;
 };
@@ -201,12 +203,14 @@ export default function AdminClassesPage() {
         setSaving(true);
 
         try {
+            const { is_active: _isActive, ...activityPayload } = form;
+            void _isActive;
             const response = await fetch(
                 editingClass ? `/api/admin/activities/${editingClass.id}` : '/api/admin/activities',
                 {
                     method: editingClass ? 'PATCH' : 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(editingClass ? { ...form, expected_updated_at: editingClass.updated_at } : form),
+                    body: JSON.stringify(editingClass ? { ...activityPayload, expected_updated_at: editingClass.updated_at } : activityPayload),
                 },
             );
 
@@ -462,14 +466,11 @@ export default function AdminClassesPage() {
                                 <input className="input-field" placeholder="גיל מינימום" value={form.min_age} onChange={(event) => setForm((prev) => ({ ...prev, min_age: event.target.value }))} />
                                 <input className="input-field" placeholder="גיל מקסימום" value={form.max_age} onChange={(event) => setForm((prev) => ({ ...prev, max_age: event.target.value }))} />
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <input className="input-field" placeholder="מחיר" value={form.price} onChange={(event) => setForm((prev) => ({ ...prev, price: event.target.value }))} />
                                 <input className="input-field" placeholder="מכסה" value={form.max_participants} onChange={(event) => setForm((prev) => ({ ...prev, max_participants: event.target.value }))} />
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0 0.5rem', fontWeight: 700 }}>
-                                    <input type="checkbox" checked={form.is_active} onChange={(event) => setForm((prev) => ({ ...prev, is_active: event.target.checked }))} />
-                                    חוג פעיל באתר
-                                </label>
                             </div>
+                            <small style={{ color: 'var(--text-secondary)' }}>חוג חדש נשמר כטיוטה. שינוי מצב נעשה רק דרך פעולות פרסום או ארכוב המאובטחות ב־MFA.</small>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <input className="input-field" placeholder="כיתה מינימלית (0–12)" value={form.min_grade} onChange={(event) => setForm((prev) => ({ ...prev, min_grade: event.target.value }))} />
                                 <input className="input-field" placeholder="כיתה מקסימלית (0–12)" value={form.max_grade} onChange={(event) => setForm((prev) => ({ ...prev, max_grade: event.target.value }))} />
@@ -493,13 +494,15 @@ export default function AdminClassesPage() {
                         <h2 id="confirm-change-title">אישור שינוי במאגר</h2>
                         <p style={{ color: 'var(--text-secondary)', marginBlock: '0.75rem' }}>הפעולה עדיין לא בוצעה. בדקו את החוג ואת הערכים החדשים לפני האישור.</p>
                         <div style={{ padding: '1rem', background: 'var(--bg-secondary)', borderRadius: 'var(--radius-md)', lineHeight: 1.7 }}>
-                            <strong>פעולה:</strong> {pendingChange.operation === 'create' ? 'יצירה' : pendingChange.operation === 'update' ? 'עדכון' : 'העברה לארכיון'}<br />
+                            <strong>פעולה:</strong> {pendingChange.operation === 'create_draft' ? 'יצירת טיוטה' : pendingChange.operation === 'update' ? 'עדכון' : 'העברה לארכיון'}<br />
                             <strong>חוג:</strong> {pendingChange.target?.title_he ?? String(pendingChange.changes.title_he ?? 'חוג חדש')}
                             {pendingChange.target && <><br /><strong>מצב קיים:</strong> {pendingChange.target.location || 'מיקום לא צוין'} · {pendingChange.target.days_of_week || 'יום לא צוין'} · {pendingChange.target.start_time?.slice(0, 5) || 'שעה לא צוינה'}</>}
                         </div>
                         {pendingChange.operation !== 'archive' && <pre style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', padding: '1rem', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', marginBlock: '1rem' }}>{JSON.stringify(pendingChange.changes, null, 2)}</pre>}
                         <div style={{ display: 'flex', gap: '0.75rem' }}>
-                            <button className="btn btn-primary" disabled={saving} onClick={() => void confirmPendingChange()}>{saving ? 'מבצע...' : 'אני מאשר/ת את הפעולה המדויקת'}</button>
+                            {pendingChange.approvalMethod === 'web_mfa'
+                                ? <Link className="btn btn-primary" href={`/admin/activity-changes/${pendingChange.requestId}`}>מעבר לאישור MFA</Link>
+                                : <button className="btn btn-primary" disabled={saving} onClick={() => void confirmPendingChange()}>{saving ? 'מבצע...' : 'אני מאשר/ת את הפעולה המדויקת'}</button>}
                             <button className="btn btn-secondary" disabled={saving} onClick={() => setPendingChange(null)}>ביטול</button>
                         </div>
                     </div>
