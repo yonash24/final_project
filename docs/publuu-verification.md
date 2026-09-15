@@ -1,5 +1,7 @@
 # Publuu Import Verification
 
+**Status: pending a real flip-book URL.** The code path below (host validation, PDF download, extraction) is implemented and unit-tested against a simulated Publuu response, but has not yet been run against an actual Publuu account/link — see "Manual Test: Publuu End-to-End" below for the steps to do that once a link is available. Until then, treat this integration as *implemented but unverified end-to-end*.
+
 This document records the current status of the Publuu digital-booklet import path and the manual steps required to validate it end to end.
 
 ## Background
