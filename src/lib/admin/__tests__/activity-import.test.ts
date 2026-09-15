@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
 
-import { buildImportPreview, parseSpreadsheet, splitDocumentText } from '../activity-import.ts';
+import { buildImportPreview, confidenceByFieldRecord, extractedDocumentSchema, parseSpreadsheet, splitDocumentText } from '../activity-import.ts';
 
 const mapping = {
     title_he: 'שם החוג',
@@ -151,6 +151,45 @@ test('buildImportPreview blocks conflicting updates and preserves unmapped field
     assert.equal(row.status, 'conflict');
     assert.deepEqual(row.conflicts?.price, { existing: 100, incoming: 150 });
     assert.equal(row.payload.extra_data?.['עמודה מיוחדת'], 'ציוד כלול');
+});
+
+test('buildImportPreview leaves missing fields null instead of guessing', () => {
+    const [row] = buildImportPreview([{
+        'שם החוג': 'קפוארה',
+    }], { title_he: 'שם החוג', price: 'מחיר', start_time: 'שעת התחלה', min_age: 'גיל מינימלי' }, []);
+
+    assert.equal(row?.status, 'new');
+    assert.equal(row?.payload.price, null);
+    assert.equal(row?.payload.start_time, null);
+    assert.equal(row?.payload.min_age, null);
+    assert.deepEqual(row?.errors, []);
+});
+
+test('confidenceByFieldRecord maps the extracted {field, confidence} list to a lookup record', () => {
+    const record = confidenceByFieldRecord([
+        { field: 'title_he', confidence: 0.95 },
+        { field: 'price', confidence: 0.4 },
+    ]);
+    assert.deepEqual(record, { title_he: 0.95, price: 0.4 });
+});
+
+test('confidenceByFieldRecord handles an empty list', () => {
+    assert.deepEqual(confidenceByFieldRecord([]), {});
+});
+
+test('extractedDocumentSchema accepts a Gemini-shaped extraction with an array confidence_by_field', () => {
+    const parsed = extractedDocumentSchema.parse({
+        activities: [{
+            title_he: 'כדורגל', description_he: null, category: null, target_age_group: null,
+            min_age: 6, max_age: 8, days_of_week: 'רביעי', start_time: '17:00', end_time: '18:00',
+            price: 200, instructor_name: null, location: null, venue: null, group_name: null,
+            contact_name: null, contact_phone: null, contact_email: null, notes: null,
+            min_grade: null, max_grade: null, max_participants: null, source_page: 1,
+            confidence: 0.9, confidence_by_field: [{ field: 'title_he', confidence: 0.95 }], source_excerpt: null,
+        }],
+    });
+    assert.equal(parsed.activities[0]?.title_he, 'כדורגל');
+    assert.deepEqual(parsed.activities[0]?.confidence_by_field, [{ field: 'title_he', confidence: 0.95 }]);
 });
 
 test('splitDocumentText keeps page-sized chunks bounded', () => {

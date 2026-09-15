@@ -1,6 +1,6 @@
-import { GREETING_MESSAGE } from '@/lib/ai/chat-constants';
-import { type ChatApiResponse, type ClarificationOption } from '@/lib/ai/chat-types';
-import { classifyIntent, type ChatMessage } from '@/lib/ai/intent-classifier';
+import { GREETING_MESSAGE } from './chat-constants.ts';
+import { type ChatApiResponse, type ClarificationOption } from './chat-types.ts';
+import { classifyIntent, type ChatMessage } from './intent-classifier.ts';
 import {
     getActivitiesByName,
     getCategories,
@@ -11,23 +11,23 @@ import {
     type ActivityRow,
     type KnowledgeBaseRow,
     type EventRow,
-} from '@/lib/db/chat-queries';
+} from '../db/chat-queries.ts';
 import {
     semanticSearchActivities,
     semanticSearchKnowledge,
     semanticSearchAll,
     type KnowledgeResult,
-} from '@/lib/ai/semantic-search';
-import { getChatModel } from '@/lib/ai/gemini';
-import { buildRecommendationRequest, type RecommendationRequest } from './recommendation-request';
-import { isActivityEligible, isEventEligible } from './eligibility';
-import { rankEligibleActivities } from './recommendation-ranker';
-import { interestLabel } from './activity-taxonomy';
+} from './semantic-search.ts';
+import { getChatModel } from './gemini.ts';
+import { buildRecommendationRequest, type RecommendationRequest } from './recommendation-request.ts';
+import { isActivityEligible, isEventEligible } from './eligibility.ts';
+import { rankEligibleActivities } from './recommendation-ranker.ts';
+import { interestLabel } from './activity-taxonomy.ts';
 import {
     CHAT_SYSTEM_PROMPT,
     formatActivitiesForContext,
     formatEventsForContext,
-} from '@/lib/ai/prompts';
+} from './prompts.ts';
 
 // ─── Session Preferences (extracted from conversation) ──
 

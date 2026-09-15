@@ -54,7 +54,7 @@ const extractedActivitySchema = z.object({
 });
 export const extractedDocumentSchema = z.object({ activities: z.array(extractedActivitySchema).max(1000) });
 
-function confidenceByFieldRecord(entries: Array<{ field: string; confidence: number }>): Record<string, number> {
+export function confidenceByFieldRecord(entries: Array<{ field: string; confidence: number }>): Record<string, number> {
     return Object.fromEntries(entries.map((entry) => [entry.field, entry.confidence]));
 }
 

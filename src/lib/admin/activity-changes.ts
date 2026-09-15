@@ -25,8 +25,10 @@ type ClaimedChangeRequest = {
 };
 
 export class ActivityChangeError extends Error {
-    constructor(message: string, public readonly status: number) {
+    public readonly status: number;
+    constructor(message: string, status: number) {
         super(message);
+        this.status = status;
         this.name = 'ActivityChangeError';
     }
 }
