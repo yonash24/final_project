@@ -77,7 +77,14 @@ export function extractConstraints(text: string): Partial<RecommendationRequest>
     const between = lower.match(/בין\s+(\d{1,2})(?::(\d{2}))?\s*(?:ל(?:-|־)?|עד|-)\s*(\d{1,2})(?::(\d{2}))?/);
     const asTime = (hours?: string, minutes?: string) => hours ? `${hours.padStart(2, '0')}:${minutes ?? '00'}` : null;
     const days = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'].filter((day) => lower.includes(day));
-    const budget = lower.match(/(?:עד|מקסימום|תקציב(?: של)?)\s*(?:₪\s*)?(\d+(?:\.\d+)?)|(?:₪\s*)(\d+(?:\.\d+)?)/);
+    // "עד" ("up to") is the same word used for both "עד 100 ₪" (a price
+    // budget) and "גילאי 8 עד 10" (an age range) — strip whatever an age or
+    // grade range already matched before looking for a budget, so an age
+    // range's upper bound is never misread as a price ceiling.
+    const textForBudget = [ageRange?.[0], gradeRange?.[0]]
+        .filter((matched): matched is string => Boolean(matched))
+        .reduce((acc, matched) => acc.replace(matched, ''), lower);
+    const budget = textForBudget.match(/(?:עד|מקסימום|תקציב(?: של)?)\s*(?:₪\s*)?(\d+(?:\.\d+)?)|(?:₪\s*)(\d+(?:\.\d+)?)/);
     const maxPrice = budget ? Number(budget[1] ?? budget[2]) : null;
     const interests = interestsFromText(lower);
     // An explicit category in a search request is a hard filter. Recommendations

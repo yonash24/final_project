@@ -169,7 +169,14 @@ export async function searchActivities(
         .eq('publication_status', 'approved')
         .is('archived_at', null);
 
-    const applyFilters = (query: ReturnType<typeof buildBaseQuery>) => {
+    // category_keyword only checks title/description text, not the joined
+    // category name — it's a best-effort DB-side narrowing, not the source
+    // of truth. The real category match is enforced client-side afterward
+    // (isActivityEligible, which does check the category name), so the
+    // fallback query below deliberately drops this filter rather than
+    // re-applying a check that would silently hide correct matches whose
+    // category name doesn't happen to appear in their title/description.
+    const applyFilters = (query: ReturnType<typeof buildBaseQuery>, { includeCategory = true } = {}) => {
         let next = query;
 
         if (filters.min_age_lte !== null) next = next.lte('min_age', filters.min_age_lte);
@@ -183,7 +190,7 @@ export async function searchActivities(
         }
         if (filters.max_price !== null) next = next.lte('price', filters.max_price);
         if (filters.free_only) next = next.eq('price', 0);
-        if (filters.category_keyword) {
+        if (includeCategory && filters.category_keyword) {
             next = next.or(
                 `title_he.ilike.%${filters.category_keyword}%,description_he.ilike.%${filters.category_keyword}%`,
             );
@@ -218,7 +225,7 @@ export async function searchActivities(
 
     let results = (data ?? []) as unknown as ActivityRow[];
     if (broaden && (results.length === 0 || (tokens.length > 0 && results.length < 3))) {
-        const { data: fallbackData, error: fallbackError } = await applyFilters(buildBaseQuery());
+        const { data: fallbackData, error: fallbackError } = await applyFilters(buildBaseQuery(), { includeCategory: false });
         if (fallbackError) {
             console.error('[DB] ❌ searchActivities fallback error:', fallbackError.message);
             throw new DataSourceUnavailableError('Activity search fallback failed.');

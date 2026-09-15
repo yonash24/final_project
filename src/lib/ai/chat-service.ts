@@ -610,7 +610,12 @@ export async function getChatResponse(
             if (activityCards.length === 0) {
                 activityCards = await measureStage(
                     'structured-activity-search',
-                    () => searchActivities(classified.filters, classified.search_terms, message, { broaden: false }),
+                    // Pass null for rawQuery here (not the raw message): once we've
+                    // already narrowed to a specific activity_name, tokenizing the
+                    // full question too would add generic words like "חוג"/"עולה"
+                    // that match almost every row's title, turning a real
+                    // "not found" into a false many-way ambiguity.
+                    () => searchActivities(classified.filters, classified.search_terms, null, { broaden: false }),
                 );
             }
 

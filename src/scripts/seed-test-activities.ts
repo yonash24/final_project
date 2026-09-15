@@ -53,7 +53,7 @@ interface SeedActivity {
 // and three activities that overlap on Wednesday 17:00-18:00 (the
 // "which one do you mean" ambiguous-delete/update scenario).
 const SEED_ACTIVITIES: SeedActivity[] = [
-    { title_he: 'חוג קרמיקה', category_he: 'אמנות ויצירה', target_age_group: 'kids', min_age: 8, max_age: 10, branch: 'הלל 18', days: ['רביעי'], start_time: '17:00', end_time: '18:00', price: 220 },
+    { title_he: 'סטודיו קרמיקה', category_he: 'אמנות ויצירה', target_age_group: 'kids', min_age: 8, max_age: 10, branch: 'הלל 18', days: ['רביעי'], start_time: '17:00', end_time: '18:00', price: 220 },
     { title_he: 'חוג ציור לילדים', category_he: 'אמנות ויצירה', target_age_group: 'kids', min_age: 6, max_age: 9, branch: 'התאנה 90', days: ['שני'], start_time: '16:00', end_time: '17:00', price: 180 },
     { title_he: 'ציור למבוגרים', category_he: 'אמנות ויצירה', target_age_group: 'adults', min_age: 18, max_age: 99, branch: 'חדרה', days: ['שני'], start_time: '19:00', end_time: '20:30', price: 250 },
     { title_he: 'כדורגל לילדים', category_he: 'ספורט', target_age_group: 'kids', min_age: 6, max_age: 8, branch: 'הלל 18', days: ['רביעי'], start_time: '17:00', end_time: '18:00', price: 200 },

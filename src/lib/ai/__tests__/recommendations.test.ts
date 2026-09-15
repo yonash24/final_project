@@ -85,6 +85,13 @@ test('extracts explicit age and time ranges without inventing vague periods', ()
     assert.equal(vague.startsAfter, null);
 });
 
+test('an age range\'s "עד" is never misread as a price budget', () => {
+    const constraints = extractConstraints('חוגים לגילאי 8 עד 10');
+    assert.equal(constraints.ageMin, 8);
+    assert.equal(constraints.ageMax, 10);
+    assert.equal(constraints.maxPrice, null);
+});
+
 test('keeps start-before and end-before semantics distinct', () => {
     const starts = extractConstraints('איזה חוגים מתחילים לפני 19:00?');
     assert.equal(starts.startsBefore, '19:00');
