@@ -7,6 +7,7 @@
 import { generateStructuredOutput } from './structured-output.ts';
 import { INTENT_CLASSIFIER_SYSTEM_PROMPT } from './prompts.ts';
 import { extractConstraints, intentSchema } from './recommendation-request.ts';
+import { matchedInterestAliases } from './activity-taxonomy.ts';
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -77,26 +78,67 @@ const EMPTY_FILTERS: IntentFilters = {
     branch: null, starts_after: null, starts_before: null, ends_before: null,
 };
 
-function fastClassify(userMessage: string): ClassifiedIntent | null {
+const LIST_ALL_PATTERNS = [
+    /^(איזה|אילו|מה)\s+(ה)?חוגים\s+(יש|קיימים|מוצעים)/,
+    /^(יש|תראה|הצג)\s+(לי\s+)?(את\s+)?(כל\s+)?ה?חוגים/,
+];
+
+const NO_ACTIVITY_WORD_QUESTION = /^(מה|איזה|אילו)\s+(יש|מתאים|אפשר)/;
+
+// JS regex \b treats Hebrew letters as non-word characters, so it never
+// finds a boundary between a Hebrew word and a surrounding space — use an
+// explicit (start-or-space) / (space-or-end) boundary instead.
+function stripStandaloneWord(text: string, pattern: string): string {
+    return text.replace(new RegExp(`(^|\\s)${pattern}(?=\\s|$)`, 'g'), ' ');
+}
+
+/**
+ * Strips common Hebrew question phrasing ("כמה עולה", "מתי", "חוג", ...)
+ * to recover the bare activity name a user is asking about, e.g.
+ * "כמה עולה חוג קרמיקה?" -> "קרמיקה".
+ */
+export function extractActivityNameFromMessage(text: string): string | null {
+    let result = text
+        .replace(/[?!.,]/g, ' ')
+        .replace(/כמה עולה/g, ' ')
+        .replace(/מה (המחיר|העלות) של/g, ' ')
+        .replace(/מתי (מתקיים|יש|יתקיים)?/g, ' ')
+        .replace(/באיזה שעה/g, ' ')
+        .replace(/לוח (ה)?זמנים( של)?/g, ' ');
+    for (const word of ['מחיר', 'עלות', 'שעות', 'של', 'יש', 'את']) {
+        result = stripStandaloneWord(result, word);
+    }
+    result = stripStandaloneWord(result, 'ה?חוג(ים|י)?');
+    result = result.trim().replace(/\s+/g, ' ');
+    return result.length >= 2 ? result : null;
+}
+
+export function fastClassify(userMessage: string): ClassifiedIntent | null {
     const text = userMessage.trim().toLocaleLowerCase('he-IL');
     const filters = { ...EMPTY_FILTERS };
     if (/^(שלום|היי|הי|אהלן|בוקר טוב|ערב טוב|תודה|מה נשמע)[!. ]*$/.test(text)) {
         return { intent: 'greeting', confidence: 1, filters, search_terms: null, activity_name: null, response_hint: null };
     }
     if (text.includes('מחיר') || text.includes('כמה עולה') || text.includes('עלות')) {
-        return { intent: 'price_inquiry', confidence: 0.92, filters, search_terms: [userMessage], activity_name: null, response_hint: null };
+        const name = extractActivityNameFromMessage(userMessage);
+        return { intent: 'price_inquiry', confidence: 0.92, filters, search_terms: name ? [name] : [userMessage], activity_name: name, response_hint: null };
     }
     if (text.includes('מתי') || text.includes('שעות') || text.includes('לוח זמנים')) {
-        return { intent: 'schedule_inquiry', confidence: 0.9, filters, search_terms: [userMessage], activity_name: null, response_hint: null };
+        const name = extractActivityNameFromMessage(userMessage);
+        return { intent: 'schedule_inquiry', confidence: 0.9, filters, search_terms: name ? [name] : [userMessage], activity_name: name, response_hint: null };
     }
     if (text.includes('אירוע') || text.includes('אירועים')) {
         return { intent: 'search_events', confidence: 0.9, filters, search_terms: [userMessage], activity_name: null, response_hint: null };
+    }
+    if (LIST_ALL_PATTERNS.some((pattern) => pattern.test(text))) {
+        return { intent: 'search_activities', confidence: 0.95, filters, search_terms: null, activity_name: null, response_hint: null };
     }
     if (text.includes('חוג') || text.includes('פעילות') || text.includes('סדנה')) {
         const constraints = extractConstraints(userMessage);
         const interests = constraints.interests ?? [];
         const hasStructuredConstraint = constraints.exactAge != null || constraints.ageMin != null || constraints.targetAgeGroup != null || constraints.days?.length || interests.length || constraints.maxPrice != null || constraints.freeOnly || constraints.locationQuery != null || constraints.startsAfter != null || constraints.endsBefore != null;
         if (!hasStructuredConstraint) return null;
+        const matchedAliases = matchedInterestAliases(userMessage);
         return {
             intent: 'search_activities', confidence: 0.94,
             filters: {
@@ -109,7 +151,7 @@ function fastClassify(userMessage: string): ClassifiedIntent | null {
                 min_age_lte: constraints.exactAge ?? null,
                 max_age_gte: constraints.exactAge ?? null,
                 days: constraints.days ? [...constraints.days] : null,
-                category_keyword: interests.length > 0 ? interests.join(' ') : null,
+                category_keyword: matchedAliases.length > 0 ? matchedAliases[0] : null,
                 max_price: constraints.maxPrice ?? null,
                 target_age_group: constraints.targetAgeGroup ?? null,
                 has_spots: constraints.requiresAvailability ?? null,
@@ -119,8 +161,32 @@ function fastClassify(userMessage: string): ClassifiedIntent | null {
                 starts_before: constraints.startsBefore ?? null,
                 ends_before: constraints.endsBefore ?? null,
             },
-            search_terms: [userMessage], activity_name: null, response_hint: interests.length > 0 ? 'recommend' : null,
+            // A category/age/day match is a direct listing request, not a
+            // request for the model to "recommend" — never hijack it into
+            // the semantic-recommendation path, which demands an age.
+            search_terms: [userMessage], activity_name: null, response_hint: null,
         };
+    }
+    if (NO_ACTIVITY_WORD_QUESTION.test(text)) {
+        const constraints = extractConstraints(userMessage);
+        const interests = constraints.interests ?? [];
+        const hasSignal = Boolean(constraints.days?.length) || constraints.exactAge != null || constraints.targetAgeGroup != null || interests.length > 0;
+        if (hasSignal) {
+            const matchedAliases = matchedInterestAliases(userMessage);
+            return {
+                intent: 'search_activities', confidence: 0.9,
+                filters: {
+                    ...filters,
+                    age: constraints.exactAge ?? null,
+                    min_age_lte: constraints.exactAge ?? null,
+                    max_age_gte: constraints.exactAge ?? null,
+                    days: constraints.days?.length ? [...constraints.days] : null,
+                    target_age_group: constraints.targetAgeGroup ?? null,
+                    category_keyword: matchedAliases.length > 0 ? matchedAliases[0] : null,
+                },
+                search_terms: [userMessage], activity_name: null, response_hint: null,
+            };
+        }
     }
     return null;
 }

@@ -30,6 +30,22 @@ export function interestsFromText(text: string): ActivityInterest[] {
         .map(([interest]) => interest);
 }
 
+/**
+ * Like interestsFromText, but returns the actual Hebrew alias found in the
+ * text (one per matched interest) instead of the canonical English key —
+ * useful for building a DB `ilike` filter, since the English keys never
+ * appear in Hebrew content.
+ */
+export function matchedInterestAliases(text: string): string[] {
+    const normalized = text.toLocaleLowerCase('he-IL');
+    const matches: string[] = [];
+    for (const aliases of Object.values(ACTIVITY_INTEREST_ALIASES)) {
+        const hit = aliases.find((alias) => normalized.includes(alias));
+        if (hit) matches.push(hit);
+    }
+    return matches;
+}
+
 export function interestLabel(interest: ActivityInterest): string {
     return {
         creative: 'יצירה ואמנות', sports: 'ספורט', music: 'מוזיקה', dance: 'ריקוד',

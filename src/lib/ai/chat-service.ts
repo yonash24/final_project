@@ -22,6 +22,7 @@ import { getChatModel } from '@/lib/ai/gemini';
 import { buildRecommendationRequest, type RecommendationRequest } from './recommendation-request';
 import { isActivityEligible, isEventEligible } from './eligibility';
 import { rankEligibleActivities } from './recommendation-ranker';
+import { interestLabel } from './activity-taxonomy';
 import {
     CHAT_SYSTEM_PROMPT,
     formatActivitiesForContext,
@@ -193,9 +194,12 @@ function buildMultiMatchClarification(intent: string, activities: ActivityRow[])
         label: activity.title_he,
         value: `ספר לי על ${activity.title_he}`,
     }));
-    return buildClarification(
-        intent,
+    return createResponse(
+        'clarification',
         'מצאתי כמה חוגים דומים, וכדי לא לתת פרטים לא נכונים אני צריך שתבחר את החוג המדויק:',
+        intent,
+        activities.slice(0, 6),
+        [],
         options,
     );
 }
@@ -563,6 +567,32 @@ export async function getChatResponse(
                 return createResponse('results', buildActivitiesResultsResponse(activityCards), classified.intent, activityCards.slice(0, 8));
             }
 
+            // A category-only question ("איזה חוגי אמנות יש?") with nothing else
+            // narrowing it down should ask for an age rather than silently
+            // recommending or claiming there is nothing — the age is what
+            // eligibility actually needs to decide a match.
+            if (
+                recommendationRequest.hardInterests.length > 0
+                && recommendationRequest.exactAge == null
+                && recommendationRequest.targetAgeGroup == null
+                && recommendationRequest.days.length === 0
+                && !recommendationRequest.locationQuery
+                && recommendationRequest.maxPrice == null
+                && !recommendationRequest.startsAfter && !recommendationRequest.startsBefore && !recommendationRequest.endsBefore
+            ) {
+                const label = interestLabel(recommendationRequest.hardInterests[0]);
+                return buildClarification(
+                    classified.intent,
+                    `לא מצאתי במאגר חוגי ${label} שמסומנים במפורש כמתאימים לתנאים שציינת. באיזה גיל מדובר?`,
+                    [
+                        { label: 'גיל 6', value: `${message} בגיל 6` },
+                        { label: 'גיל 10', value: `${message} בגיל 10` },
+                        { label: 'נוער', value: `${message} לבני נוער` },
+                        { label: 'מבוגרים', value: `${message} למבוגרים` },
+                    ],
+                );
+            }
+
             return buildNoResultsWithRAG(classified.intent, message, sessionPrefs, recommendationRequest);
         }
 
@@ -580,7 +610,7 @@ export async function getChatResponse(
             if (activityCards.length === 0) {
                 activityCards = await measureStage(
                     'structured-activity-search',
-                    () => searchActivities(classified.filters, classified.search_terms, message),
+                    () => searchActivities(classified.filters, classified.search_terms, message, { broaden: false }),
                 );
             }
 

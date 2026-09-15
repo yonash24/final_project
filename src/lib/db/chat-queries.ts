@@ -157,7 +157,9 @@ export async function searchActivities(
     filters: IntentFilters,
     searchTerms?: string[] | null,
     rawQuery?: string | null,
+    options: { broaden?: boolean } = {},
 ): Promise<ActivityRow[]> {
+    const broaden = options.broaden ?? true;
     const tokens = buildSearchTokens(rawQuery, searchTerms);
 
     const buildBaseQuery = () => supabaseServer
@@ -215,7 +217,7 @@ export async function searchActivities(
     }
 
     let results = (data ?? []) as unknown as ActivityRow[];
-    if (results.length === 0 || (tokens.length > 0 && results.length < 3)) {
+    if (broaden && (results.length === 0 || (tokens.length > 0 && results.length < 3))) {
         const { data: fallbackData, error: fallbackError } = await applyFilters(buildBaseQuery());
         if (fallbackError) {
             console.error('[DB] ❌ searchActivities fallback error:', fallbackError.message);
