@@ -4,7 +4,12 @@ const emptyStringToNull = <T extends z.ZodTypeAny>(schema: T) =>
     z.preprocess((value) => (value === '' ? null : value), schema.nullable());
 const timeSchema = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
 
-export const activitySchema = z.object({
+/**
+ * The field-level activity schema is intentionally exported separately so
+ * partial update payloads can be validated without trying to partial a Zod
+ * object that already contains object-level refinements.
+ */
+export const activityBaseSchema = z.object({
     title_he: z.string().min(2),
     description_he: emptyStringToNull(z.string()),
     category_id: emptyStringToNull(z.string().uuid()),
@@ -39,7 +44,9 @@ export const activitySchema = z.object({
     max_participants: emptyStringToNull(z.coerce.number().int().min(1)),
     current_participants: emptyStringToNull(z.coerce.number().int().min(0)).default(0),
     is_active: z.coerce.boolean().default(true),
-}).refine((value) => value.min_age == null || value.max_age == null || value.min_age <= value.max_age, {
+});
+
+export const activitySchema = activityBaseSchema.refine((value) => value.min_age == null || value.max_age == null || value.min_age <= value.max_age, {
     message: 'טווח הגילים אינו תקין', path: ['max_age'],
 }).refine((value) => value.min_grade == null || value.max_grade == null || value.min_grade <= value.max_grade, {
     message: 'טווח הכיתות אינו תקין', path: ['max_grade'],

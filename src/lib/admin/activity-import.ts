@@ -69,7 +69,7 @@ ${text ? `טקסט המסמך:\n${text.slice(0, 120000)}` : ''}`;
 export async function parseActivityDocument(file: File): Promise<ParsedSheetResult> {
     const extension = file.name.toLowerCase().split('.').pop();
     let text = '';
-    let inlineData: { inlineData: { data: string; mimeType: string } } | null = null;
+    let inlineData: { data: string; mimeType: string } | null = null;
 
     if (extension === 'docx') {
         const mammoth = await import('mammoth');
@@ -89,7 +89,7 @@ export async function parseActivityDocument(file: File): Promise<ParsedSheetResu
         text = result.pages.map((page) => `\n--- עמוד ${page.num} ---\n${page.text}`).join('\n');
         await parser.destroy();
         if (text.replace(/\s/g, '').length < Math.max(80, info.total * 40)) {
-            inlineData = { inlineData: { data: Buffer.from(bytes).toString('base64'), mimeType: 'application/pdf' } };
+            inlineData = { data: Buffer.from(bytes).toString('base64'), mimeType: 'application/pdf' };
         }
     } else {
         throw new Error('סוג המסמך אינו נתמך.');
@@ -103,7 +103,7 @@ export async function parseActivityDocument(file: File): Promise<ParsedSheetResu
     };
     const extractedActivities: Array<z.infer<typeof extractedActivitySchema>> = [];
     if (inlineData) {
-        const input = [documentPrompt(undefined), inlineData.inlineData];
+        const input = [documentPrompt(undefined), inlineData];
         const extracted = await generateStructuredOutput(extractedDocumentSchema, input, documentModelOptions);
         extractedActivities.push(...extracted.activities);
         if (extractedActivities.length > 1000) throw new Error('ניתן לחלץ עד 1,000 חוגים ממסמך.');

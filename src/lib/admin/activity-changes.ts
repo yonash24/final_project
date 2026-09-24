@@ -5,7 +5,7 @@ import { buildActivityEmbeddingText, generateEmbedding } from '@/lib/ai/embeddin
 import { writeAuditLog } from '@/lib/observability/audit';
 import { supabaseServer } from '@/lib/supabase/server';
 import { hasPermission, type AdminProfile } from './auth';
-import { activitySchema } from './schemas';
+import { activityBaseSchema } from './schemas';
 
 export type { ActivityChangeOperation, ActivityChangeApprovalMethod } from './activity-change-types.ts';
 export { OPERATION_PERMISSION } from './activity-change-types.ts';
@@ -64,8 +64,8 @@ function refreshDerivedActivityData(result: Record<string, unknown> | null) {
 function validateChanges(operation: ActivityChangeOperation, input: unknown) {
     if (operation === 'archive' || operation === 'restore' || operation === 'publish') return {};
     const schema = operation === 'create_draft'
-        ? activitySchema.partial().required({ title_he: true })
-        : activitySchema.partial();
+        ? activityBaseSchema.partial().required({ title_he: true })
+        : activityBaseSchema.partial();
     const parsed = schema.safeParse(input);
     if (!parsed.success) throw new ActivityChangeError('פרטי השינוי אינם תקינים.', 400);
     const { is_active: _isActive, current_participants: _currentParticipants, ...safeChanges } = parsed.data;
