@@ -95,7 +95,7 @@ export default function AdminClassesImportPage() {
     }
 
     async function buildPreview() {
-        if (!file && !publuuPdfUrl.trim()) return;
+        if (!file && !publuuUrl.trim() && !publuuPdfUrl.trim()) return;
 
         const formData = new FormData();
         if (file) formData.append('file', file);
@@ -210,11 +210,11 @@ export default function AdminClassesImportPage() {
                                 אם הכפתור לא מופיע, יש לבקש מבעל החשבון להפעיל את אפשרות &quot;הורדת PDF&quot; בהגדרות החוברת (CUSTOMIZE → MENU → DOWNLOAD PDF).
                                 אם עדיין אין קישור PDF רשמי זמין, יש להעלות את ה־PDF המקורי בשדה הבא.
                             </small>
-                            <button type="button" className="btn btn-secondary btn-md" style={{ marginTop: '0.75rem' }} disabled={isLoading || !publuuPdfUrl.trim()} onClick={() => {
+                            <button type="button" className="btn btn-secondary btn-md" style={{ marginTop: '0.75rem' }} disabled={isLoading || (!publuuUrl.trim() && !publuuPdfUrl.trim())} onClick={() => {
                                 setError(null);
                                 setIsLoading(true);
                                 void inspectFile(null).catch((caught) => setError(caught instanceof Error ? caught.message : 'שגיאה בקריאת Publuu')).finally(() => setIsLoading(false));
-                            }}>קרא PDF מ-Publuu</button>
+                            }}>קרא חוברת מ-Publuu</button>
                         </label>
                         <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '260px', border: '2px dashed var(--border-color)', borderRadius: 'var(--radius-lg)', cursor: 'pointer', gap: '1rem' }}>
                             <UploadCloud size={42} color="var(--accent-primary)" />
@@ -309,7 +309,7 @@ export default function AdminClassesImportPage() {
                                 בחר את כל החוגים החדשים
                             </button>
                             <button type="button" className="btn btn-secondary btn-md" onClick={() => setApprovedRows(new Set())}>נקה בחירה</button>
-                            {(file || publuuPdfUrl.trim()) && <button type="button" className="btn btn-secondary btn-md" onClick={() => setStep('mapping')}>ערוך מיפוי עמודות</button>}
+                            {(file || publuuUrl.trim() || publuuPdfUrl.trim()) && <button type="button" className="btn btn-secondary btn-md" onClick={() => setStep('mapping')}>ערוך מיפוי עמודות</button>}
                         </div>
                         <div style={{ overflowX: 'auto' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>

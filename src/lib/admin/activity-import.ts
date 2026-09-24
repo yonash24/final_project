@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import path from 'node:path';
 import Papa from 'papaparse';
 import { z } from 'zod';
 
@@ -82,6 +83,7 @@ export async function parseActivityDocument(file: File): Promise<ParsedSheetResu
     } else if (extension === 'pdf') {
         const bytes = new Uint8Array(await file.arrayBuffer());
         const { PDFParse } = await import('pdf-parse');
+        PDFParse.setWorker(path.join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs'));
         const parser = new PDFParse({ data: bytes });
         const info = await parser.getInfo();
         if (info.total > 150) { await parser.destroy(); throw new Error('PDF יכול להכיל עד 150 עמודים.'); }

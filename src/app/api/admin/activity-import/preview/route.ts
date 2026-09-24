@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 
 import { parseSpreadsheet, parseActivityDocument, buildImportPreview, type ImportMapping } from '@/lib/admin/activity-import';
 import { requireAdminRequest, requirePermission } from '@/lib/admin/auth';
-import { fetchOfficialPubluuPdf, isPubluuHost } from '@/lib/admin/publuu';
+import { fetchOfficialPubluuPdf, fetchPubluuFlipbookPdf, isPubluuHost } from '@/lib/admin/publuu';
 import { supabaseServer } from '@/lib/supabase/server';
 import type { AdminActivity } from '@/lib/admin/types';
 
@@ -20,13 +20,20 @@ export async function POST(request: NextRequest) {
         let file = formData.get('file');
         const mappingRaw = formData.get('mapping');
         const autoPreview = formData.get('autoPreview') === 'true';
+        const publuuUrl = formData.get('publuuUrl') ? String(formData.get('publuuUrl')).trim() : '';
         const publuuPdfUrl = formData.get('publuuPdfUrl') ? String(formData.get('publuuPdfUrl')).trim() : '';
 
-        if (!(file instanceof File) && !publuuPdfUrl) {
+        if (!(file instanceof File) && !publuuUrl && !publuuPdfUrl) {
             return NextResponse.json({ error: 'לא נבחר קובץ לייבוא.' }, { status: 400 });
         }
 
-        if (!(file instanceof File) && publuuPdfUrl) {
+        if (!(file instanceof File) && publuuUrl) {
+            try {
+                file = await fetchPubluuFlipbookPdf(publuuUrl);
+            } catch (error) {
+                return NextResponse.json({ error: error instanceof Error ? error.message : 'לא ניתן לקרוא את חוברת Publuu.' }, { status: 400 });
+            }
+        } else if (!(file instanceof File) && publuuPdfUrl) {
             try {
                 file = await fetchOfficialPubluuPdf(publuuPdfUrl);
             } catch (error) {
