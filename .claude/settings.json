@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(rg -in \"whatsapp\" /home/jonash/final_project/src/app/admin/login/mfa/*.tsx /home/jonash/final_project/src/app/admin/login/actions.ts /home/jonash/final_project/src/lib/admin/auth.ts)",
+      "Bash(rg -n \"TODO|FIXME|not supported|stub|not.*implement\" /home/jonash/final_project/src/lib/notifications/providers/*.ts /home/jonash/final_project/src/lib/admin/whatsapp-admin.ts /home/jonash/final_project/src/app/api/admin/whatsapp-link/route.ts)",
+      "Bash(npm uninstall *)",
+      "Bash(node --test --experimental-strip-types src/lib/notifications/__tests__/meta-cloud-api.test.ts)",
+      "Bash(node --test --experimental-strip-types src/lib/admin/__tests__/*.test.ts)",
+      "Bash(node --test --experimental-strip-types src/lib/admin/__tests__/bypass.test.ts)",
+      "Bash(git commit -m ' *)",
+      "Bash(npm install *)",
+      "Bash(node --experimental-strip-types /tmp/probe.mjs)",
+      "Bash(node --experimental-strip-types probe.mjs)",
+      "Bash(node --test --experimental-strip-types src/lib/ai/__tests__/structured-output.test.ts)",
+      "Bash(node --test --experimental-strip-types src/lib/admin/__tests__/*.test.ts src/lib/ai/__tests__/*.test.ts src/lib/notifications/__tests__/*.test.ts)",
+      "Bash(sort -t/ -k7)",
+      "Bash(xargs -I{} sh -c 'echo ===={}====; grep -c \"^test\\(\" {}')",
+      "Bash(node -e 'const m = require\\(\"/home/jonash/final_project/node_modules/@langchain/core/dist/utils/json_schema.cjs\"\\); console.log\\(Object.keys\\(m\\)\\)')",
+      "Bash(npm test *)",
+      "Bash(node --test --experimental-strip-types --experimental-test-module-mocks src/lib/ai/__tests__/intent-classifier.test.ts)",
+      "Bash(npm run *)",
+      "Bash(node --test --experimental-strip-types --experimental-test-module-mocks src/lib/admin/__tests__/assistant-flow.test.ts)",
+      "Bash(node --test --experimental-strip-types --experimental-test-module-mocks src/lib/admin/__tests__/activity-import.test.ts)",
+      "Bash(node -e ' *)",
+      "Bash(node --experimental-test-module-mocks -e \"console.log\\('flag accepted'\\)\")",
+      "Bash(node --experimental-test-module-mocks --test /tmp/claude-1000/-home-jonash-final-project/7ea91347-6f48-44af-b7b4-200869504376/scratchpad/mockmod.mjs)",
+      "Bash(node --experimental-strip-types --experimental-test-module-mocks --test src/lib/ai/__tests__/chat-service.test.ts)",
+      "Bash(npx --yes tsx --tsconfig ./tsconfig.json src/scripts/seed-test-activities.ts)",
+      "Bash(npx --yes tsx --tsconfig ./tsconfig.json src/scripts/spec-scenarios.ts --chat)",
+      "Bash(npx --yes tsx --tsconfig ./tsconfig.json src/scripts/spec-scenarios.ts --admin)",
+      "Bash(npx --yes tsx --tsconfig ./tsconfig.json -e ' *)",
+      "Bash(pkill -f \"load-env.ts\")",
+      "Bash(sed -i \"/dotenv\\\\/config/d\" /tmp/claude-1000/-home-jonash-final-project/dddeaf36-739a-49b8-92a3-d7475e0d3606/scratchpad/test-gemini.mjs)",
+      "Bash(node --env-file=.env.local /tmp/claude-1000/-home-jonash-final-project/dddeaf36-739a-49b8-92a3-d7475e0d3606/scratchpad/test-gemini.mjs)",
+      "Bash(node --env-file=.env.local ./test-gemini.mjs)"
+    ]
+  }
+}

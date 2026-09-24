@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAdminRequest, requirePermission } from '@/lib/admin/auth';
 import { supabaseServer } from '@/lib/supabase/server';
 import type { ActivityImportDraft } from '@/lib/admin/types';
-import { activityImportDraftSchema } from '@/lib/admin/activity-import';
+import { activityImportDraftSchema, importScheduleError } from '@/lib/admin/activity-import';
 import { invalidateChatCache } from '@/lib/ai/chat-cache';
 
 async function ensureCategory(name: string | null) {
@@ -39,34 +39,6 @@ async function ensureBranch(name: string | null) {
     const { data: concurrent } = await supabaseServer.from('branches').select('id').ilike('name', normalizedName).limit(1).maybeSingle();
     if (concurrent) return concurrent.id;
     throw new Error(error.message);
-}
-
-const DAY_NUMBERS: Record<string, number> = {
-    'ראשון': 0, sunday: 0,
-    'שני': 1, monday: 1,
-    'שלישי': 2, tuesday: 2,
-    'רביעי': 3, wednesday: 3,
-    'חמישי': 4, thursday: 4,
-    'שישי': 5, friday: 5,
-    'שבת': 6, saturday: 6,
-};
-
-async function replaceImportedSchedules(activityId: string, payload: ActivityImportDraft) {
-    if (!payload.days_of_week) return;
-    const dayNumbers = [...new Set(payload.days_of_week.split(/[,;/]+/)
-        .map((day) => DAY_NUMBERS[day.trim().toLowerCase()])
-        .filter((day): day is number => day !== undefined))];
-    if (dayNumbers.length === 0) throw new Error('לא ניתן לזהות את יום הפעילות.');
-
-    const { error: deleteError } = await supabaseServer.from('activity_schedules').delete().eq('activity_id', activityId);
-    if (deleteError) throw new Error(deleteError.message);
-    const { error } = await supabaseServer.from('activity_schedules').insert(dayNumbers.map((dayOfWeek) => ({
-        activity_id: activityId,
-        day_of_week: dayOfWeek,
-        start_time: payload.start_time,
-        end_time: payload.end_time,
-    })));
-    if (error) throw new Error(error.message);
 }
 
 async function recordFieldProvenance(args: {
@@ -192,6 +164,12 @@ export async function POST(request: NextRequest) {
             continue;
         }
         const payload = parsedPayload.data as ActivityImportDraft;
+        const scheduleError = importScheduleError(payload);
+        if (scheduleError) {
+            skipped += 1;
+            await supabaseServer.from('import_rows').update({ status: 'skipped', error_messages: [scheduleError] }).eq('id', row.id);
+            continue;
+        }
         await supabaseServer.from('import_rows').update({ normalized_data: payload }).eq('id', row.id);
         const categoryId = await ensureCategory(payload.category);
         const branchId = await ensureBranch(payload.location);
@@ -259,7 +237,6 @@ export async function POST(request: NextRequest) {
                 continue;
             }
 
-            await replaceImportedSchedules(updatedActivity.id, payload);
             await recordFieldProvenance({ activityId: updatedActivity.id, importRowId: row.id, sourceRevisionId: job.source_revision_id, actorId: reviewedBy });
             updated += 1;
             await supabaseServer.from('import_rows').update({ status: 'updated', review_decision: 'approve', reviewed_by: reviewedBy, reviewed_at: new Date().toISOString() }).eq('id', row.id);
@@ -276,7 +253,6 @@ export async function POST(request: NextRequest) {
             continue;
         }
 
-        await replaceImportedSchedules(insertedActivity.id, payload);
         await recordFieldProvenance({ activityId: insertedActivity.id, importRowId: row.id, sourceRevisionId: job.source_revision_id, actorId: reviewedBy });
         imported += 1;
         await supabaseServer.from('import_rows').update({ status: 'imported', review_decision: 'approve', reviewed_by: reviewedBy, reviewed_at: new Date().toISOString() }).eq('id', row.id);

@@ -63,7 +63,7 @@ export interface StructuredOutputOptions {
 
 function isRateLimitError(error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    return message.includes('429') || message.includes('quota') || message.includes('rate');
+    return /\b429\b|RESOURCE_EXHAUSTED|\brate[- ]limit(?:ed|ing)?\b|\bquota\b/i.test(message);
 }
 
 function retryDelayMs(attempt: number, base: number) {
@@ -122,10 +122,14 @@ export async function generateStructuredOutput<T extends z.ZodType>(
             return schema.parse(result.parsed);
         } catch (error) {
             lastError = error;
+            const message = error instanceof Error ? error.message : String(error);
             if (isRateLimitError(error) && attempt < maxAttempts - 1) {
-                await new Promise((resolve) => setTimeout(resolve, retryDelayMs(attempt, retryBaseMs)));
+                const delay = retryDelayMs(attempt, retryBaseMs);
+                console.warn(`[StructuredOutput] ${modelName} rate-limited (attempt ${attempt + 1}/${maxAttempts}), retrying in ${delay}ms:`, message);
+                await new Promise((resolve) => setTimeout(resolve, delay));
                 continue;
             }
+            console.error(`[StructuredOutput] ${modelName} failed (attempt ${attempt + 1}/${maxAttempts}):`, message);
             throw error;
         }
     }

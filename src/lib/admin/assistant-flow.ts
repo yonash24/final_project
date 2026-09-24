@@ -139,7 +139,8 @@ export async function runAdminAssistant(input: AssistantInput, deps: AssistantDe
     let command: AdminCommand;
     try {
         command = await deps.parseCommand(input.message);
-    } catch {
+    } catch (error) {
+        console.error('[AdminAssistant] parseCommand failed:', error instanceof Error ? error.stack ?? error.message : error);
         return {
             status: 503,
             body: { responseType: 'system_error', response: 'שירות הניתוח אינו זמין כרגע. נסו שוב בעוד רגע.' },

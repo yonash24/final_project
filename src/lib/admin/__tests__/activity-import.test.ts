@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
 
-import { buildImportPreview, confidenceByFieldRecord, extractedDocumentSchema, parseSpreadsheet, splitDocumentText } from '../activity-import.ts';
+import { buildImportPreview, confidenceByFieldRecord, extractedDocumentSchema, importScheduleError, parseSpreadsheet, splitDocumentText } from '../activity-import.ts';
+import { toGeminiResponseSchema } from '../../ai/gemini-schema.ts';
 
 const mapping = {
     title_he: 'שם החוג',
@@ -120,6 +121,12 @@ test('buildImportPreview rejects unknown boolean values', () => {
     assert.ok(row?.errors.includes('ערך פעיל לא תקין'));
 });
 
+test('importScheduleError rejects schedules the database trigger cannot save', () => {
+    assert.equal(importScheduleError({ days_of_week: 'יום ראשון', start_time: '17:00', end_time: '18:00' }), 'לא ניתן לזהות את יום הפעילות.');
+    assert.equal(importScheduleError({ days_of_week: 'ראשון', start_time: '18:00', end_time: '17:00' }), 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.');
+    assert.equal(importScheduleError({ days_of_week: 'ראשון,שלישי', start_time: '17:00', end_time: '18:00' }), null);
+});
+
 test('parseSpreadsheet reads every Excel sheet and keeps its source locator', async () => {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([{ 'שם חוג': 'יוגה' }]), 'מרכז');
@@ -129,6 +136,31 @@ test('parseSpreadsheet reads every Excel sheet and keeps its source locator', as
 
     assert.deepEqual(parsed.rows.map((row) => row['שם חוג']), ['יוגה', 'שחמט']);
     assert.deepEqual(parsed.evidence?.map((item) => item.sheet), ['מרכז', 'צפון']);
+});
+
+test('parseSpreadsheet ignores non-activity sheets in a mixed workbook', async () => {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([{ 'פריט': 'מנוי חודשי', 'מחיר': 329 }]), 'מחירון');
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet([
+        { 'שם_החוג': 'יוגה', 'יום': 'ראשון', 'שם_המרכז': 'מרכז א', 'אולם': 'סטודיו' },
+        { 'שם_החוג': 'יוגה', 'יום': 'ראשון', 'שם_המרכז': 'מרכז ב', 'אולם': 'סטודיו' },
+    ]), 'לוח_שעות');
+    const bytes = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+    const parsed = await parseSpreadsheet(fakeFile(new Uint8Array(bytes), 'courses.xlsx'));
+
+    assert.equal(parsed.rows.length, 2);
+    assert.equal(parsed.rows[0]?.['שם_החוג'], 'יוגה');
+    assert.equal(parsed.suggestedMapping.title_he, 'שם_החוג');
+    assert.equal(parsed.suggestedMapping.location, 'שם_המרכז');
+    assert.equal(parsed.suggestedMapping.venue, 'אולם');
+    assert.equal(parsed.evidence?.[0]?.sheet, 'לוח_שעות');
+    assert.deepEqual(buildImportPreview(parsed.rows, parsed.suggestedMapping, []).map((row) => row.status), ['new', 'new']);
+});
+
+test('document extraction schema does not send Gemini the rejected 1000-item limit', () => {
+    const schema = toGeminiResponseSchema(extractedDocumentSchema);
+    const activities = schema.properties as Record<string, Record<string, unknown>>;
+    assert.equal(activities.activities.maxItems, undefined);
 });
 
 test('buildImportPreview blocks conflicting updates and preserves unmapped fields', () => {

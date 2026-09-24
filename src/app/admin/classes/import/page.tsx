@@ -59,7 +59,7 @@ export default function AdminClassesImportPage() {
             if (!response.ok) throw new Error(data.error || 'לא ניתן לטעון את הייבוא');
             setJob(data.job);
             setPreviewRows(data.previewRows);
-            setApprovedRows(new Set());
+            setApprovedRows(new Set<number>(data.previewRows.filter((row: ImportRowResult) => row.status === 'new').map((row: ImportRowResult) => row.rowIndex)));
             setStep('preview');
         }).catch((caught) => setError(caught instanceof Error ? caught.message : 'לא ניתן לטעון את הייבוא'))
             .finally(() => setIsLoading(false));
@@ -70,6 +70,7 @@ export default function AdminClassesImportPage() {
         if (selectedFile) formData.append('file', selectedFile);
         if (publuuUrl.trim()) formData.append('publuuUrl', publuuUrl.trim());
         if (publuuPdfUrl.trim()) formData.append('publuuPdfUrl', publuuPdfUrl.trim());
+        formData.append('autoPreview', 'true');
 
         const response = await fetch('/api/admin/activity-import/preview', {
             method: 'POST',
@@ -82,7 +83,15 @@ export default function AdminClassesImportPage() {
         setHeaders(data.headers);
         setSampleRows(data.sampleRows);
         setMapping(data.suggestedMapping ?? {});
-        setStep('mapping');
+        if (data.job) {
+            setJob(data.job);
+            setPreviewRows(data.previewRows);
+            setApprovedRows(new Set<number>(data.previewRows.filter((row: ImportRowResult) => row.status === 'new').map((row: ImportRowResult) => row.rowIndex)));
+            setConflictDecisions(new Set());
+            setStep('preview');
+        } else {
+            setStep('mapping');
+        }
     }
 
     async function buildPreview() {
@@ -104,7 +113,7 @@ export default function AdminClassesImportPage() {
 
         setJob(data.job);
         setPreviewRows(data.previewRows);
-        setApprovedRows(new Set());
+        setApprovedRows(new Set<number>(data.previewRows.filter((row: ImportRowResult) => row.status === 'new').map((row: ImportRowResult) => row.rowIndex)));
         setConflictDecisions(new Set());
         setStep('preview');
     }
@@ -295,6 +304,13 @@ export default function AdminClassesImportPage() {
                             ` סתירות`: {previewRows.filter((row) => row.status === 'conflict').length} ·
                             ` שגויות`: {previewRows.filter((row) => row.status === 'invalid').length}
                         </p>
+                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                            <button type="button" className="btn btn-secondary btn-md" onClick={() => setApprovedRows(new Set(previewRows.filter((row) => row.status === 'new').map((row) => row.rowIndex)))}>
+                                בחר את כל החוגים החדשים
+                            </button>
+                            <button type="button" className="btn btn-secondary btn-md" onClick={() => setApprovedRows(new Set())}>נקה בחירה</button>
+                            {(file || publuuPdfUrl.trim()) && <button type="button" className="btn btn-secondary btn-md" onClick={() => setStep('mapping')}>ערוך מיפוי עמודות</button>}
+                        </div>
                         <div style={{ overflowX: 'auto' }}>
                             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                                 <thead>
@@ -356,7 +372,7 @@ export default function AdminClassesImportPage() {
                             }}
                             disabled={isLoading || approvedRows.size === 0}
                         >
-                            אשר ייבוא
+                            ייבא {approvedRows.size} חוגים נבחרים
                         </button>
                     </div>
                 )}

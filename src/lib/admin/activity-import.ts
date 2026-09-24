@@ -52,7 +52,8 @@ const extractedActivitySchema = z.object({
     })).max(40).catch([]),
     source_excerpt: z.string().max(500).nullable().catch(null),
 });
-export const extractedDocumentSchema = z.object({ activities: z.array(extractedActivitySchema).max(1000) });
+// Gemini rejects maxItems: 1000 in this response schema. Enforce the limit after extraction.
+export const extractedDocumentSchema = z.object({ activities: z.array(extractedActivitySchema) });
 
 export function confidenceByFieldRecord(entries: Array<{ field: string; confidence: number }>): Record<string, number> {
     return Object.fromEntries(entries.map((entry) => [entry.field, entry.confidence]));
@@ -105,11 +106,13 @@ export async function parseActivityDocument(file: File): Promise<ParsedSheetResu
         const input = [documentPrompt(undefined), inlineData.inlineData];
         const extracted = await generateStructuredOutput(extractedDocumentSchema, input, documentModelOptions);
         extractedActivities.push(...extracted.activities);
+        if (extractedActivities.length > 1000) throw new Error('ניתן לחלץ עד 1,000 חוגים ממסמך.');
     } else {
         const chunks = splitDocumentText(text);
         for (const chunk of chunks) {
             const extracted = await generateStructuredOutput(extractedDocumentSchema, documentPrompt(chunk), documentModelOptions);
             extractedActivities.push(...extracted.activities);
+            if (extractedActivities.length > 1000) throw new Error('ניתן לחלץ עד 1,000 חוגים ממסמך.');
         }
     }
     const seen = new Set<string>();
@@ -191,6 +194,18 @@ export const activityImportDraftSchema = z.object({
     extra_data: z.record(z.string(), z.unknown()).default({}),
 }).refine((value) => value.min_age == null || value.max_age == null || value.min_age <= value.max_age, { message: 'טווח גילאים לא תקין' })
     .refine((value) => value.min_grade == null || value.max_grade == null || value.min_grade <= value.max_grade, { message: 'טווח כיתות לא תקין' });
+
+const IMPORT_DAYS = new Set(['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']);
+
+export function importScheduleError(payload: Pick<ActivityImportDraft, 'days_of_week' | 'start_time' | 'end_time'>): string | null {
+    if (payload.days_of_week && payload.days_of_week.split(/[,;/]+/).some((day) => !IMPORT_DAYS.has(day.trim()))) {
+        return 'לא ניתן לזהות את יום הפעילות.';
+    }
+    if (payload.start_time && payload.end_time && payload.start_time >= payload.end_time) {
+        return 'שעת הסיום חייבת להיות אחרי שעת ההתחלה.';
+    }
+    return null;
+}
 
 function normalizeHeader(value: string) {
     return value.replace(/^\uFEFF/, '').trim().toLowerCase().replace(/\s+/g, '_');
@@ -337,8 +352,10 @@ const HEADER_ALIASES: Record<string, ImportableField> = {
     'מדריך': 'instructor_name',
     location: 'location',
     'מיקום': 'location',
+    'שם_המרכז': 'location',
     venue: 'venue',
     'מקום': 'venue',
+    'אולם': 'venue',
     group_name: 'group_name',
     'קבוצה': 'group_name',
     contact_name: 'contact_name',
@@ -401,6 +418,8 @@ export async function parseSpreadsheet(file: File): Promise<ParsedSheetResult> {
     const evidence: NonNullable<ParsedSheetResult['evidence']> = [];
     for (const sheetName of workbook.SheetNames) {
         const rawRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[sheetName], { defval: '' });
+        // Workbooks may contain cover, pricing, or validation sheets alongside the class schedule.
+        if (!rawRows.some((row) => Object.keys(row).some((header) => HEADER_ALIASES[normalizeHeader(header)] === 'title_he'))) continue;
         rawRows.forEach((row, index) => {
             const normalizedRow = Object.fromEntries(Object.entries(row).map(([key, value]) => {
                 const header = repairMojibake(key);
@@ -533,6 +552,8 @@ export function buildImportPreview(
         if (payload.price != null && payload.price < 0) errors.push('מחיר לא יכול להיות שלילי');
         if (getDraftValue(row, mapping, 'max_participants') && payload.max_participants == null) errors.push('מכסה לא תקינה');
         if (getDraftValue(row, mapping, 'is_active') && parseBoolean(getDraftValue(row, mapping, 'is_active')) == null) errors.push('ערך פעיל לא תקין');
+        const scheduleError = importScheduleError(payload);
+        if (scheduleError) errors.push(scheduleError);
 
         const duplicateKey = [payload.title_he, payload.location ?? '', payload.venue ?? '', payload.group_name ?? '', payload.days_of_week ?? '', payload.start_time ?? '']
             .map((value) => value.trim().toLowerCase()).join('|');

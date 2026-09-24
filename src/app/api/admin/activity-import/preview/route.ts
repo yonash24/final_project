@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
         const formData = await request.formData();
         let file = formData.get('file');
         const mappingRaw = formData.get('mapping');
+        const autoPreview = formData.get('autoPreview') === 'true';
         const publuuPdfUrl = formData.get('publuuPdfUrl') ? String(formData.get('publuuPdfUrl')).trim() : '';
 
         if (!(file instanceof File) && !publuuPdfUrl) {
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'ניתן לייבא עד 10,000 שורות בכל קובץ.' }, { status: 413 });
         }
 
-        if (!mappingRaw) {
+        if (!mappingRaw && (!autoPreview || !parsedSheet.suggestedMapping.title_he)) {
             return NextResponse.json({
                 headers: parsedSheet.headers,
                 sampleRows: parsedSheet.rows.slice(0, 5),
@@ -84,15 +85,17 @@ export async function POST(request: NextRequest) {
             });
         }
 
-        let mapping: ImportMapping;
-        try {
-            const parsedMapping = JSON.parse(String(mappingRaw));
-            if (!parsedMapping || typeof parsedMapping !== 'object' || Array.isArray(parsedMapping)) {
-                throw new Error('mapping must be an object');
+        let mapping: ImportMapping = parsedSheet.suggestedMapping;
+        if (mappingRaw) {
+            try {
+                const parsedMapping = JSON.parse(String(mappingRaw));
+                if (!parsedMapping || typeof parsedMapping !== 'object' || Array.isArray(parsedMapping)) {
+                    throw new Error('mapping must be an object');
+                }
+                mapping = parsedMapping as ImportMapping;
+            } catch {
+                return NextResponse.json({ error: 'מיפוי העמודות אינו תקין.' }, { status: 400 });
             }
-            mapping = parsedMapping as ImportMapping;
-        } catch {
-            return NextResponse.json({ error: 'מיפוי העמודות אינו תקין.' }, { status: 400 });
         }
 
         const { data: activities, error: activitiesError } = await supabaseServer
@@ -185,6 +188,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
             job,
             previewRows,
+            headers: parsedSheet.headers,
+            sampleRows: parsedSheet.rows.slice(0, 5),
+            suggestedMapping: parsedSheet.suggestedMapping,
         });
     } catch (error) {
         const message = error instanceof Error ? error.message : 'לא ניתן לקרוא את הקובץ.';

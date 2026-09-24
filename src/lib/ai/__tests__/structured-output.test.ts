@@ -67,6 +67,20 @@ test('generateStructuredOutput throws once retries are exhausted', async () => {
     );
 });
 
+test('generateStructuredOutput does not retry a 400 from generateContent', async () => {
+    let callCount = 0;
+    await withFetch(
+        async () => {
+            callCount += 1;
+            return new Response(JSON.stringify({ error: { message: 'Request contains an invalid argument.' } }), { status: 400 });
+        },
+        async () => {
+            await assert.rejects(() => generateStructuredOutput(schema, 'hello', { retries: 2, retryBaseMs: 1 }), /400/);
+        },
+    );
+    assert.equal(callCount, 1);
+});
+
 test('generateStructuredOutput sends a Gemini-safe response schema (no exclusiveMinimum/record shapes)', async () => {
     let capturedBody: Record<string, unknown> | null = null;
     const positiveSchema = z.object({ n: z.number().int().positive() });
