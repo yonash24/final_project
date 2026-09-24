@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { requireAdminRequest, requirePermission } from '@/lib/admin/auth';
-import { activitySchema } from '@/lib/admin/schemas';
+import { activityBaseSchema } from '@/lib/admin/schemas';
 import { ActivityChangeError, proposeActivityChange } from '@/lib/admin/activity-changes';
 
 export async function PATCH(
@@ -19,7 +19,7 @@ export async function PATCH(
     if (!expectedUpdatedAt) return NextResponse.json({ error: 'יש לרענן את החוג לפני עדכון.' }, { status: 428 });
     const { expected_updated_at: _expected, ...activityBody } = body;
     void _expected;
-    const parsed = activitySchema.partial().safeParse(activityBody);
+    const parsed = activityBaseSchema.partial().safeParse(activityBody);
 
     if (!parsed.success) {
         return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
